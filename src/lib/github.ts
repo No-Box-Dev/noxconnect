@@ -35,8 +35,8 @@ export interface MeResponse {
 }
 
 // App-level identity + admin flag. Backed by `/api/me`, which reads the
-// `org_admins` table populated by the middleware bootstrap (first user from
-// each org auto-promotes to admin). This replaced a direct GitHub call against
+// `org_admins` table populated by a verified GitHub organization-owner
+// bootstrap. This replaced a direct GitHub call against
 // `/orgs/{org}/memberships/{user}` — GitHub org role and app-level admin are
 // no longer coupled.
 export async function fetchMe(): Promise<MeResponse> {

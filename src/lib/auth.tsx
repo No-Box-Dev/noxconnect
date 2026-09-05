@@ -41,21 +41,6 @@ function isUnauthorizedError(err: unknown): boolean {
   return err instanceof Error && (err as Error & { status?: number }).status === 401;
 }
 
-/** Exchange a one-time auth code for a GitHub access token. */
-async function exchangeAuthCode(code: string): Promise<string> {
-  const res = await fetch("/api/auth/exchange", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: "Exchange failed" }));
-    throw new Error((body as { error?: string }).error ?? "Token exchange failed");
-  }
-  const data = await res.json();
-  return data.token;
-}
-
 /** Race fetchUser against a timeout so the app never hangs on a bad token. */
 function fetchUserWithTimeout(): Promise<User> {
   return Promise.race([
@@ -78,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen for force-logout events (fired by api.ts on 401)
   useEffect(() => {
+    // One-way migration cleanup: old releases stored the GitHub access token
+    // here. It is never read by the session-based client.
+    localStorage.removeItem("ut_token");
     const handler = () => {
       localStorage.removeItem("ut_org");
       setUser(null);
@@ -101,13 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [user, selectedOrg]);
 
-  // Cross-tab auth sync: a replacement means another tab refreshed the
-  // session, while removal is a real logout. Storage events do not fire in
-  // the tab that performed the write, hence the companion custom event above.
+  // Cross-tab logout signal. The session itself is HttpOnly and deliberately
+  // cannot be synchronized or inspected from JavaScript.
   useEffect(() => {
     const handler = (e: StorageEvent) => {
-      if (e.key !== "ut_token") return;
-      if (e.newValue === null && user) {
+      if (e.key === "ut_logout_at" && user) {
         setUser(null);
         setSelectedOrg(null);
       }
@@ -117,31 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    // Check for OAuth callback exchange code in URL query params
+    // OAuth callback has already created the HttpOnly session server-side.
     const urlParams = new URLSearchParams(window.location.search);
-    const authCode = urlParams.get("auth_code");
-    if (authCode) {
+    const loginComplete = urlParams.get("login") === "ok";
+    if (loginComplete) {
       window.history.replaceState({}, "", window.location.pathname);
-      // Exchange the one-time code for a token via server endpoint
-      exchangeAuthCode(authCode)
-        .then((token) => {
-          localStorage.setItem("ut_token", token);
-          // Resume the pre-login destination (set by loginWithOAuth) with a
-          // full navigation — the router already mounted on `/?auth_code=…`,
-          // so an in-page history rewrite wouldn't reach useSearchParams.
-          // Same-origin relative paths only.
+      fetchUserWithTimeout()
+        .then((fetched) => {
+          if (fetched) setUser(fetched);
           const returnTo = sessionStorage.getItem("ut_return_to");
           if (returnTo) {
             sessionStorage.removeItem("ut_return_to");
-            if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
-              window.location.replace(returnTo);
-              return null;
-            }
+            if (returnTo.startsWith("/") && !returnTo.startsWith("//")) window.location.replace(returnTo);
           }
-          return fetchUserWithTimeout();
-        })
-        .then((fetched) => {
-          if (fetched) setUser(fetched);
         })
         .catch((err) => {
           if (isRateLimitError(err)) {
@@ -151,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setAuthError(msg);
             broadcastError(msg);
             if (isUnauthorizedError(err)) {
-              localStorage.removeItem("ut_token");
+              localStorage.removeItem("ut_org");
             }
           }
         })
@@ -159,12 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Dev mode: auto-inject token and org from env vars (only in dev builds)
+    // Dev mode keeps its optional GitHub token in Vite's in-memory build env;
+    // it is never copied into browser storage.
     if (import.meta.env.DEV) {
-      const devToken = import.meta.env.VITE_DEV_TOKEN;
-      if (devToken) {
-        localStorage.setItem("ut_token", devToken);
-      }
       const devOrg = import.meta.env.VITE_DEV_ORG;
       if (devOrg) {
         localStorage.setItem("ut_org", devOrg);
@@ -174,26 +145,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const token = localStorage.getItem("ut_token");
-    if (token) {
-      fetchUserWithTimeout()
-        .then(setUser)
-        .catch((err) => {
-          if (isRateLimitError(err)) {
-            setAuthError("GitHub API rate limit exceeded. Please wait a few minutes and refresh.");
-          } else {
-            const msg = err instanceof Error ? err.message : "Authentication failed";
-            setAuthError(msg);
-            broadcastError(msg);
-            if (isUnauthorizedError(err)) {
-              localStorage.removeItem("ut_token");
-            }
-          }
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+    fetchUserWithTimeout()
+      .then(setUser)
+      .catch((err) => {
+        if (isRateLimitError(err)) setAuthError("GitHub API rate limit exceeded. Please wait a few minutes and refresh.");
+        else if (!isUnauthorizedError(err)) {
+          const msg = err instanceof Error ? err.message : "Authentication failed";
+          setAuthError(msg);
+          broadcastError(msg);
+        }
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const loginWithOAuth = () => {
@@ -201,14 +163,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the GitHub round-trip lands back on `/?auth_code=…`, losing the query.
     const returnTo = window.location.pathname + window.location.search;
     if (returnTo !== "/") sessionStorage.setItem("ut_return_to", returnTo);
-    // Clear the stale token before redirecting so we start fresh.
-    localStorage.removeItem("ut_token");
     window.location.href = getOAuthLoginUrl();
   };
 
   const logout = () => {
+    const csrf = document.cookie.split(";").map((value) => value.trim()).find((value) => value.startsWith("nox_csrf="))?.slice(9);
+    void fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: csrf ? { "X-CSRF-Token": decodeURIComponent(csrf) } : {},
+    });
     localStorage.removeItem("ut_token");
     localStorage.removeItem("ut_org");
+    localStorage.setItem("ut_logout_at", String(Date.now()));
     setUser(null);
     setSelectedOrg(null);
   };

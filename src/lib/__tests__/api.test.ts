@@ -33,18 +33,8 @@ function mockFetch(status: number, body: unknown) {
   return fn;
 }
 
-function response(status: number, body: unknown) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: status === 200 ? "OK" : "Server Error",
-    json: () => Promise.resolve(body),
-    headers: new Headers(),
-  };
-}
-
 describe("apiFetch", () => {
-  it("injects Authorization and X-Org headers from localStorage", async () => {
+  it("uses the HttpOnly session and injects only the selected organization", async () => {
     storage.ut_token = "tok123";
     storage.ut_org = "my-org";
     const fn = mockFetch(200, {});
@@ -53,9 +43,9 @@ describe("apiFetch", () => {
 
     expect(fn).toHaveBeenCalledWith("/api/test", expect.objectContaining({
       headers: expect.objectContaining({
-        Authorization: "Bearer tok123",
         "X-Org": "my-org",
       }),
+      credentials: "same-origin",
     }));
   });
 
@@ -66,7 +56,6 @@ describe("apiFetch", () => {
 
     expect(fn).toHaveBeenCalledWith("/api/test", expect.objectContaining({
       headers: expect.objectContaining({
-        Authorization: "Bearer ",
         "X-Org": "",
       }),
     }));
@@ -82,59 +71,15 @@ describe("apiFetch", () => {
 
     const passedHeaders = fn.mock.calls[0][1].headers;
     expect(passedHeaders["X-Custom"]).toBe("val");
-    expect(passedHeaders["Authorization"]).toBe("Bearer tok");
+    expect(passedHeaders["Authorization"]).toBeUndefined();
   });
 
-  it("refreshes an expired token and retries the request", async () => {
-    storage.ut_token = "expired";
-    const fn = vi.fn()
-      .mockResolvedValueOnce(response(401, { error: "Invalid token" }))
-      .mockResolvedValueOnce(response(200, { token: "fresh" }))
-      .mockResolvedValueOnce(response(200, { ok: true }));
-    vi.stubGlobal("fetch", fn);
-
-    const res = await apiFetch("/api/test");
-
-    expect(res.ok).toBe(true);
-    expect(storage.ut_token).toBe("fresh");
-    expect(fn).toHaveBeenNthCalledWith(2, "/api/auth/refresh", expect.any(Object));
-    expect(fn).toHaveBeenNthCalledWith(3, "/api/test", expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer fresh" }),
-    }));
-  });
-
-  it("preserves the session when refresh is temporarily unavailable", async () => {
-    storage.ut_token = "expired";
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(response(401, { error: "Invalid token" }))
-      .mockResolvedValueOnce(response(503, { error: "Refresh temporarily unavailable" })));
-
-    await expect(apiGet("/api/test")).rejects.toMatchObject({ status: 503 });
-    expect(storage.ut_token).toBe("expired");
-    expect(dispatchEvent).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "ut:force-logout" }),
-    );
-  });
-
-  it("reuses a token refreshed by another tab while waiting for the cross-tab lock", async () => {
-    storage.ut_token = "expired";
-    const request = vi.fn(async (_name: string, callback: () => Promise<string | null>) => {
-      storage.ut_token = "from-other-tab";
-      return callback();
-    });
-    vi.stubGlobal("navigator", { locks: { request } });
-    const fn = vi.fn()
-      .mockResolvedValueOnce(response(401, { error: "Invalid token" }))
-      .mockResolvedValueOnce(response(200, { ok: true }));
-    vi.stubGlobal("fetch", fn);
-
-    const res = await apiFetch("/api/test");
-
-    expect(res.ok).toBe(true);
-    expect(request).toHaveBeenCalledOnce();
-    expect(fn).toHaveBeenCalledTimes(2);
-    expect(fn).toHaveBeenLastCalledWith("/api/test", expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer from-other-tab" }),
+  it("mirrors the CSRF cookie on state-changing requests", async () => {
+    document.cookie = "nox_csrf=csrf-123; Path=/";
+    const fn = mockFetch(200, {});
+    await apiFetch("/api/test", { method: "POST" });
+    expect(fn).toHaveBeenCalledWith("/api/test", expect.objectContaining({
+      headers: expect.objectContaining({ "X-CSRF-Token": "csrf-123" }),
     }));
   });
 });
@@ -149,6 +94,11 @@ describe("apiGet", () => {
   it("throws with body.error on non-ok response", async () => {
     mockFetch(400, { error: "bad request" });
     await expect(apiGet("/api/data")).rejects.toThrow("bad request");
+  });
+
+  it("reads the standardized v1 error message", async () => {
+    mockFetch(403, { apiVersion: 1, error: { code: "insufficient_scope", message: "Missing noxfeed:write" } });
+    await expect(apiGet("/api/v1/services/noxfeed/config")).rejects.toThrow("Missing noxfeed:write");
   });
 
   it("throws with status text when body unparseable", async () => {
@@ -203,7 +153,7 @@ describe("apiPost", () => {
 });
 
 describe("401 force-logout", () => {
-  it("clears token and dispatches ut:force-logout on 401", async () => {
+  it("clears legacy token residue and dispatches ut:force-logout on 401", async () => {
     storage.ut_token = "stale-tok";
     mockFetch(401, { error: "Invalid token" });
 

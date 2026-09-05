@@ -32,15 +32,17 @@ function makeCtx({
   db,
   url = "http://x/api/v1/feed",
   orgLogin = "acme" as string | null,
+  projectId = null as string | null,
 }: {
   db: ReturnType<typeof makeDb>;
   url?: string;
   orgLogin?: string | null;
+  projectId?: string | null;
 }) {
   return {
     request: new Request(url),
     env: { DB: db as unknown as D1Database },
-    data: { orgLogin: orgLogin as string },
+    data: { orgLogin: orgLogin as string, projectId },
   };
 }
 
@@ -136,6 +138,14 @@ describe("GET /api/v1/feed", () => {
     const { sql, binds } = db._calls.all[0];
     expect(sql).toMatch(/repo = \?/);
     expect(binds).toContain("noxconnect");
+  });
+
+  it("enforces the API token project in SQL", async () => {
+    const db = makeDb();
+    await feed(makeCtx({ db, projectId: "project_playnist" }));
+    const { sql, binds } = db._calls.all[0];
+    expect(sql).toMatch(/project_id = \?/);
+    expect(binds).toContain("project_playnist");
   });
 
   it("adds case-insensitive actor filter to SQL + binds", async () => {

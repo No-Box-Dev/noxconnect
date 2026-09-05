@@ -28,7 +28,7 @@ function makeDb({ firstResult = null, projectResult = { repo: "api", archived: 0
   };
 }
 
-function makeCtx({ db, params, method = "GET", body, data = { orgId: 1, orgLogin: "acme" } } = {}) {
+function makeCtx({ db, params, method = "GET", body, data = { orgId: 1, orgLogin: "acme", isAdmin: true } } = {}) {
   const req = body !== undefined
     ? new Request("http://x/api", { method, body: typeof body === "string" ? body : JSON.stringify(body) })
     : new Request("http://x/api", { method });
@@ -107,6 +107,11 @@ describe("GET /api/prs/:repo/:number", () => {
 });
 
 describe("POST/DELETE /api/projects/:id/archive", () => {
+  it("403s non-admin changes", async () => {
+    const res = await archivePost(makeCtx({ db: makeDb(), params: { id: "p1" }, method: "POST", data: { orgId: 1, orgLogin: "acme", isAdmin: false } }));
+    expect(res.status).toBe(403);
+  });
+
   it("400s when orgLogin is missing", async () => {
     const res = await archivePost(makeCtx({ db: makeDb(), params: { id: "p1" }, method: "POST", data: { orgLogin: null } }));
     expect(res.status).toBe(400);

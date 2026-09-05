@@ -2,6 +2,13 @@ name = "noxconnect"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "dist"
 
+# Public native sign-in initiation and one-time legacy exchange are bounded
+# before they can call GitHub. Keep this namespace unique within the account.
+[[ratelimits]]
+name = "NATIVE_AUTH_RATE_LIMITER"
+namespace_id = "9137006"
+simple = { limit = 10, period = 60 }
+
 [[d1_databases]]
 binding = "DB"
 database_name = "noxconnect"

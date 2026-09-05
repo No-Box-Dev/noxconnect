@@ -23,11 +23,11 @@ function makeDb({ firstResult = null, allResult = { results: [] } } = {}) {
   return db;
 }
 
-function makeCtx({ db, params, method = "GET", body, headers = {} } = {}) {
+function makeCtx({ db, params, method = "GET", body, headers = {}, isAdmin = true } = {}) {
   const req = body !== undefined
     ? new Request("http://x/api/config", { method, headers: { "Content-Type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) })
     : new Request("http://x/api/config", { method, headers });
-  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin: "acme" }, params };
+  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin: "acme", isAdmin }, params };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -78,6 +78,11 @@ describe("GET /api/config/:key", () => {
   });
 });
 describe("PUT /api/config/:key", () => {
+  it("403s non-admin settings writes", async () => {
+    const res = await onRequestPut(makeCtx({ db: makeDb(), params: { key: "settings" }, method: "PUT", body: {}, isAdmin: false }));
+    expect(res.status).toBe(403);
+  });
+
   it("400s on unknown key", async () => {
     const res = await onRequestPut(makeCtx({ db: makeDb(), params: { key: "evil" }, method: "PUT", body: {} }));
     expect(res.status).toBe(400);

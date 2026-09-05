@@ -40,13 +40,13 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.127.1"
+          wranglerVersion: "4.129.0"
           command: d1 migrations apply noxconnect --remote
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.127.1"
+          wranglerVersion: "4.129.0"
           # Keep the legacy Pages project name: it owns app.unticket.ai.
           command: pages deploy dist --project-name=unticket --branch=main
 
@@ -58,7 +58,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cron
-          wranglerVersion: "4.127.1"
+          wranglerVersion: "4.129.0"
           command: deploy
 
       # The anonymous capture plane is isolated from authenticated Pages
@@ -72,7 +72,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/noxspot-capture
-          wranglerVersion: "4.127.1"
+          wranglerVersion: "4.129.0"
           command: deploy
 
       - name: Verify public NoxSpot Worker ownership

@@ -1,5 +1,5 @@
-import { encryptToken } from "../../lib/crypto";
 import { saveOAuthTokens } from "../../lib/oauth-tokens";
+import { createBrowserSession, sessionCookies } from "../../lib/api-auth.js";
 
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
@@ -98,27 +98,23 @@ export async function onRequestGet(context) {
     });
   }
 
-  // --- Store token with one-time exchange code (never put token in URL) ---
-  const exchangeCode = generateExchangeCode();
   const encryptionKey = context.env.ENCRYPTION_KEY;
-  const encryptedToken = await encryptToken(data.access_token, encryptionKey);
+  if (!encryptionKey) return jsonError("Authentication service is not configured", 500);
 
+  // Resolve identity before creating a NoxConnect session. The browser never
+  // receives the provider access token; it receives only an opaque HttpOnly
+  // cookie whose hash is persisted in D1.
+  let user;
   try {
-    // Clean up expired pending tokens (older than 5 minutes)
-    await context.env.DB.prepare(
-      "DELETE FROM pending_tokens WHERE created_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 minutes')"
-    ).run();
-
-    // Store the encrypted token with the exchange code
-    await context.env.DB.prepare(
-      "INSERT INTO pending_tokens (code, encrypted_token, csrf_state, created_at) VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
-    ).bind(exchangeCode, encryptedToken, stateParam).run();
-  } catch (e) {
-    console.error("[noxconnect] Failed to store exchange code in D1:", e);
-    return new Response(JSON.stringify({ error: "Authentication service temporarily unavailable" }), {
-      status: 503,
-      headers: { "Content-Type": "application/json" },
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${data.access_token}`, "User-Agent": "NoxConnect" },
     });
+    if (!userRes.ok) throw Object.assign(new Error("GitHub identity lookup failed"), { status: userRes.status });
+    user = await userRes.json();
+    if (!user?.login) throw new Error("GitHub identity response is incomplete");
+  } catch (error) {
+    console.error("[noxconnect oauth] failed to resolve identity:", error);
+    return jsonError("Authentication service temporarily unavailable", 502);
   }
 
   // Persist refresh token (if the GitHub App has token expiration enabled).
@@ -127,44 +123,50 @@ export async function onRequestGet(context) {
   // simply re-authenticate after the access token expires.
   if (data.refresh_token) {
     try {
-      const userRes = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${data.access_token}`,
-          "User-Agent": "NoxConnect",
-        },
+      await saveOAuthTokens(context.env.DB, {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresInSec: data.expires_in,
+        refreshTokenExpiresInSec: data.refresh_token_expires_in,
+        githubLogin: user.login,
+        encryptionKey,
       });
-      if (userRes.ok) {
-        const user = await userRes.json();
-        if (user?.login) {
-          await saveOAuthTokens(context.env.DB, {
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token,
-            expiresInSec: data.expires_in,
-            refreshTokenExpiresInSec: data.refresh_token_expires_in,
-            githubLogin: user.login,
-            encryptionKey,
-          });
-        }
-      }
     } catch (e) {
       console.error("[noxconnect oauth] failed to persist refresh token:", e);
     }
   }
 
-  // Redirect back with only the exchange code (token never appears in URL)
+  let session;
+  try {
+    const accessExpiresAt = Number.isFinite(Number(data.expires_in))
+      ? new Date(Date.now() + Number(data.expires_in) * 1000).toISOString()
+      : null;
+    session = await createBrowserSession(context.env.DB, encryptionKey, {
+      githubLogin: user.login,
+      githubToken: data.access_token,
+      githubTokenExpiresAt: accessExpiresAt,
+    });
+  } catch (error) {
+    console.error("[noxconnect oauth] failed to create browser session:", error);
+    return jsonError("Authentication service temporarily unavailable", 503);
+  }
+
   const origin = url.origin;
+  const headers = new Headers({
+    Location: `${origin}/?login=ok`,
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "CDN-Cache-Control": "no-store",
+    "Cloudflare-CDN-Cache-Control": "no-store",
+    Pragma: "no-cache",
+    Vary: "*",
+  });
+  for (const cookie of sessionCookies(session.sessionToken, session.csrfToken)) {
+    headers.append("Set-Cookie", cookie);
+  }
+  headers.append("Set-Cookie", "ut_oauth_state=; Path=/; Max-Age=0; SameSite=Lax; Secure");
   return new Response(null, {
     status: 302,
-    headers: {
-      Location: `${origin}/?auth_code=${encodeURIComponent(exchangeCode)}`,
-      "Cache-Control": "no-store, no-cache, must-revalidate, private",
-      "CDN-Cache-Control": "no-store",
-      "Cloudflare-CDN-Cache-Control": "no-store",
-      Pragma: "no-cache",
-      Vary: "*",
-      // Clear the CSRF cookie
-      "Set-Cookie": "ut_oauth_state=; Path=/; Max-Age=0; SameSite=Lax; Secure",
-    },
+    headers,
   });
 }
 
@@ -177,8 +179,9 @@ function parseCookies(cookieHeader) {
   return cookies;
 }
 
-function generateExchangeCode() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+function jsonError(message, status) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 }

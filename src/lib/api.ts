@@ -43,82 +43,24 @@ export function shouldNotRetry(error: unknown): boolean {
 }
 
 /**
- * Force-logout: clears token and reloads. Called when the API returns 401,
- * meaning the stored token is stale/revoked.
+ * Force-logout clears local tenant selection. The actual credential is an
+ * HttpOnly cookie and is therefore intentionally inaccessible to JavaScript.
  */
 function forceLogout() {
-  localStorage.removeItem("ut_token");
+  localStorage.removeItem("ut_token"); // remove credentials left by pre-session releases
   localStorage.removeItem("ut_org");
   // Dispatch event so AuthProvider can react without circular imports
   window.dispatchEvent(new CustomEvent("ut:force-logout"));
 }
 
-// Coalesce concurrent refresh attempts in this tab. The Web Lock below extends
-// that protection across tabs: GitHub rotates refresh tokens, so two tabs
-// refreshing the same expired access token would otherwise invalidate one
-// another and force the losing tab to log the whole browser session out.
-let refreshPromise: Promise<string | null> | null = null;
-
-async function requestRefreshedToken(expiredToken: string): Promise<string | null> {
-  let res: Response;
-  try {
-    res = await fetch("/api/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: expiredToken }),
-    });
-  } catch {
-    throw new ApiError("Session refresh temporarily unavailable", 503);
-  }
-
-  // A 401 is the only confirmed terminal outcome: the refresh token is
-  // unknown, expired, or rejected. Preserve the session for 5xx/network and
-  // other unexpected responses so a temporary outage doesn't become logout.
-  if (res.status === 401) return null;
-  if (!res.ok) {
-    const body = await res.json().catch(() => null) as { error?: string } | null;
-    throw new ApiError(body?.error ?? "Session refresh temporarily unavailable", res.status);
-  }
-
-  const body = (await res.json().catch(() => null)) as { token?: string } | null;
-  if (!body?.token) throw new ApiError("Session refresh returned an invalid response", 502);
-  localStorage.setItem("ut_token", body.token);
-  window.dispatchEvent(new CustomEvent("ut:token-refreshed"));
-  return body.token;
+function cookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${encodeURIComponent(name)}=`;
+  const part = document.cookie.split(";").map((value) => value.trim()).find((value) => value.startsWith(prefix));
+  return part ? decodeURIComponent(part.slice(prefix.length)) : null;
 }
 
-async function refreshAcrossTabs(expiredToken: string): Promise<string | null> {
-  const refresh = async () => {
-    // A tab that waited for the lock can reuse the token written by the tab
-    // that won it. Never send the already-rotated token to the refresh API.
-    const currentToken = localStorage.getItem("ut_token");
-    if (!currentToken) return null;
-    if (currentToken !== expiredToken) return currentToken;
-    return requestRefreshedToken(expiredToken);
-  };
-
-  if (typeof navigator !== "undefined" && navigator.locks) {
-    return navigator.locks.request("noxconnect-auth-refresh", refresh);
-  }
-  return refresh();
-}
-
-export async function refreshAccessToken(expiredToken: string): Promise<string | null> {
-  const currentToken = localStorage.getItem("ut_token");
-  if (currentToken && currentToken !== expiredToken) return currentToken;
-  if (refreshPromise) return refreshPromise;
-  refreshPromise = refreshAcrossTabs(expiredToken);
-  const p = refreshPromise;
-  // Use then(success, failure), rather than finally(), so a rejected refresh
-  // doesn't create a second unhandled rejected promise.
-  p.then(
-    () => { if (refreshPromise === p) refreshPromise = null; },
-    () => { if (refreshPromise === p) refreshPromise = null; },
-  );
-  return p;
-}
-
-function buildRequestInit(token: string | null, options?: RequestInit): RequestInit {
+function buildRequestInit(options?: RequestInit): RequestInit {
   const org = localStorage.getItem("ut_org");
   // FormData bodies need the browser to set Content-Type itself so it can
   // include the `boundary=...` parameter. Setting a plain
@@ -126,11 +68,16 @@ function buildRequestInit(token: string | null, options?: RequestInit): RequestI
   // read the raw multipart bytes as JSON — reproducibly failing at parse.
   const isFormData =
     typeof FormData !== "undefined" && options?.body instanceof FormData;
+  const method = (options?.method ?? "GET").toUpperCase();
+  const csrf = !["GET", "HEAD", "OPTIONS"].includes(method) ? cookie("nox_csrf") : null;
+  const devToken = import.meta.env.DEV ? import.meta.env.VITE_DEV_TOKEN as string | undefined : undefined;
   return {
     ...options,
+    credentials: "same-origin",
     headers: {
-      "Authorization": `Bearer ${token ?? ""}`,
       "X-Org": org ?? "",
+      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      ...(devToken ? { Authorization: `Bearer ${devToken}` } : {}),
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...options?.headers,
     },
@@ -138,21 +85,17 @@ function buildRequestInit(token: string | null, options?: RequestInit): RequestI
 }
 
 export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
-  const token = localStorage.getItem("ut_token");
-  const res = await fetch(path, buildRequestInit(token, options));
-  if (res.status !== 401 || !token) return res;
-
-  // Stale access token? Try one silent refresh, then retry the original call.
-  const refreshed = await refreshAccessToken(token);
-  if (!refreshed) return res;
-  return fetch(path, buildRequestInit(refreshed, options));
+  return fetch(path, buildRequestInit(options));
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) return res.json() as Promise<T>;
 
   const body = await res.json().catch(() => ({ error: res.statusText }));
-  const message = (body as { error?: string }).error ?? `API error: ${res.status}`;
+  const error = (body as { error?: string | { message?: string } }).error;
+  const message = typeof error === "string"
+    ? error
+    : error?.message ?? `API error: ${res.status}`;
 
   // Stale / revoked token → force logout so user re-authenticates
   if (res.status === 401) {

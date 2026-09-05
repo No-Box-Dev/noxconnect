@@ -20,11 +20,11 @@ const EMPTY_PR_STATS = { open: 0, draft: 0, stale: 0, byRepo: [] };
 // GET /api/prs — query cached pull requests
 // Query params: state, author, since, repo, page, page_size, meta
 export async function onRequestGet(context) {
-  const { orgId, orgLogin } = getCtx(context);
+  const { orgId, orgLogin, projectId } = getCtx(context);
   const url = new URL(context.request.url);
 
   // Active repos only — see /api/issues for rationale and Settings exception.
-  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
 
   const meta = url.searchParams.get("meta");
   if (meta === "stats") {

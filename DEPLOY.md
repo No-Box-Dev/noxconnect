@@ -135,6 +135,36 @@ returns provider credentials or encrypted tokens.
 
 ## 5. Deploy
 
+### Stage the API authentication migration first
+
+Before the production commands below, provision a separate Pages project, D1
+database, GitHub App, and provider sandbox credentials. Do not point a preview
+deployment at the production D1 database or reuse its OAuth client secret.
+
+The staging gate for `0073_api_auth.sql` and `0075_project_scoped_api_tokens.sql` is:
+
+1. Apply all migrations to the staging D1 database.
+2. Deploy the Pages branch with the staging GitHub App client ID and secrets.
+3. Complete a real GitHub OAuth redirect and confirm that the response creates
+   `__Host-nox_session` as `Secure`, `HttpOnly`, and `SameSite=Lax`.
+4. Confirm a browser mutation without `X-CSRF-Token` returns `403`.
+5. In **NoxConnect → API access**, choose one enabled project and create a
+   one-day test token with only `services:read` and one service read scope.
+6. Confirm it cannot access another service, another project's feed, site,
+   source, or metrics, organization-level configuration, or API-token management.
+7. Disable its allowed service and confirm operations return
+   `403 service_not_enabled`, then re-enable the service.
+8. Rotate it, confirm the project is unchanged and the previous value
+   immediately returns `401`, then revoke
+   the replacement and confirm it also returns `401`.
+9. Use disposable provider resources to exercise one GitHub write and one Slack
+   delivery. Never borrow production credentials for this gate.
+
+The repository's `npm run e2e:local` performs the same session, CSRF, project
+isolation, disabled-service, rotation, and revocation checks against fresh local D1 state. Staging adds the
+real OAuth redirect and disposable provider delivery checks that cannot be
+proved locally.
+
 ```bash
 npm run build
 npx wrangler pages deploy dist --project-name unticket --branch main
@@ -166,6 +196,11 @@ response Worker is built from the NoxFeed repository's `service/` directory.
 
 The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
+Public NoxCue clients use the stable Pages gateway
+`https://app.unticket.ai/api/cues/public/v1/events`. It forwards through the
+private `NOXCUE_RESPONSE` service binding, so copyable snippets do not expose or
+depend on the product Worker's deployment hostname. Keep the direct Worker URL
+for operator diagnostics only; it is not part of the public contract.
 
 > **Migrations run before code** — the deploy workflow applies D1 migrations before `pages deploy` for this reason. If you deploy manually, run `d1 migrations apply` first.
 
@@ -173,7 +208,8 @@ cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 
 1. Install your GitHub App on your org (`https://github.com/apps/<your-app>/installations/new`).
 2. The `installation.created` webhook enqueues a bootstrap job that syncs repos, members, issues, and PRs. The UI shows a setup overlay until it finishes.
-3. The first user to authenticate for an org becomes its admin automatically.
+3. The first active GitHub organization owner to authenticate can bootstrap the
+   NoxConnect admin role. An ordinary organization member cannot claim it.
 
 ## Operations
 

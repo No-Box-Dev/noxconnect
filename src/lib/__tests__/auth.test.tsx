@@ -36,6 +36,7 @@ const originalReplaceState = window.history.replaceState;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFetchUser.mockRejectedValue(Object.assign(new Error("Authentication required"), { status: 401 }));
   storage = {};
 
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
@@ -106,8 +107,7 @@ describe("useAuth", () => {
     });
   });
 
-  it("loads user from existing ut_token in localStorage", async () => {
-    storage.ut_token = "tok";
+  it("loads the user from the server-side browser session", async () => {
     mockFetchUser.mockResolvedValue({ login: "alice", avatar_url: "", name: "Alice" } as any);
 
     render(
@@ -131,21 +131,20 @@ describe("useAuth", () => {
     });
   });
 
-  it("keeps the user signed in when another tab rotates the token", async () => {
-    storage.ut_token = "old";
+  it("logs out when another tab emits the logout signal", async () => {
     mockFetchUser.mockResolvedValue({ login: "alice", avatar_url: "", name: "Alice" } as any);
     render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("user").textContent).toBe("alice"));
 
     act(() => {
       window.dispatchEvent(new StorageEvent("storage", {
-        key: "ut_token",
-        oldValue: "old",
-        newValue: "fresh",
+        key: "ut_logout_at",
+        oldValue: null,
+        newValue: "123",
       }));
     });
 
-    expect(screen.getByTestId("user").textContent).toBe("alice");
+    expect(screen.getByTestId("user").textContent).toBe("none");
   });
 
   it("no user when no token", async () => {
@@ -159,7 +158,7 @@ describe("useAuth", () => {
     expect(screen.getByTestId("user").textContent).toBe("none");
   });
 
-  it("preserves the stored session when startup authentication is temporarily unavailable", async () => {
+  it("removes legacy token storage even when startup authentication is temporarily unavailable", async () => {
     storage.ut_token = "still-refreshable";
     const temporary = Object.assign(new Error("Session refresh temporarily unavailable"), { status: 503 });
     mockFetchUser.mockRejectedValue(temporary);
@@ -167,7 +166,7 @@ describe("useAuth", () => {
     render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("loading").textContent).toBe("false"));
 
-    expect(storage.ut_token).toBe("still-refreshable");
+    expect(storage.ut_token).toBeUndefined();
   });
 
   it("clears the stored session after a confirmed startup 401", async () => {
@@ -181,19 +180,14 @@ describe("useAuth", () => {
     expect(storage.ut_token).toBeUndefined();
   });
 
-  it("OAuth callback: exchanges auth code for token, stores, fetches user", async () => {
-    // Mock the exchange endpoint
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ token: "exchanged-tok-123" }),
-    }));
+  it("OAuth callback: consumes the server-created session without exposing a token", async () => {
     Object.defineProperty(window, "location", {
       value: {
         origin: "http://localhost",
         pathname: "/",
-        search: "?auth_code=test-exchange-code",
+        search: "?login=ok",
         hash: "",
-        href: "http://localhost/?auth_code=test-exchange-code",
+        href: "http://localhost/?login=ok",
       },
       writable: true,
       configurable: true,
@@ -207,7 +201,7 @@ describe("useAuth", () => {
     await waitFor(() => {
       expect(screen.getByTestId("user").textContent).toBe("oauth-user");
     });
-    expect(storage.ut_token).toBe("exchanged-tok-123");
+    expect(storage.ut_token).toBeUndefined();
     expect(window.history.replaceState).toHaveBeenCalled();
   });
 

@@ -1,9 +1,3 @@
-# Missing asset chunks must 404, never fall back to index.html.
-# Pages applies SPA routing by default and serves index.html with 200 for
-# any unknown path — including /assets/*.js requests racing a deploy. That
-# HTML response inherits the immutable cache-control header from _headers
-# and gets pinned at the edge for a year, poisoning fresh browsers.
-/assets/*  404
-
-# SPA fallback for everything else.
-/*  /index.html  200
+# Pages supplies its native SPA fallback when this project has no top-level
+# 404.html. Do not add an explicit /* rewrite: clean-URL handling turns that
+# rule into an index.html redirect loop in the local and production runtime.

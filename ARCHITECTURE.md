@@ -6,21 +6,18 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 
 ```
 ┌─────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│  React SPA  │────▶│ Cloudflare Pages      │────▶│ Cloudflare   │
-│  (Vite)     │     │ Functions (API)       │     │ D1 (SQLite)  │
-└─────────────┘     └──────────┬───────────┘     └──────▲───────┘
-                               │ enqueue                │
-                    ┌──────────▼───────────┐            │
-   GitHub ─webhook─▶│  Queue (noxconnect-    │            │
-   GitHub ◀──sync───│  tasks) + cron Worker│────────────┘
-                    └──────────┬───────────┘
-                               │ archive
-                    ┌──────────▼───────────┐
-                    │  R2 (events archive) │
-                    └──────────────────────┘
+│ React SPA / │────▶│ NoxConnect Pages API │────▶│ D1 + R2      │
+│ API clients │     │ auth + control plane │     │ shared state │
+└─────────────┘     └──────┬───────┬───────┘     └──────▲───────┘
+                           │       │ private bindings    │
+                  provider │       ├────────▶ NoxFeed response
+                  access   │       ├────────▶ NoxSpot response/capture
+ GitHub + Slack ◀──────────┘       └────────▶ NoxCue response/ingest
+       │                                      │
+       └── webhooks ──▶ Queue + cron Worker ──┘
 ```
 
-- **Frontend** — React 19 + TypeScript + Vite SPA. TanStack Query for server state, Octokit for direct GitHub calls, Tailwind for styling. A top-nav layout with lazy-loaded tabs (Features, Issues, PRs, Engineers, Settings).
+- **Frontend** — React 19 + TypeScript + Vite SPA. TanStack Query reads NoxConnect APIs; browser code does not receive GitHub or Slack tokens or call provider APIs directly. Tailwind provides styling and product/admin views are lazy-loaded.
 - **API** — Cloudflare Pages Functions under `functions/api/`. New code is TypeScript with zod validation at the boundary; data access uses the native D1 binding (`DB.prepare().bind()`, `DB.batch()`).
 - **Database** — Cloudflare D1 (SQLite). Schema in `migrations/`, applied with `wrangler d1 migrations apply`.
 - **Cron Worker** — a sibling Worker in `cron/` that imports shared helpers from `functions/lib/`. It reconciles GitHub state every 30 minutes and consumes the background-work queue.
@@ -28,14 +25,19 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 
 ## Multi-tenancy
 
-NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves and verifies the caller's organization and scopes every query by `org_id`. An unconfigured organization can be bootstrapped only by a caller GitHub verifies as an active organization owner; membership alone never grants the NoxConnect admin role.
 
-## Auth
+## Authentication and credentials
 
-Two modes:
+Credentials are separated by caller and cannot be substituted for one another:
 
-- **GitHub App + OAuth** — "Sign in with GitHub". Access tokens are short-lived; refresh tokens are stored encrypted server-side and rotated on 401 (`functions/api/auth/refresh.ts`). Webhooks deliver real-time updates.
-- **Personal Access Token** — zero backend setup, but read-only: no webhooks, so data is only as fresh as the last manual sync.
+- **Browser users** — GitHub OAuth creates an opaque, hashed-at-rest NoxConnect session in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie. GitHub access and refresh tokens remain encrypted server-side. Browser mutations require a separate CSRF cookie/header proof.
+- **Native users** — NoxConnect brokers GitHub device approval, stores provider credentials encrypted, and returns a 15-minute `nox_at_…` access token plus a rotating 30-day `nox_rt_…` refresh token. Only hashes of those NoxConnect credentials are stored. Native sign-out revokes the server session.
+- **Native abuse control** — provider-facing device-start and legacy-exchange operations fail closed behind the `NATIVE_AUTH_RATE_LIMITER` binding before they call GitHub. Device polling also enforces GitHub's per-code interval atomically.
+- **Automation** — expiring `nox_sk_live_…` or `nox_sk_test_…` secrets are bound to one organization, exactly one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Values are shown once, stored only as hashes, audited, rotatable, and revocable.
+- **Public capture** — NoxCue source keys and origin-bound NoxSpot capture are limited to their ingestion contracts; they do not grant management access.
+- **Internal services** — Workers use private versioned service bindings and receive bounded product data, never provider tokens.
+- **Legacy local compatibility** — a GitHub bearer can temporarily authenticate local development and one-time native upgrades. Supported native releases immediately exchange it for a NoxConnect session; it is deprecated and is not the public automation contract.
 
 ## Data freshness: three redundant paths
 

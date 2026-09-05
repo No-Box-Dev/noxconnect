@@ -1,5 +1,6 @@
 import { getCtx, jsonResponse, errorResponse } from "../../../lib/db";
 import { startRepoTracking, stopRepoTracking } from "../../../lib/repo-tracking";
+import { requireAdmin } from "../../../lib/access.js";
 
 // POST   /api/projects/:id/archive  → archive the project (inactive on platform)
 // DELETE /api/projects/:id/archive  → unarchive
@@ -17,6 +18,8 @@ export async function onRequestDelete(context) {
 }
 
 async function setArchived(context, value) {
+  const accessError = requireAdmin(context);
+  if (accessError) return accessError;
   const { orgId, orgLogin } = getCtx(context);
   if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
   const { id } = context.params;

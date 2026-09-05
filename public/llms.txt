@@ -1,11 +1,25 @@
 # Nox API
 
-NoxConnect provides one organization-level API for connecting GitHub and Slack and configuring Nox service delivery.
+NoxConnect is the shared connection and workspace foundation for every Nox service. It provides one organization-level API for understanding each service's capabilities, connecting GitHub and Slack, and configuring service delivery.
 
 - [Machine-readable API description](/openapi.json)
+- [Developer documentation](/developers)
+- [All Nox services and capabilities](/api/v1/services)
+- [NoxConnect foundation capabilities](/api/v1/services/noxconnect)
+- [NoxTicket capabilities](/api/v1/services/noxticket)
+- [NoxFeed capabilities](/api/v1/services/noxfeed)
+- [NoxSpot capabilities](/api/v1/services/noxspot)
+- [NoxCue capabilities](/api/v1/services/noxcue)
+- [Per-service setup, config, and health contract](/docs/ai-setup.md#safe-configuration-updates)
 - [Agent setup guide](/docs/ai-setup.md)
 - [Resumable setup state](/api/integrations/setup)
 
-Authentication uses a GitHub OAuth access token as `Authorization: Bearer <token>` plus the GitHub organization login in `X-Org`. Setup mutations require an organization admin.
+Browser authentication uses GitHub OAuth to create an opaque HttpOnly NoxConnect session; provider tokens remain encrypted server-side. Automation uses an expiring `Authorization: Bearer nox_sk_…` token bound to one organization, one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Cross-project resources are hidden as not found. Public ingestion keys and private Worker bindings are separate credential classes. API-token lifecycle and provider setup require an organization-admin browser session.
 
-An agent may initiate GitHub or Slack OAuth. The returned `userAction.url` must be opened by a human in a browser; poll `/api/integrations/setup` after approval. All channel discovery, organization routing, project/repository routing, verification, and disconnect operations are API-callable. Discover shared project routing at `/api/projects/routing`.
+Every service has `/api/v1/services/{service}/setup`, `/config`, and `/health`. Config updates are service-scoped and require the latest config ETag in `If-Match`; provider credentials are never returned.
+
+Each capability includes an `operations` array with its stable operation ID, HTTP method, path, authentication mode, and description. Follow those operations rather than guessing legacy routes. API v1 errors use `{ apiVersion, error: { code, message, details? } }`.
+
+An agent may initiate GitHub or Slack OAuth. Treat the returned `userAction.url` as a temporary secret and have a human open it in a browser; never prefetch or log it. Poll `/api/integrations/setup` no more than once every five seconds after approval. All channel discovery, organization routing, project/repository routing, verification, and disconnect operations are API-callable. Discover shared project routing at `/api/projects/routing`.
+
+Use `x-change-safety` in OpenAPI before writes. Do not blindly retry destructive or non-idempotent operations, honor `Retry-After` on `429`, and require user confirmation for deletes, disconnects, revocations, archives, and restores. NoxCue server applications ingest idempotent lifecycle events through `POST /api/cues/public/v1/events` with `X-Nox-Ingest-Key`.

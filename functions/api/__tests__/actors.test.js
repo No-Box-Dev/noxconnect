@@ -23,11 +23,11 @@ function makeDb({ allResult = [], firstResults = [] } = {}) {
   };
 }
 
-function makeCtx({ db, params, body, orgLogin = "acme", method = "GET" }) {
+function makeCtx({ db, params, body, orgLogin = "acme", method = "GET", isAdmin = true }) {
   const req = body !== undefined
     ? new Request("http://x/api/actors", { method, headers: { "Content-Type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) })
     : new Request("http://x/api/actors", { method });
-  return { request: req, env: { DB: db }, data: { orgLogin }, params };
+  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin, isAdmin }, params };
 }
 
 describe("GET /api/actors", () => {
@@ -69,6 +69,11 @@ describe("GET /api/actors/:id", () => {
 });
 
 describe("PATCH /api/actors/:id", () => {
+  it("403s non-admin updates", async () => {
+    const res = await patchActor(makeCtx({ db: makeDb(), params: { id: "actor_alice" }, method: "PATCH", body: { tone: "warm" }, isAdmin: false }));
+    expect(res.status).toBe(403);
+  });
+
   it("400s on invalid JSON", async () => {
     const res = await patchActor(makeCtx({ db: makeDb(), params: { id: "actor_alice" }, method: "PATCH", body: "{ broken" }));
     expect(res.status).toBe(400);

@@ -810,7 +810,7 @@ function HealthBadge({ status }: { status: "waiting" | "healthy" | "issue" }) {
 
 function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
   const [copied, setCopied] = useState(false);
-  const command = `await fetch("https://noxcue.jasper-414.workers.dev/v1/events", {
+  const command = `await fetch("https://app.unticket.ai/api/cues/public/v1/events", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

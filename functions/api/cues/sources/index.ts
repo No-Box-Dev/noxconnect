@@ -6,7 +6,7 @@ import { validate } from "../../../lib/validate";
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; projectId?: string | null };
   request: Request;
 }
 
@@ -54,7 +54,7 @@ interface KeyRow {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -136,19 +136,27 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                AND alert_routing_settings.enabled = 1
           )
         WHERE source.org_id = ? AND source.owner_id = ?
+          AND (? IS NULL OR source.project_id = ?)
         ORDER BY source.created_at DESC`,
-    ).bind(orgId, orgLogin).all<SourceRow>(),
+    ).bind(orgId, orgLogin, projectId ?? null, projectId ?? null).all<SourceRow>(),
     db.prepare(
       `SELECT id, source_id, name, kind, key_prefix, created_at, last_used_at, revoked_at
-         FROM cue_source_keys WHERE org_id = ? ORDER BY created_at DESC`,
-    ).bind(orgId).all<KeyRow>(),
+         FROM cue_source_keys source_key
+        WHERE source_key.org_id = ?
+          AND (? IS NULL OR EXISTS (
+            SELECT 1 FROM cue_sources source
+             WHERE source.id = source_key.source_id AND source.project_id = ?
+          ))
+        ORDER BY source_key.created_at DESC`,
+    ).bind(orgId, projectId ?? null, projectId ?? null).all<KeyRow>(),
     db.prepare(
       `SELECT project.id, project.name, project.repo FROM projects project
         JOIN project_routing_settings routing ON routing.project_id = project.id
        WHERE routing.org_id = ? AND routing.enabled = 1
          AND project.owner_id = ? AND COALESCE(project.archived, 0) = 0
+         AND (? IS NULL OR project.id = ?)
        ORDER BY project.name`,
-    ).bind(orgId, orgLogin).all<{ id: string; name: string; repo: string | null }>(),
+    ).bind(orgId, orgLogin, projectId ?? null, projectId ?? null).all<{ id: string; name: string; repo: string | null }>(),
   ]);
 
   const keysBySource = new Map<string, KeyRow[]>();
@@ -201,7 +209,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, userLogin, isAdmin, projectId: tokenProjectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -220,6 +228,8 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   ).bind(orgLogin, orgId).all<{ id: string }>();
   const projects = activeProjects.results ?? [];
   let projectId = parsed.data.projectId;
+  if (tokenProjectId && projectId && projectId !== tokenProjectId) return errorResponse("The requested resource was not found", 404);
+  if (tokenProjectId) projectId = tokenProjectId;
   if (!projectId && projects.length === 1) projectId = projects[0]!.id;
   if (!projectId && projects.length > 1) {
     return errorResponse("Choose the project this NoxCue source belongs to", 409);

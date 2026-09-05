@@ -33,13 +33,13 @@ const EMPTY_STATS = {
 //               page, page_size, sort, sort_dir, meta
 export async function onRequestGet(context) {
   try {
-  const { orgId, orgLogin } = getCtx(context);
+  const { orgId, orgLogin, projectId } = getCtx(context);
   const url = new URL(context.request.url);
 
   // Active repos only — drafts, archived (platform + GitHub), and the
   // noxconnect-config repo are hidden from every issue surface in the app.
   // Settings' repo-management UI uses /api/repos?include=all instead.
-  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
   const activeSql = ` AND repo IN (${activeRepos.map(() => "?").join(",")})`;
 
   // Meta endpoint: return distinct labels

@@ -1,2 +1,9 @@
 User-agent: *
+Allow: /developers
+Allow: /developers.html
+Allow: /developers.css
+Allow: /developers.js
+Allow: /openapi.json
+Allow: /docs/ai-setup.md
+Allow: /llms.txt
 Disallow: /

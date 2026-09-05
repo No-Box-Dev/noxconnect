@@ -4,6 +4,7 @@ import { extractStatusFromLabels } from "../../lib/feature-issues.js";
 import { actionableSlackError, getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
 import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
 import { LEGACY_NOXTICKET_SOURCE, normalizeNoxSettings } from "../../lib/naming-compat.js";
+import { requireAdmin } from "../../lib/access.js";
 
 const VALID_KEYS = ["features", "people", "settings"];
 const SLACK_CHANNEL_KEYS = [
@@ -75,6 +76,10 @@ export async function onRequestPut(context) {
   const key = context.params.key;
   if (!VALID_KEYS.includes(key)) {
     return errorResponse(`Invalid config key: ${key}`, 400);
+  }
+  if (key === "settings" || key === "people") {
+    const accessError = requireAdmin(context);
+    if (accessError) return accessError;
   }
 
   // Cap body size to keep config rows from blowing up D1 storage / per-row limits.

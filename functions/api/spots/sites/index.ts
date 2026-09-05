@@ -6,13 +6,13 @@ import { noxSpotAuditStatement } from "../../../lib/noxspot-audit";
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; projectId?: string | null };
   request: Request;
 }
 
 const CreateSite = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
-  projectId: z.string().trim().min(1, "Project is required").max(240),
+  projectId: z.string().trim().min(1, "Project is required").max(240).optional(),
   buttonColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Invalid button color").optional(),
   buttonText: z.string().trim().min(1).max(40).optional(),
   widgetMode: z.enum(["development", "release"]).optional(),
@@ -66,7 +66,7 @@ function siteDto(row: Record<string, unknown>) {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   const db = getNoxDb(context.env);
 
@@ -118,9 +118,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
             (SELECT share.enabled FROM external_project_shares share
                 WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_enabled
        FROM spot_sites site
-      WHERE site.org_id = ?
+      WHERE site.org_id = ? AND (? IS NULL OR site.project_id = ?)
       ORDER BY site.created_at DESC`,
-  ).bind(orgId).all<Record<string, unknown>>();
+  ).bind(orgId, projectId ?? null, projectId ?? null).all<Record<string, unknown>>();
 
   return jsonResponse({
     sites: (results ?? []).map((row) => ({
@@ -132,7 +132,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, userLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -143,10 +143,13 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const parsed = validate(CreateSite, raw);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
+  if (projectId && input.projectId && input.projectId !== projectId) return errorResponse("The requested resource was not found", 404);
+  const targetProjectId = projectId ?? input.projectId;
+  if (!targetProjectId) return errorResponse("Project is required", 400);
 
   const project = await db.prepare(
     "SELECT repo FROM projects WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0",
-  ).bind(input.projectId, orgLogin).first<{ repo: string }>();
+  ).bind(targetProjectId, orgLogin).first<{ repo: string }>();
   if (!project?.repo) return errorResponse("Active project not found in this organization", 400);
 
   const id = crypto.randomUUID();
@@ -155,7 +158,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
        (id, org_id, project_id, repo, name, widget_config, slack_channel_id)
      VALUES (?, ?, ?, ?, ?, ?, NULL)`,
   ).bind(
-    id, orgId, input.projectId, project.repo, input.name,
+    id, orgId, targetProjectId, project.repo, input.name,
     JSON.stringify({
       buttonColor: input.buttonColor ?? "#FE795D",
       buttonText: input.buttonText ?? "Report issue",
@@ -173,7 +176,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       siteId: id,
       actorLogin: userLogin,
       action: "site.created",
-      changes: { name: input.name, projectId: input.projectId },
+      changes: { name: input.name, projectId: targetProjectId },
     }),
   ]);
 

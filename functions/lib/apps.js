@@ -70,12 +70,14 @@ export function appForSlackKind(kind) {
 }
 
 export function serviceDisabledResponse(appId) {
+  const names = { noxticket: "NoxTicket", noxfeed: "NoxFeed", noxspot: "NoxSpot", noxcue: "NoxCue" };
+  const name = names[appId] ?? appId;
   return new Response(JSON.stringify({
-    error: `${appId} is off for this organization`,
-    code: "service_disabled",
+    error: `${name} is not enabled. Enable it in NoxConnect before trying again.`,
+    code: "service_not_enabled",
     service: appId,
   }), {
-    status: 409,
+    status: 403,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }

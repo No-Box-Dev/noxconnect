@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { DEFAULT_ACTOR_TONE } from "../../lib/actors";
 import { validate } from "../../lib/validate";
+import { requireAdmin } from "../../lib/access.js";
 
 interface Env {
   DB: D1Database;
@@ -9,7 +10,7 @@ interface Env {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string };
+  data: { orgId: number; orgLogin: string; isAdmin: boolean };
   request: Request;
   params: { id: string };
 }
@@ -39,6 +40,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // PATCH /api/actors/:id — update tone / name / avatar_url / kind.
 // Materializes a synthesized 'actor_<login>' id into a real row first.
 export async function onRequestPatch(context: Ctx): Promise<Response> {
+  const accessError = requireAdmin(context);
+  if (accessError) return accessError;
   const { orgLogin } = getCtx(context) as { orgLogin: string };
   const { id } = context.params;
   if (!orgLogin) return errorResponse("Missing org context", 400);

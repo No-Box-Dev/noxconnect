@@ -84,9 +84,17 @@ export async function filterInactive(db, orgId, orgLogin, repoNames) {
 // instead of `NOT IN (capped-list)` — keeps the bind count bounded by the
 // active count (small in practice) and never silently drops inactive repos
 // past the old 30-bind cap.
-export async function getActiveRepoNames(db, orgId, orgLogin) {
+export async function getActiveRepoNames(db, orgId, orgLogin, projectId = null) {
   const [reposRow, inactive] = await Promise.all([
-    db.prepare("SELECT name FROM repos WHERE org_id = ?").bind(orgId).all(),
+    projectId
+      ? db.prepare(
+        `SELECT repo.name
+           FROM repos repo
+           JOIN project_repositories assignment
+             ON assignment.org_id = repo.org_id AND assignment.repo = repo.name
+          WHERE repo.org_id = ? AND assignment.project_id = ?`,
+      ).bind(orgId, projectId).all()
+      : db.prepare("SELECT name FROM repos WHERE org_id = ?").bind(orgId).all(),
     getInactiveRepoSet(db, orgId, orgLogin),
   ]);
   const out = [];

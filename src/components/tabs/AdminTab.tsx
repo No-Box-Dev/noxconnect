@@ -32,6 +32,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then((module) => ({ default: module.ReposTab })));
 const MaintenanceSection = lazy(() => import("@/components/admin/MaintenanceSection").then((module) => ({ default: module.MaintenanceSection })));
+const ApiTokensSection = lazy(() => import("@/components/admin/ApiTokensSection").then((module) => ({ default: module.ApiTokensSection })));
 const NoxTicketAdminPage = lazy(() => import("@/components/admin/pages/NoxTicketAdminPage").then((module) => ({ default: module.NoxTicketAdminPage })));
 const NoxFeedAdminPage = lazy(() => import("@/components/admin/pages/NoxFeedAdminPage").then((module) => ({ default: module.NoxFeedAdminPage })));
 const NoxSpotAdminPage = lazy(() => import("@/components/admin/pages/NoxSpotAdminPage").then((module) => ({ default: module.NoxSpotAdminPage })));
@@ -50,6 +51,7 @@ const NOXCONNECT_PANELS = [
   { id: "connections", label: "Connections", description: "GitHub and Slack" },
   { id: "people", label: "People", description: "Members and roles" },
   { id: "repositories", label: "Repositories", description: "Tracked workspace data" },
+  { id: "security", label: "API access", description: "Automation tokens and scopes" },
   { id: "maintenance", label: "Maintenance", description: "Sync and recovery tools" },
 ] as const;
 
@@ -305,6 +307,13 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                   <SectionHeading title="Maintenance" description="Use recovery tools only when automatic sync needs help." />
                   <AdminGate title="Maintenance operations" description="Manual syncs, backfills, history recovery, and background failure logs.">
                     <Suspense fallback={connectionsLoading}><MaintenanceSection /></Suspense>
+                  </AdminGate>
+                </> : null}
+
+                {activeNoxConnectPanel === "security" ? <>
+                  <SectionHeading title="API access" description="Create, rotate, and revoke scoped credentials for automation." />
+                  <AdminGate title="Automation tokens" description="Tokens grant API access without exposing your GitHub session or provider credentials.">
+                    {isAdmin ? <Suspense fallback={connectionsLoading}><ApiTokensSection /></Suspense> : null}
                   </AdminGate>
                 </> : null}
               </div>

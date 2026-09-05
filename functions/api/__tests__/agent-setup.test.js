@@ -57,7 +57,7 @@ describe("agent setup APIs", () => {
   it("reads canonical Slack routes", async () => {
     const response = await getRouting({
       env: { DB: dbWithSettings({ slack: { fallbackChannelId: "C1", postsChannelId: "C2" } }) },
-      data: { orgId: 7, isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
     });
     expect(await response.json()).toMatchObject({ routes: { fallback: "C1", noxfeed_posts: "C2", noxcue: null } });
   });
@@ -69,7 +69,7 @@ describe("agent setup APIs", () => {
         method: "PATCH", body: JSON.stringify({ routes: { surprise: "C1" } }),
       }),
       env: { DB },
-      data: { orgId: 7, isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
       params: {},
     });
     expect(response.status).toBe(400);
@@ -83,7 +83,7 @@ describe("agent setup APIs", () => {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
       env: { DB },
-      data: { orgId: 7, isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
       params: {},
     });
     expect(response.status).toBe(200);
@@ -112,7 +112,7 @@ describe("agent setup APIs", () => {
       request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
-      env: { DB }, data: { orgId: 7, isAdmin: true }, params: {},
+      env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
     });
     expect(response.status).toBe(200);
   });
@@ -127,7 +127,7 @@ describe("agent setup APIs", () => {
       request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
-      env: { DB }, data: { orgId: 7, isAdmin: true }, params: {},
+      env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
     });
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Settings changed concurrently; fetch routing and retry" });

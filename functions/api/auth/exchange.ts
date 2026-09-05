@@ -23,7 +23,7 @@ const ExchangeBody = z.object({
  * Exchanges a one-time auth code for the GitHub access token.
  * The code is deleted after use (one-time only).
  */
-export async function onRequestPost(context: Ctx): Promise<Response> {
+export async function legacyTokenExchange(context: Ctx): Promise<Response> {
   let rawBody: unknown;
   try {
     rawBody = await context.request.json();
@@ -72,6 +72,19 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+    },
+  });
+}
+
+export async function onRequestPost(): Promise<Response> {
+  return new Response(JSON.stringify({
+    error: "Token exchange has been replaced by the secure browser session flow. Sign in again.",
+  }), {
+    status: 410,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

@@ -10,14 +10,14 @@ const ISSUE_COLUMNS = [
 // GET /api/issues/:repo/:number — one cached issue. Returns 404 for unknown
 // numbers and for repos not in the active set (drafts, archived, noxconnect).
 export async function onRequestGet(context) {
-  const { orgId, orgLogin } = getCtx(context);
+  const { orgId, orgLogin, projectId } = getCtx(context);
   const { repo, number } = context.params;
   if (!repo) return errorResponse("Missing repo", 400);
 
   const n = parseInt(number, 10);
   if (!Number.isFinite(n) || n <= 0) return errorResponse("Invalid number", 400);
 
-  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
   if (!activeRepos.includes(repo)) return errorResponse("Unknown issue", 404);
 
   const row = await context.env.DB.prepare(

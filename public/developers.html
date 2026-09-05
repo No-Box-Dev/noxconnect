@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoxConnect API — Developer documentation</title>
+  <meta name="description" content="Build against the NoxConnect capability API: authentication, services, configuration, safe writes, and errors.">
+  <meta name="theme-color" content="#FAFAF8">
+  <link rel="canonical" href="https://app.unticket.ai/developers">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/developers.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to documentation</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="NoxConnect home">
+        <img src="/logo-mark.svg" alt="">
+        <strong>NoxConnect</strong>
+        <span>Developers</span>
+      </a>
+      <nav class="top-actions" aria-label="Document links">
+        <a class="top-link" href="/docs/ai-setup.md">Agent guide</a>
+        <a class="top-link primary" href="/openapi.json">OpenAPI ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="nav-group">
+        <p class="nav-label">Start</p>
+        <a href="#overview">Overview</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#authentication">Authentication</a>
+      </div>
+      <div class="nav-group">
+        <p class="nav-label">Platform</p>
+        <a href="#services">Services</a>
+        <a href="#control-plane">Control plane</a>
+        <a href="#configuration">Configuration</a>
+      </div>
+      <div class="nav-group">
+        <p class="nav-label">Reference</p>
+        <a href="#operations">Operations</a>
+        <a href="#errors">Errors</a>
+        <a href="#safety">Safety model</a>
+      </div>
+    </aside>
+
+    <main class="content" id="content">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="eyebrow">API version 1 · Capability contract</div>
+        <h1 id="page-title">One API. Five focused <span class="gradient-word">services.</span></h1>
+        <p class="lede">NoxConnect is the shared control plane for the Nox product family. Discover what each service can do, check readiness, and make bounded changes without handling provider credentials.</p>
+        <div class="hero-actions">
+          <a class="button accent" href="#quickstart">Make your first request →</a>
+          <a class="button" href="/openapi.json">Download OpenAPI</a>
+        </div>
+        <div class="meta-strip" role="group" aria-label="API facts">
+          <div class="meta-item"><span>Base URL</span><strong>https://app.unticket.ai</strong></div>
+          <div class="meta-item"><span>API version</span><strong>/api/v1</strong></div>
+          <div class="meta-item"><span>Format</span><strong>application/json</strong></div>
+          <div class="meta-item"><span>Contract</span><strong id="operation-total">Loading…</strong></div>
+        </div>
+      </section>
+
+      <section class="section" id="overview">
+        <p class="section-kicker">Architecture</p>
+        <h2>A capability-first API</h2>
+        <p class="section-intro">Start by asking the platform what is available. The catalog reports enabled services, current blockers, required connections, access levels, and exact operations. Clients follow advertised operations instead of guessing routes.</p>
+        <div class="principle">
+          <div class="principle-mark" aria-hidden="true">↳</div>
+          <div>
+            <h3>Credentials stay behind NoxConnect</h3>
+            <p>GitHub, Slack, and customer credentials are never returned by discovery, setup, configuration, or health APIs. Product services receive only the bounded capability they need.</p>
+          </div>
+        </div>
+        <ol class="flow" aria-label="Recommended API flow">
+          <li class="flow-step"><span class="flow-number">01</span><strong>Discover</strong><span>Ask NoxConnect which services are available to this organization. The response lists what each service can do and the exact operations clients may call.</span></li>
+          <li class="flow-step"><span class="flow-number">02</span><strong>Inspect</strong><span>Check whether the chosen service is enabled and healthy. Setup reports anything still needed, such as a GitHub or Slack connection.</span></li>
+          <li class="flow-step"><span class="flow-number">03</span><strong>Connect</strong><span>Start a provider connection through the API. A person opens the returned link and approves access in GitHub or Slack; the client never receives the provider credential.</span></li>
+          <li class="flow-step"><span class="flow-number">04</span><strong>Configure</strong><span>Read the current settings and keep the returned revision. Send it back with a change so newer work cannot be overwritten accidentally.</span></li>
+          <li class="flow-step"><span class="flow-number">05</span><strong>Operate</strong><span>Call only the operations advertised for the selected capability. Check the access and change-safety labels before every write or destructive action.</span></li>
+        </ol>
+      </section>
+
+      <section class="section" id="quickstart">
+        <p class="section-kicker">Quickstart</p>
+        <h2>Discover your workspace</h2>
+        <p class="section-intro">Create a scoped token under NoxConnect → API access while signed in as an organization admin, choose exactly one enabled project, copy it once, and keep it in your runtime's secret store. The token cannot read or change resources assigned to another project.</p>
+        <div class="callout caution standalone-callout">
+          <h3>Use the credential made for the caller</h3>
+          <p>Browsers use an opaque HttpOnly session and CSRF proof. Automation uses a scoped <code>nox_sk_…</code> token. Ingestion uses a source key. Never extract a browser cookie or reuse a GitHub or Slack provider token.</p>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>terminal · list services</span><button class="copy-button" type="button" data-copy="curl-services">Copy</button></div>
+          <pre id="curl-services"><code>curl https://app.unticket.ai/api/v1/services \
+  --header <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span></code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>json · abbreviated response</span><button class="copy-button" type="button" data-copy="catalog-response">Copy</button></div>
+          <pre id="catalog-response"><code>{
+  <span class="token-key">"apiVersion"</span>: 1,
+  <span class="token-key">"organization"</span>: { <span class="token-key">"login"</span>: <span class="token-string">"your-organization"</span> },
+  <span class="token-key">"canConfigure"</span>: true,
+  <span class="token-key">"services"</span>: [
+    {
+      <span class="token-key">"id"</span>: <span class="token-string">"noxfeed"</span>,
+      <span class="token-key">"enabled"</span>: true,
+      <span class="token-key">"setup"</span>: { <span class="token-key">"state"</span>: <span class="token-string">"ready"</span> },
+      <span class="token-key">"capabilities"</span>: [<span class="token-comment">/* operations live here */</span>]
+    }
+  ]
+}</code></pre>
+        </div>
+      </section>
+
+      <section class="section" id="authentication">
+        <p class="section-kicker">Authentication</p>
+        <h2>Separate credentials for people, automation, and ingestion</h2>
+        <div class="callouts">
+          <article class="callout">
+            <h3>Browser session</h3>
+            <p>GitHub OAuth establishes an opaque <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code> NoxConnect cookie. Unsafe requests also require the matching <code>X-CSRF-Token</code>. GitHub credentials stay encrypted on the server.</p>
+          </article>
+          <article class="callout">
+            <h3>Native session</h3>
+            <p>NoxConnect brokers GitHub device approval and gives first-party apps a 15-minute <code>nox_at_…</code> access token plus a rotating <code>nox_rt_…</code> refresh token. Provider credentials remain encrypted in NoxConnect.</p>
+          </article>
+          <article class="callout">
+            <h3>Automation token</h3>
+            <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, one project, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
+          </article>
+        </div>
+        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by NoxConnect on every automation request. A resource outside the token's project returns <code>resource_not_found</code>; a disabled service returns <code>service_not_enabled</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
+        <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
+        <div class="callouts">
+          <article class="callout"><h3>Lifecycle and audit</h3><p>Automation tokens expire within 1–365 days, are shown once, and expose only a prefix afterward. Create, rotate, and revoke actions are audited. Browser provider-token refresh occurs only on the server.</p></article>
+          <article class="callout"><h3>API hosts</h3><p>Management and NoxCue ingest use <code>https://app.unticket.ai</code>. Origin-bound NoxSpot widget capture uses <code>https://api.noxspot.dev</code>; its operations declare that server in OpenAPI.</p></article>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Credential operation</th><th>Result</th><th>Required caller</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method">GET</span>/api/v1/api-tokens</td><td>List redacted metadata, scopes, expiry, and last use.</td><td>Admin browser session</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/api-tokens</td><td>Create a one-project secret shown exactly once.</td><td>Admin browser session + CSRF</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/api-tokens/{id}/rotate</td><td>Revoke and replace a secret atomically.</td><td>Admin browser session + CSRF</td></tr>
+              <tr><td><span class="method write">DELETE</span>/api/v1/api-tokens/{id}</td><td>Immediately revoke future API access.</td><td>Admin browser session + CSRF</td></tr>
+              <tr><td><span class="method write">POST</span>/api/auth/native/device/start</td><td>Start GitHub device approval without embedding a provider client secret.</td><td>First-party native client</td></tr>
+              <tr><td><span class="method write">POST</span>/api/auth/native/device/poll</td><td>Complete approval server-side and return only NoxConnect credentials.</td><td>Opaque device handle</td></tr>
+              <tr><td><span class="method write">POST</span>/api/auth/native/refresh</td><td>Rotate the access and refresh credentials.</td><td><code>nox_rt_…</code> refresh token</td></tr>
+              <tr><td><span class="method write">POST</span>/api/auth/native/revoke</td><td>Revoke the current native session on sign-out, including after access expiry.</td><td><code>nox_rt_…</code> rotating refresh credential</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="services">
+        <p class="section-kicker">Service catalog</p>
+        <h2>Clear ownership at every boundary</h2>
+        <p class="section-intro">NoxConnect owns shared infrastructure. Each product owns the resources and behavior unique to its job.</p>
+        <div class="service-grid">
+          <article class="service-card foundation">
+            <div class="service-top"><h3>NoxConnect</h3><span class="service-type">Foundation</span></div>
+            <p>Connections and shared workspace control: provider connections, identities, repositories, projects, and Slack routing.</p>
+            <div class="pills"><span class="pill">Connections</span><span class="pill">People</span><span class="pill">Repositories</span><span class="pill">Shared delivery</span><span class="pill provider">GitHub + Slack</span></div>
+          </article>
+          <article class="service-card">
+            <div class="service-top"><h3>NoxTicket</h3><span class="service-type">Product</span></div>
+            <p>Planning and delivery workflow backed by GitHub issues, feature stages, specifications, and attachments.</p>
+            <div class="pills"><span class="pill">Features</span><span class="pill">Workflow</span><span class="pill">Specifications</span><span class="pill">Delivery</span></div>
+          </article>
+          <article class="service-card">
+            <div class="service-top"><h3>NoxFeed</h3><span class="service-type">Product</span></div>
+            <p>Current work and communication across issues, pull requests, engineering activity, posts, and release notes.</p>
+            <div class="pills"><span class="pill">Current work</span><span class="pill">Activity</span><span class="pill">Narratives</span><span class="pill">Delivery</span></div>
+          </article>
+          <article class="service-card">
+            <div class="service-top"><h3>NoxSpot</h3><span class="service-type">Product</span></div>
+            <p>Website feedback capture with sites, origin-bound widget configuration, reports, screenshots, and delivery.</p>
+            <div class="pills"><span class="pill">Sites</span><span class="pill">Widget</span><span class="pill">Reports</span><span class="pill">Delivery</span></div>
+          </article>
+          <article class="service-card">
+            <div class="service-top"><h3>NoxCue</h3><span class="service-type">Product</span></div>
+            <p>Customer health monitoring from bounded lifecycle and error events through metrics and scheduled summaries.</p>
+            <div class="pills"><span class="pill">Sources</span><span class="pill">Ingest keys</span><span class="pill">Health metrics</span><span class="pill">GitHub incidents</span><span class="pill">Delivery</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="control-plane">
+        <p class="section-kicker">Control plane</p>
+        <h2>The same shape for every service</h2>
+        <p class="section-intro">Replace <code>{service}</code> with <code>noxconnect</code>, <code>noxticket</code>, <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method and path</th><th>Purpose</th><th>Access</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method">GET</span>/api/v1/services</td><td>Discover all services, readiness, capabilities, and operations.</td><td>Member</td></tr>
+              <tr><td><span class="method">GET</span>/api/v1/services/{service}</td><td>Inspect one service and its links.</td><td>Member</td></tr>
+              <tr><td><span class="method">GET</span>/api/v1/services/{service}/setup</td><td>Read blockers, connections, and resumable setup sections.</td><td>Member</td></tr>
+              <tr><td><span class="method">GET</span>/api/v1/services/{service}/health</td><td>Read required and optional health checks.</td><td>Member</td></tr>
+              <tr><td><span class="method">GET</span>/api/v1/services/{service}/config</td><td>Read owned configuration and its current revision.</td><td>Member</td></tr>
+              <tr><td><span class="method write">PATCH</span>/api/v1/services/{service}/config</td><td>Partially update writable service configuration.</td><td>Admin</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="configuration">
+        <p class="section-kicker">Safe configuration</p>
+        <h2>Read, revise, then write</h2>
+        <p class="section-intro">Configuration updates use optimistic concurrency. Read the document, retain its <code>ETag</code>, then include that value in <code>If-Match</code>. A stale client receives <code>412</code> instead of overwriting newer work.</p>
+        <div class="code-block">
+          <div class="code-head"><span>terminal · compare-and-swap update</span><button class="copy-button" type="button" data-copy="curl-config">Copy</button></div>
+          <pre id="curl-config"><code><span class="token-comment"># 1. Read the current config and response ETag</span>
+curl -i https://app.unticket.ai/api/v1/services/noxfeed/config \
+  -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span>
+
+<span class="token-comment"># 2. Patch only owned fields using that revision</span>
+curl -X PATCH https://app.unticket.ai/api/v1/services/noxfeed/config \
+  -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span> \
+  -H <span class="token-string">'If-Match: "current-revision"'</span> \
+  -H <span class="token-string">"Content-Type: application/json"</span> \
+  --data <span class="token-string">'{"projectScope":null}'</span></code></pre>
+        </div>
+        <p class="field-note"><code>projectScope: null</code> means all projects. Otherwise supply an active project ID returned by <code>GET /api/projects</code>; arbitrary strings are rejected.</p>
+        <div class="callouts">
+          <article class="callout safe"><h3>Service-scoped</h3><p>NoxConnect, NoxTicket, and NoxFeed expose strict writable fields in their service config response.</p></article>
+          <article class="callout caution"><h3>Resource-scoped</h3><p>NoxSpot sites and NoxCue sources remain authoritative. Their service config is read-only and links to the correct child resources.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="operations">
+        <p class="section-kicker">Operations</p>
+        <h2>Follow the advertised contract</h2>
+        <p class="section-intro">Every capability contains an <code>operations</code> array. Each operation declares a stable ID, HTTP method, path, authentication mode, and description. The catalog and OpenAPI document are tested for alignment.</p>
+        <div class="code-block">
+          <div class="code-head"><span>json · capability operation</span><button class="copy-button" type="button" data-copy="operation-shape">Copy</button></div>
+          <pre id="operation-shape"><code>{
+  <span class="token-key">"id"</span>: <span class="token-string">"patch_feed_config"</span>,
+  <span class="token-key">"method"</span>: <span class="token-string">"PATCH"</span>,
+  <span class="token-key">"path"</span>: <span class="token-string">"/api/v1/services/noxfeed/config"</span>,
+  <span class="token-key">"authentication"</span>: <span class="token-string">"admin"</span>,
+  <span class="token-key">"description"</span>: <span class="token-string">"Update project scope or release-notes prompt with If-Match."</span>
+}</code></pre>
+        </div>
+        <p>The reference below is rendered directly from <a href="/openapi.json">OpenAPI 3.1</a>, so routes, methods, access levels, server overrides, and change-safety labels do not have to be copied into this page by hand. Older compatibility endpoints may still expose loosely typed response bodies; those are labelled as legacy JSON in the schema.</p>
+        <div class="reference-tools">
+          <label for="operation-search">Find an operation</label>
+          <div class="reference-controls">
+            <input id="operation-search" type="search" placeholder="Search routes, services, or operation IDs" autocomplete="off">
+            <select id="service-filter" aria-label="Filter operations by service"><option value="">All services</option></select>
+          </div>
+        </div>
+        <div id="api-reference" class="api-reference" aria-live="polite">
+          <p>Loading the operation reference…</p>
+          <noscript>JavaScript is required for the rendered reference. Use <a href="/openapi.json">openapi.json</a> instead.</noscript>
+        </div>
+      </section>
+
+      <section class="section" id="errors">
+        <p class="section-kicker">Errors</p>
+        <h2>One predictable v1 envelope</h2>
+        <div class="code-block">
+          <div class="code-head"><span>json · error response</span><button class="copy-button" type="button" data-copy="error-shape">Copy</button></div>
+          <pre id="error-shape"><code>{
+  <span class="token-key">"apiVersion"</span>: 1,
+  <span class="token-key">"error"</span>: {
+    <span class="token-key">"code"</span>: <span class="token-string">"revision_conflict"</span>,
+    <span class="token-key">"message"</span>: <span class="token-string">"Settings changed concurrently; fetch config and retry"</span>,
+    <span class="token-key">"details"</span>: { <span class="token-key">"currentRevision"</span>: <span class="token-string">"…"</span> }
+  }
+}</code></pre>
+        </div>
+        <p class="field-note">All <code>/api/v1/*</code> errors, including authentication and organization failures raised before a handler runs, use this envelope. Compatibility routes under <code>/api/*</code> may still return <code>{ "error": "message" }</code>.</p>
+        <div class="status-list">
+          <div class="status-row"><code>401</code><span>Missing or invalid authentication.</span></div>
+          <div class="status-row"><code>403</code><span>The caller lacks required organization or admin access.</span></div>
+          <div class="status-row"><code>409</code><span>The requested write conflicts with resource ownership or current state.</span></div>
+          <div class="status-row"><code>412</code><span>The supplied configuration revision is stale. Read and retry.</span></div>
+          <div class="status-row"><code>422</code><span>The request body fails the service's strict schema.</span></div>
+          <div class="status-row"><code>428</code><span>A required <code>If-Match</code> header was not supplied.</span></div>
+        </div>
+      </section>
+
+      <section class="section" id="safety">
+        <p class="section-kicker">Safety model</p>
+        <h2>Defaults designed for automation</h2>
+        <div class="callouts">
+          <article class="callout"><h3>No raw provider tokens</h3><p>Clients receive readiness and bounded actions, never GitHub or Slack credentials.</p></article>
+          <article class="callout"><h3>Explicit access</h3><p>Every advertised operation declares the authentication level it needs.</p></article>
+          <article class="callout"><h3>Tenant-bound reads and writes</h3><p>The verified organization identity scopes backing queries and mutations.</p></article>
+          <article class="callout"><h3>Conflict-safe changes</h3><p>Revision checks protect configuration from accidental lost updates and races.</p></article>
+          <article class="callout"><h3>Human OAuth handoff</h3><p>Agents may initiate a connection, but a human approves provider authorization.</p></article>
+          <article class="callout"><h3>Stable migration path</h3><p>The contract begins at <code>app.unticket.ai/api/v1</code> and can move hosts without changing its shape.</p></article>
+          <article class="callout caution"><h3>Writes are not automatically retry-safe</h3><p>Retry reads freely. Retry configuration only after reading the latest revision. Do not retry other writes unless the operation documents idempotency or you can confirm the first attempt failed before processing.</p></article>
+          <article class="callout caution"><h3>Destructive operations need confirmation</h3><p>Disconnect, delete, archive, close, and revoke operations are marked destructive. Confirm the target and organization immediately before calling them.</p></article>
+          <article class="callout"><h3>Respect rate limits</h3><p>On <code>429</code>, wait for <code>Retry-After</code> when present and add jitter. Never poll setup more often than once every five seconds.</p></article>
+          <article class="callout"><h3>Capture one-time keys</h3><p>A new NoxCue ingest key is returned once. Move it directly into an approved secret manager, never log it, and revoke it if delivery to storage is uncertain.</p></article>
+        </div>
+      </section>
+
+      <footer class="footer">
+        NoxConnect API v1 · <a href="/openapi.json">OpenAPI</a> · <a href="/docs/ai-setup.md">Agent setup</a> · <a href="/llms.txt">llms.txt</a>
+      </footer>
+    </main>
+  </div>
+
+  <div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>
+  <script src="/developers.js" defer></script>
+</body>
+</html>
