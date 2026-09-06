@@ -126,6 +126,18 @@ Gate: discovery/config API snapshots remain compatible, config revisions still
 enforce `If-Match`, invalid service config is rejected by the owning service,
 and unavailable-binding tests return a bounded degraded state.
 
+### Milestone 2 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Contract | Green: strict version-1 service-manifest and config-validation envelopes reject unknown fields, invalid capability references, and service identity mismatches. |
+| Ownership | Green: NoxCue, NoxFeed, and NoxSpot now publish their own manifests; NoxFeed owns validation and normalization of its writable config. NoxTicket follows in Milestone 3 because no Worker exists yet. |
+| Runtime state | Green: NoxConnect uses bound manifests when reachable and pinned snapshots only for discovery fallback. Snapshot-backed services are `unavailable`; setup and capabilities are blocked rather than falsely ready. |
+| Config safety | Green: service validation composes with NoxConnect's revision/`If-Match` compare-and-swap and safely falls back to the pinned validator during migration. |
+| Service call | Green for active extracted services: real local workerd service-binding RPC calls returned NoxCue (5 capabilities) and NoxFeed (4 capabilities) manifests. NoxSpot's retired Worker cannot boot independently because it still requires NoxCue; that dependency is resolved in Milestone 6. |
+| Runtime | Green: NoxConnect Functions typecheck, NoxCue typecheck/dry-run bundle, and NoxFeed dry-run bundle passed. NoxSpot's unit runtime passed; its deployable replacement is a Milestone 6 deliverable. |
+| Regression | Green: NoxConnect discovery/config/OpenAPI tests, NoxCue tests, NoxFeed tests, and NoxSpot tests passed. Full repository gates are recorded in the milestone commits. |
+
 ## Milestone 3 — NoxTicket service extraction
 
 1. Create the local `noxticket-service` Worker repository with generated types,

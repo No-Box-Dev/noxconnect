@@ -1,12 +1,13 @@
 import { getCtx } from "../../../lib/db";
 import { getEnabledApps } from "../../../lib/apps.js";
 import { buildServiceCatalog } from "../../../lib/service-capabilities";
+import { loadServiceManifests, type ProductServiceEnvironment } from "../../../lib/service-manifests";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../lib/nox-db";
 import { API_VERSION, normalizeLegacyError, v1Error, v1Response } from "../../../lib/api-v1";
 import { onRequestGet as getIntegrationStatus } from "../../integrations/status";
 
 export interface ServiceCatalogContext {
-  env: NoxDatabaseEnv & {
+  env: NoxDatabaseEnv & ProductServiceEnvironment & {
     GITHUB_APP_ID?: string;
     GITHUB_APP_PRIVATE_KEY?: string;
     SLACK_CLIENT_ID?: string;
@@ -38,9 +39,10 @@ export async function loadServiceCatalog(context: ServiceCatalogContext) {
   if (!orgId || !orgLogin) return { response: v1Error("missing_org_context", "Missing organization context", 400) };
   const db = getNoxDb(context.env);
 
-  const [rawEnabledApps, statusResponse] = await Promise.all([
+  const [rawEnabledApps, statusResponse, serviceManifests] = await Promise.all([
     getEnabledApps(db, orgId),
     getIntegrationStatus(context as never),
+    loadServiceManifests(context.env),
   ]);
   if (!statusResponse.ok) return { response: await normalizeLegacyError(statusResponse) };
 
@@ -56,7 +58,12 @@ export async function loadServiceCatalog(context: ServiceCatalogContext) {
       apiVersion: API_VERSION,
       organization: { login: orgLogin },
       canConfigure: Boolean(isAdmin),
-      services: buildServiceCatalog({ enabledApps, integrations }),
+      services: buildServiceCatalog({
+        enabledApps,
+        integrations,
+        definitions: serviceManifests.definitions,
+        runtimeStates: serviceManifests.runtimeStates,
+      }),
     },
   };
 }

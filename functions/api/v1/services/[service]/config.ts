@@ -4,9 +4,10 @@ import { parseServiceId } from "../../../../lib/service-capabilities";
 import { applyServiceConfigPatch, ifMatchRevision, parseServiceConfigPatch, parseSettings, quotedEtag, serviceConfig, serviceConfigLinks, serviceConfigMetadata, settingsRevision } from "../../../../lib/service-config";
 import { onRequestPut as putLegacyConfig } from "../../../config/[key].js";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../../lib/nox-db";
+import { validateConfigPatchWithService, type ProductServiceEnvironment } from "../../../../lib/service-manifests";
 
 interface Ctx {
-  env: NoxDatabaseEnv;
+  env: NoxDatabaseEnv & ProductServiceEnvironment;
   data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; configCompareAndSwap?: { expectedRaw: string | null } };
   request: Request;
   params: { service: string };
@@ -73,10 +74,27 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   if (!requestedRevision) return v1Error("precondition_required", "If-Match is required; fetch the current service config first", 428);
   let value: unknown;
   try { value = await context.request.json(); } catch { return v1Error("invalid_json", "Invalid JSON body", 400); }
-  const parsed = parseServiceConfigPatch(service, value);
-  if (!parsed.success) return v1Error("validation_failed", "Invalid service config", 422, { issues: parsed.error.issues });
-
-  const parsedPatch = parsed.data as Record<string, unknown>;
+  const current = await readSettings(context);
+  if ("response" in current) return current.response!;
+  const currentConfig = serviceConfig(service, current.settings);
+  const serviceValidation = service === "noxconnect"
+    ? null
+    : await validateConfigPatchWithService(context.env, service, currentConfig, value).catch((error) => {
+        console.error(JSON.stringify({
+          event: "service_config_validation_unavailable",
+          service,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+        return null;
+      });
+  const parsed = serviceValidation ?? parseServiceConfigPatch(service, value);
+  if ("valid" in parsed && !parsed.valid) {
+    return v1Error("validation_failed", "Invalid service config", 422, { issues: parsed.issues });
+  }
+  if (!("valid" in parsed) && !parsed.success) {
+    return v1Error("validation_failed", "Invalid service config", 422, { issues: parsed.error.issues });
+  }
+  const parsedPatch = ("valid" in parsed ? parsed.patch : parsed.data) as Record<string, unknown>;
   if (service === "noxfeed" && typeof parsedPatch.projectScope === "string") {
     const { orgLogin } = getCtx(context) as Ctx["data"];
     const project = await getNoxDb(context.env).prepare(
@@ -92,8 +110,6 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     }
   }
 
-  const current = await readSettings(context);
-  if ("response" in current) return current.response!;
   if (requestedRevision !== current.revision) {
     return v1Error(
       "revision_conflict",
@@ -103,10 +119,10 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       { ETag: quotedEtag(current.revision) },
     );
   }
-  if (Object.keys(parsed.data as object).length === 0) {
+  if (Object.keys(parsedPatch).length === 0) {
     return configResponse(responseBody(context, service, current.settings, current.revision));
   }
-  const next = applyServiceConfigPatch(service, current.settings, parsed.data as Record<string, unknown>);
+  const next = applyServiceConfigPatch(service, current.settings, parsedPatch);
 
   const legacyResponse = await putLegacyConfig({
     ...context,
