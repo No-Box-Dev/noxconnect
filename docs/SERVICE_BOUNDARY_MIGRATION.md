@@ -183,6 +183,16 @@ Gate: event ingestion, idempotency, error-group deduplication, incident repeat,
 GitHub receipt processing, metrics, dashboard auth/projection, endpoint health,
 digest, and no-secret checks all pass locally.
 
+### Milestone 4 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Product ownership | Green: NoxCue already owns event validation, incident keying, atomic occurrence deduplication, monitoring, charting, and digest rendering. Incident title/body/labels/repeat copy now also live in NoxCue. |
+| Credential isolation | Green: direct Anthropic code and configuration were removed. NoxCue sends a bounded, project-scoped completion command to the private NoxConnect capability Worker. |
+| Service call | Green: a real multi-Worker workerd test exercised NoxCue → NoxConnect-capability RPC and rendered the returned text. |
+| Provider execution | Green: GitHub lookup/write and managed-AI invocation remain in NoxConnect; NoxCue receives neither credential. |
+| Runtime/regression | Green: 12 test files / 69 tests, typecheck, dry-run bundle, incident orchestration tests, connector bundle, and credential scan passed. |
+
 ## Milestone 5 — NoxFeed service extraction
 
 1. Move current-work/feed projection, narration gating/deduplication, release
@@ -194,6 +204,15 @@ digest, and no-secret checks all pass locally.
 
 Gate: PR opened, draft-to-ready, merged narration reuse, release-note generation,
 daily summary, fallback, duplicate webhook, and separate Slack route flows pass.
+
+### Milestone 5 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Product policy | Green: NoxFeed owns actor/release prompts, mandatory output rules, Slack presentation, test messages, and config validation. |
+| Connection isolation | Green: the NoxFeed Worker has no GitHub, Slack, or managed-AI provider client or credential binding. NoxConnect owns completion, outbox, Slack routing, and retry. |
+| Service call | Green: real workerd RPC generated a NoxFeed prompt and Slack response and returned no credential-shaped data. |
+| Runtime/regression | Green: 3 test files / 15 tests and dry-run bundle passed; NoxConnect narrator/outbox regression remains part of the final gate. |
 
 ## Milestone 6 — NoxSpot service extraction
 
@@ -210,6 +229,16 @@ daily summary, fallback, duplicate webhook, and separate Slack route flows pass.
 Gate: origin-bound config, report, browser error batch, screenshot store/read/
 expiry, telemetry, GitHub issue idempotency, Slack delivery, digest, share login,
 and project isolation flows pass.
+
+### Milestone 6 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Relocation | Green: the production `noxspot-api` capture Worker was split from NoxConnect with its Git subtree history and added under the NoxSpot repository's `capture/` package. |
+| Ownership | Green: health identifies NoxSpot as runtime owner and the Worker publishes the NoxSpot manifest through private RPC. |
+| Isolation | Green for the production capture Worker: no provider client or credential binding. The old `api/` implementation remains explicitly retired and is not a deployment target; it is retained only for migration history. |
+| Runtime/service call | Green: 4 test files / 24 tests, dry-run bundle, and a real local manifest/health RPC passed with the private NoxCue dependency wired. |
+| Rollback | The embedded NoxConnect copy is intentionally retained until deployment parity; removal is a post-deployment rollback decision, not part of local certification. |
 
 ## Milestone 7 — Public façade and documentation compatibility
 
@@ -229,6 +258,15 @@ Gate: OpenAPI checks, authorization matrix, disabled/degraded behavior, project
 cross-access denial, documentation tests, and all existing API compatibility
 tests pass.
 
+### Milestone 7 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Errors | Green: disabled products return `409 service_not_enabled` with enable-service remediation; permission denial stays `403`; reachable-state failure stays `503 service_unavailable`. |
+| Discovery | Green: bound manifests are authoritative; pinned snapshots remain visible during failure but block setup and capabilities and surface a required runtime health failure. |
+| Documentation | Green: OpenAPI and the light developer page explain public façade vs private RPC, credentials, project scoping, runtime source, safe configuration, and error semantics. |
+| Static boundary | Green: a repeatable scan rejects provider endpoints and GitHub/Slack/Anthropic credential bindings from all four production product Workers. |
+
 ## Milestone 8 — End-to-end certification
 
 1. Start the local product Workers and NoxConnect façade with persistent local
@@ -245,6 +283,53 @@ tests pass.
 Gate: every advertised capability is either demonstrated healthy or explicitly
 marked blocked with evidence. No deployment or remote mutation is part of this
 local migration.
+
+### Milestone 8 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Full local stack | Green: NoxConnect, its private capability Worker, all four product Workers, RPC proxy, and cron started together. All 90 HTTP/RPC checks passed. |
+| Authentication | Green: browser sessions, native access/refresh rotation, sign-out revocation, CSRF rejection, automation-token creation/rotation/revocation, and secret non-disclosure passed. |
+| Authorization | Green: organization administration and project tokens remain distinct; cross-project reads, writes, configuration access, and token administration were denied. |
+| Service state | Green: live manifests served setup/health/config; disabled products returned `409 service_not_enabled`; unavailable runtime remains a distinct `503 service_unavailable`. |
+| Data and ingestion | Green: NoxTicket D1/R2 lifecycles, NoxCue ingestion/idempotency/metrics, NoxSpot report capture, and correctly signed versus invalid GitHub webhooks passed through real local calls. |
+| Configuration | Green: revision reads, mandatory `If-Match`, stale-write rejection, compare-and-swap update, restoration, and project discovery passed. |
+| Product boundaries | Green: all eight production product source/config roots passed the provider-client and credential-binding scan. Dependency-aware RPC probes passed for NoxTicket, NoxCue, NoxFeed, and NoxSpot. |
+| NoxConnect regression | Green: 173 test files / 1,338 tests, Functions typecheck, production frontend build, OpenAPI normalization, and the private capability Worker dry-run bundle passed. |
+| Product regression | Green: NoxCue 12 files / 69 tests; NoxFeed 3 / 15; NoxTicket 1 / 3; NoxSpot capture 4 / 24; NoxSpot legacy API 24 / 181; NoxSpot widget 16 / 153. Applicable typechecks and production/dry-run builds passed. |
+| Remote providers | Intentionally not run: GitHub installation mutations, Slack delivery, and managed-AI completion require disposable sandbox credentials. Local tests used real boundaries and fake provider executors, never production credentials. |
+
+### Deployment order and rollback
+
+1. Create the NoxTicket remote repository and provision product-owned D1/R2.
+2. Deploy the private NoxConnect capability Worker and configure only its
+   GitHub, Slack, and managed-AI secrets.
+3. Deploy NoxTicket, NoxCue, NoxFeed, and the relocated NoxSpot capture Worker.
+4. Add their private service bindings to NoxConnect and run the same health
+   probes against a disposable staging project.
+5. Deploy the NoxConnect public façade and cron consumers, then verify the
+   public discovery, setup, health, and configuration contracts.
+6. After one healthy release, remove the in-process NoxTicket fallback and the
+   embedded NoxSpot capture copy. Until then, either adapter is a rollback point.
+
+Product Workers need no GitHub, Slack, or managed-AI secrets. Existing provider
+secrets must be present only on NoxConnect/the private capability Worker; any
+copies in active product Worker environments should be removed after staging
+parity succeeds.
+
+### Known transitional items
+
+- NoxConnect remains the public façade and still contains shared orchestration
+  and some legacy NoxCue/NoxFeed projection adapters. Provider access is cleanly
+  isolated, but deleting these adapters should wait for post-deployment parity.
+- The retired NoxSpot `api/` tree still contains its historical provider code;
+  it is not an active deployment target. The production `capture/` Worker is
+  credential-free.
+- The NoxSpot legacy API dependency audit remains at its pre-existing baseline:
+  1 critical, 5 high, and 1 low vulnerability. This is not introduced by the
+  boundary migration, but should be resolved before reactivating that package.
+- NoxTicket currently exists as a standalone local Git repository and needs a
+  remote/repository ownership decision before any deployment.
 
 ## Commit and rollback discipline
 

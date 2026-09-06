@@ -414,7 +414,10 @@ export async function onRequest(context) {
     const response = serviceDisabledResponse(appId);
     if (!url.pathname.startsWith("/api/v1/")) return response;
     const body = await response.json();
-    return apiError(url, body.code ?? "service_not_enabled", body.error, response.status, { service: body.service });
+    return apiError(url, body.code ?? "service_not_enabled", body.error, response.status, {
+      service: body.service,
+      remediation: body.remediation,
+    });
   }
 
   // Probabilistic session cleanup: SESSION_CLEANUP_RATE of requests trigger a sweep

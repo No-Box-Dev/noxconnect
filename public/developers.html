@@ -110,6 +110,7 @@
     {
       <span class="token-key">"id"</span>: <span class="token-string">"noxfeed"</span>,
       <span class="token-key">"enabled"</span>: true,
+      <span class="token-key">"runtime"</span>: { <span class="token-key">"state"</span>: <span class="token-string">"ready"</span>, <span class="token-key">"source"</span>: <span class="token-string">"binding"</span> },
       <span class="token-key">"setup"</span>: { <span class="token-key">"state"</span>: <span class="token-string">"ready"</span> },
       <span class="token-key">"capabilities"</span>: [<span class="token-comment">/* operations live here */</span>]
     }
@@ -135,7 +136,7 @@
             <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, one project, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
           </article>
         </div>
-        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by NoxConnect on every automation request. A resource outside the token's project returns <code>resource_not_found</code>; a disabled service returns <code>service_not_enabled</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
+        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by NoxConnect on every automation request. A resource outside the token's project returns <code>resource_not_found</code>. A disabled product returns <code>409 service_not_enabled</code> with an enable-service remediation link; an enabled but unreachable Worker returns <code>503 service_unavailable</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
         <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
         <p class="field-note">A raw GitHub token is not a NoxConnect API credential. Unsupported bearer formats return <code>unsupported_credential</code> without being sent to GitHub.</p>
         <div class="callouts">
@@ -176,6 +177,10 @@
         <p class="section-kicker">Service catalog</p>
         <h2>Clear ownership at every boundary</h2>
         <p class="section-intro">NoxConnect owns shared infrastructure. Each product owns the resources and behavior unique to its job.</p>
+        <div class="principle">
+          <div class="principle-mark" aria-hidden="true">↳</div>
+          <div><h3>Public façade, private Workers</h3><p>Clients call only <code>app.unticket.ai</code>. NoxConnect authenticates and scopes the request, then calls product Workers through private service bindings. Product Workers return provider-neutral commands; only the private NoxConnect capability Worker can use GitHub, Slack, or managed-AI credentials.</p></div>
+        </div>
         <div class="service-grid">
           <article class="service-card foundation">
             <div class="service-top"><h3>NoxConnect</h3><span class="service-type">Foundation</span></div>
@@ -203,6 +208,7 @@
             <div class="pills"><span class="pill">Sources</span><span class="pill">Ingest keys</span><span class="pill">Health metrics</span><span class="pill">GitHub incidents</span><span class="pill">Delivery</span></div>
           </article>
         </div>
+        <p class="field-note"><code>runtime.source: binding</code> means the product Worker answered discovery. <code>runtime.source: snapshot</code> keeps its contract visible during an outage, but setup and capabilities are blocked until the binding is healthy.</p>
       </section>
 
       <section class="section" id="noxcue-sdk">

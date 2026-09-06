@@ -81,8 +81,9 @@ export function serviceDisabledResponse(appId) {
     error: `${name} is not enabled. Enable it in NoxConnect before trying again.`,
     code: "service_not_enabled",
     service: appId,
+    remediation: { action: "enable_service", href: `/api/v1/services/${appId}/config` },
   }), {
-    status: 403,
+    status: 409,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
