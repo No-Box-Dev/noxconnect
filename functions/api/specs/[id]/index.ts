@@ -3,14 +3,15 @@ import { getCtx, jsonResponse, errorResponse } from "../../../lib/db";
 import { validate } from "../../../lib/validate";
 import { sanitizeSpecLinks } from "../../../lib/spec-links";
 import { specRowToDto, type SpecRow } from "../../../lib/spec-dto";
+import { callNoxTicket, type NoxTicketEnvironment } from "../../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
 }
 
 interface Ctx {
   env: Env;
-  data: { orgId: number };
+  data: { orgId: number; userLogin: string };
   request: Request;
   params: { id: string };
 }
@@ -51,6 +52,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const id = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(id) || id <= 0) return errorResponse("Invalid spec id", 400);
 
+  const delegated = await callNoxTicket(context.env, (service) => service.getSpec(
+    { orgId, userLogin: context.data.userLogin },
+    id,
+  ));
+  if (delegated) return delegated;
+
   const row = await context.env.DB.prepare(
     `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ?`,
   )
@@ -76,6 +83,12 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+  const delegated = await callNoxTicket(context.env, (service) => service.updateSpec(
+    { orgId, userLogin: context.data.userLogin },
+    id,
+    rawBody,
+  ));
+  if (delegated) return delegated;
   const parsed = validate(UpdateSpecBody, rawBody);
   if (!parsed.ok) return parsed.response;
   const patch = parsed.data;

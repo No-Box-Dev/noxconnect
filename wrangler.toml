@@ -26,6 +26,10 @@ binding = "NOXSPOT_RESPONSE"
 service = "noxspot-api"
 
 [[services]]
+binding = "NOXTICKET_SERVICE"
+service = "noxticket"
+
+[[services]]
 binding = "NOXCUE_RESPONSE"
 service = "noxcue"
 

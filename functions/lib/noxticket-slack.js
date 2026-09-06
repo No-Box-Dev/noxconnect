@@ -16,7 +16,10 @@ export async function stageNoxTicketActivity(env, { orgId, ownerId, repo, action
   const connectionId = resolveSlackConnectionId(channels, "noxticket");
   if (!channelId) return { skipped: "channel_not_configured" };
 
-  const response = buildNoxTicketActivityResponse({ orgId, repo, action, issue, actor });
+  const message = env.NOXTICKET_SERVICE?.buildActivityMessage
+    ? await env.NOXTICKET_SERVICE.buildActivityMessage({ orgId, repo, action, issue, actor })
+    : buildNoxTicketActivityResponse({ orgId, repo, action, issue, actor }).message;
+  const response = { message };
   const delivery = await stageSlackDelivery(env.DB, {
     orgId,
     source: "noxticket",

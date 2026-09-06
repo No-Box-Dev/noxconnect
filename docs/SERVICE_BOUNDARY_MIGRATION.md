@@ -154,6 +154,19 @@ Gate: create/update/close feature, create/update/archive/restore spec, attachmen
 authorization, workflow config, duplicate receipt, and Slack test flows succeed
 through the local public façade and service binding.
 
+### Milestone 3 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Service | Green: a new `noxticket-service` Worker owns its manifest, workflow-config validation, feature intents/projections, spec lifecycle, attachment policy/storage, and Slack message presentation. |
+| Connection isolation | Green: the Worker declares only D1 and R2. GitHub mutations are provider-neutral issue intents; NoxConnect resolves the scoped project, executes with its GitHub App credential, and returns a bounded receipt. |
+| Public façade | Green with reversible fallback: existing feature/spec/attachment URLs delegate after NoxConnect authentication; old in-process handlers remain only as one-release rollback paths. |
+| Scope | Green: every Worker call requires organization/user scope; D1 queries include organization ownership, attachment R2 keys include organization/spec IDs, and a real cross-organization read returned 404. |
+| Data | Green: real local workerd RPC exercised spec create/read/update/archive/list, attachment put/get/delete in R2, feature intent preparation, receipt commit, and feature projection. |
+| Async/idempotency | Green at the connection boundary: feature commands use the Milestone 1 command ledger and accept `Idempotency-Key`; GitHub create also embeds a lookup marker. No remote GitHub mutation was made during this local-only milestone. |
+| Runtime | Green: generated Worker types, strict typecheck, tests, and dry-run bundle passed. |
+| Regression | Green: NoxConnect 173 files / 1,338 tests, Functions typecheck, production build, and OpenAPI check passed. |
+
 ## Milestone 4 — NoxCue service extraction
 
 1. Move source config, ingest-key lifecycle, custom metrics, feature catalog,

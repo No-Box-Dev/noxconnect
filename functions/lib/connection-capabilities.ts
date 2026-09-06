@@ -56,7 +56,8 @@ const GitHubIssueUpdate = BaseCommand.extend({
   input: z.object({
     repository: Repository,
     issueNumber: z.number().int().positive(),
-    issue: GitHubIssueFields.partial().refine((value) => Object.keys(value).length > 0, "At least one issue field is required"),
+    issue: GitHubIssueFields.partial().extend({ state: z.enum(["open", "closed"]).optional() })
+      .refine((value) => Object.keys(value).length > 0, "At least one issue field is required"),
   }).strict(),
 }).strict();
 

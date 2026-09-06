@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:full": "vite build && npx wrangler pages dev dist",
     "health:service-rpc": "node scripts/check-service-rpc.mjs",
+    "health:noxticket-data": "node scripts/check-noxticket-data.mjs",
     "e2e:local": "npm run build && node scripts/local-e2e.mjs",
     "build": "tsc -b && vite build",
     "openapi:standardize": "node scripts/standardize-openapi.mjs",
