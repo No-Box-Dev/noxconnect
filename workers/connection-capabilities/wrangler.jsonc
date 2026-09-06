@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "noxconnect-capabilities",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-06",
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "noxconnect", "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25" }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks" }
+    ]
+  }
+}

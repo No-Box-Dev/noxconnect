@@ -10,11 +10,6 @@ import {
 } from "./github-issues.js";
 import { isAppEnabled } from "./apps.js";
 
-const LABELS = [
-  { name: "noxcue", color: "6f42c1", description: "Detected by NoxCue" },
-  { name: "incident", color: "d73a4a", description: "Application incident requiring investigation" },
-];
-
 export async function createOrUpdateNoxCueGitHubIssue(env, task) {
   if (!task?.incidentId) throw new Error("Invalid NoxCue GitHub issue task");
   const claimed = await env.DB.prepare(
@@ -63,8 +58,18 @@ async function processIncident(env, incidentId) {
   const installationId = await getInstallationIdForOrg(env.DB, row.org_id);
   if (!installationId) throw new Error(`GitHub App not installed for org ${row.org_id}`);
   const token = await getInstallationToken(env, installationId);
-  const marker = `<!-- noxcue-key: ${row.environment}/${row.incident_key} -->`;
-  const payload = parsePayload(row.payload_json);
+  if (!env.NOXCUE_RESPONSE?.buildGitHubIncident) throw new Error("NoxCue incident service binding is unavailable");
+  const presentation = requirePresentation(await env.NOXCUE_RESPONSE.buildGitHubIncident({
+    environment: row.environment,
+    incidentKey: row.incident_key,
+    title: row.title,
+    payloadJson: row.payload_json,
+    sourceName: row.source_name,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
+    occurrenceCount: row.occurrence_count,
+  }, row.previous_issue_url ? { url: row.previous_issue_url } : null));
+  const marker = presentation.marker;
 
   let issue = null;
   if (row.github_issue_number && row.github_repo === row.repo) {
@@ -80,25 +85,33 @@ async function processIncident(env, incidentId) {
   let wroteIssue = false;
   if (issue?.state === "open") {
     const shouldUpdate = updateDue(row.last_github_update_at, row.repeat_interval_minutes)
-      || latestRelease(payload) !== (row.last_github_release ?? null);
+      || presentation.latestRelease !== (row.last_github_release ?? null);
     if (shouldUpdate) {
       issue = await updateRepositoryIssue(token, row.github_login, row.repo, issue.number, {
-        body: issueBody(row, payload, marker, null),
+        body: presentation.body,
       });
       wroteIssue = true;
       if (row.comment_on_repeat) {
         await createRepositoryIssueComment(
           token, row.github_login, row.repo, issue.number,
-          `NoxCue observed this incident again. Occurrences: **${row.occurrence_count}** · Last seen: ${row.last_seen_at}.`,
+          presentation.repeatComment,
         );
       }
     }
   } else {
-    await ensureRepositoryLabels(token, row.github_login, row.repo, LABELS);
+    const createPresentation = previous
+      ? requirePresentation(await env.NOXCUE_RESPONSE.buildGitHubIncident({
+          environment: row.environment, incidentKey: row.incident_key, title: row.title,
+          payloadJson: row.payload_json, sourceName: row.source_name,
+          firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,
+          occurrenceCount: row.occurrence_count,
+        }, { url: previous.html_url }))
+      : presentation;
+    await ensureRepositoryLabels(token, row.github_login, row.repo, createPresentation.labels);
     issue = await createRepositoryIssue(token, row.github_login, row.repo, {
-      title: `[NoxCue] ${row.title}`.slice(0, 256),
-      body: issueBody(row, payload, marker, previous),
-      labels: LABELS.map((label) => label.name),
+      title: createPresentation.title,
+      body: createPresentation.body,
+      labels: createPresentation.labels.map((label) => label.name),
     });
     wroteIssue = true;
   }
@@ -127,7 +140,7 @@ async function processIncident(env, incidentId) {
       row.repo, issue.number, issue.html_url, previous?.number ?? row.previous_issue_number ?? null,
       previous?.html_url ?? row.previous_issue_url ?? null,
       wroteIssue ? now : row.last_github_update_at,
-      wroteIssue ? latestRelease(payload) : row.last_github_release,
+      wroteIssue ? presentation.latestRelease : row.last_github_release,
       now, incidentId,
     ),
   ]);
@@ -159,84 +172,16 @@ export async function recoverNoxCueGithubIncidents(env) {
   }
 }
 
-function issueBody(row, payload, marker, previous) {
-  const causes = payload.diagnosis.possibleCauses.map((value) => `- ${markdown(value)}`).join("\n");
-  const fixes = payload.diagnosis.possibleFixes.map((value) => `- ${markdown(value)}`).join("\n");
-  const error = payload.error
-    ? [payload.error.name, payload.error.code, payload.error.status ? `HTTP ${payload.error.status}` : null, payload.error.message]
-      .filter(Boolean).map(markdown).join(" · ")
-    : "No structured error was supplied.";
-  const stack = payload.error?.stack
-    ? `\n<details>\n<summary>Redacted stack trace</summary>\n\n\`\`\`text\n${markdown(payload.error.stack)}\n\`\`\`\n</details>\n`
-    : "";
-  return `${marker}
-## Detected impact
-
-${markdown(payload.impact)}
-
-${payload.message ? `**Message:** ${markdown(payload.message)}\n\n` : ""}**Error:** ${error}
-${stack}
-
-## Context
-
-- Environment: \`${markdown(row.environment)}\`
-- Source: ${markdown(row.source_name)}
-- Incident key: \`${markdown(row.incident_key)}\`
-- First seen: ${row.first_seen_at}
-- Last seen: ${row.last_seen_at}
-- Occurrences: ${row.occurrence_count}
-${payload.context?.release ? `- Latest release: \`${markdown(payload.context.release)}\`\n` : ""}${payload.context?.runtime ? `- Runtime: ${markdown(payload.context.runtime)}\n` : ""}${payload.context?.url ? `- Origin: ${markdown(payload.context.url)}\n` : ""}${previous ? `- Previous occurrence: ${previous.html_url}\n` : ""}
-## Possible causes
-
-${causes}
-
-## Possible fixes to investigate
-
-${fixes}
-
-> NoxCue detected and explained this incident. It has not changed the application or attempted a fix.
-`;
-}
-
-function parsePayload(raw) {
-  try {
-    const value = JSON.parse(raw);
-    if (!value || typeof value.impact !== "string" || !value.diagnosis
-      || !Array.isArray(value.diagnosis.possibleCauses) || !Array.isArray(value.diagnosis.possibleFixes)) throw new Error("invalid");
-    return {
-      impact: value.impact.slice(0, 2_000),
-      message: typeof value.message === "string" ? value.message.slice(0, 2_000) : null,
-      error: value.error && typeof value.error === "object" ? {
-        name: short(value.error.name, 120), code: short(value.error.code, 120),
-        status: Number.isFinite(value.error.status) ? value.error.status : null,
-        message: short(value.error.message, 2_000), stack: short(value.error.stack, 6_000),
-      } : null,
-      context: value.context && typeof value.context === "object" ? {
-        release: short(value.context.release, 200), runtime: short(value.context.runtime, 200),
-        url: short(value.context.url, 1_000),
-      } : null,
-      diagnosis: {
-        possibleCauses: value.diagnosis.possibleCauses.slice(0, 8).map((item) => short(item, 500)).filter(Boolean),
-        possibleFixes: value.diagnosis.possibleFixes.slice(0, 8).map((item) => short(item, 500)).filter(Boolean),
-      },
-    };
-  } catch {
-    throw new Error("NoxCue incident has invalid diagnostic payload");
-  }
-}
-
 function enabledEnvironment(raw, environment) {
   try { return JSON.parse(raw).includes(environment); } catch { return false; }
 }
 
-function latestRelease(payload) { return payload?.context?.release ?? null; }
-function short(value, max) { return typeof value === "string" ? value.slice(0, max) : null; }
 function updateDue(last, minutes) { return !last || Date.now() - Date.parse(last) >= Number(minutes) * 60_000; }
 function validRepo(value) { return typeof value === "string" && /^[A-Za-z0-9_.-]{1,100}$/.test(value); }
-function markdown(value) {
-  return String(value ?? "").slice(0, 8_000)
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll("```", "''' ");
+function requirePresentation(value) {
+  if (!value || typeof value.marker !== "string" || typeof value.title !== "string" || typeof value.body !== "string"
+    || !Array.isArray(value.labels) || typeof value.repeatComment !== "string") throw new Error("NoxCue returned an invalid incident presentation");
+  return value;
 }
 function errorMessage(error) { return (error instanceof Error ? error.message : String(error)).slice(0, 500); }
 async function markDisabled(db, id, reason) {

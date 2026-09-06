@@ -77,6 +77,8 @@ export async function onRequestPost(context) {
           period,
           selected.metrics,
           selected.comparisons,
+          selected.metricLabels,
+          source.project_id ? { organizationId: orgId, projectId: source.project_id, sourceId } : undefined,
         )).message;
       } else {
         payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;

@@ -111,7 +111,15 @@ async function createDigest(
   const displayName = source.name.toLowerCase().includes(source.environment.toLowerCase())
     ? source.name
     : `${source.name} · ${environment}`;
-  const response = await getNoxCueDigestResponse(env, displayName, period, selected.metrics, selected.comparisons, selected.metricLabels);
+  const response = await getNoxCueDigestResponse(
+    env,
+    displayName,
+    period,
+    selected.metrics,
+    selected.comparisons,
+    selected.metricLabels,
+    source.project_id ? { organizationId: source.org_id, projectId: source.project_id, sourceId: source.id } : undefined,
+  );
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: source.org_id,
     source: "noxcue",

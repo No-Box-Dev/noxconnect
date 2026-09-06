@@ -53,7 +53,15 @@ function environment(row) {
     },
     batch: vi.fn().mockResolvedValue([]),
   };
-  return { env: { DB: db, TASK_QUEUE: { send: vi.fn() } }, statements };
+  const buildGitHubIncident = vi.fn(async (input, previous) => ({
+    marker: `<!-- noxcue-key: ${input.environment}/${input.incidentKey} -->`,
+    title: `[NoxCue] ${input.title}`,
+    body: `Incident key: \`${input.incidentKey}\`\n${previous?.url ? `Previous occurrence: ${previous.url}\n` : ""}has not changed the application or attempted a fix`,
+    labels: [{ name: "noxcue", color: "6f42c1" }, { name: "incident", color: "d73a4a" }],
+    latestRelease: "web-123",
+    repeatComment: `NoxCue observed this incident again. Occurrences: **${input.occurrenceCount}**`,
+  }));
+  return { env: { DB: db, TASK_QUEUE: { send: vi.fn() }, NOXCUE_RESPONSE: { buildGitHubIncident } }, statements };
 }
 
 beforeEach(() => vi.clearAllMocks());
