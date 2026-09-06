@@ -98,6 +98,19 @@ Isolation worktrees:
 Gate: contract tests, credential non-leakage tests, duplicate-command tests,
 executor tests, typecheck, and a local RPC smoke call all pass.
 
+### Milestone 1 result — 2026-09-06
+
+| Dimension | Result |
+|---|---|
+| Contract | Green: strict version-1 GitHub issue, Slack message, managed-AI command, and bounded receipt schemas added. |
+| Isolation | Green at the boundary: recursive credential-shaped field rejection is tested for commands and receipts. Product Worker secret removal is completed in product milestones. |
+| Scope | Green: organization and project are mandatory; repository mismatch is rejected before credential resolution. |
+| Data | Green: all 83 migrations, including the idempotent capability-run ledger, applied to a fresh local D1 database. |
+| Async | Green: repeated identical commands return the stored receipt and do not repeat the provider call; Slack uses the existing durable outbox. |
+| Runtime | Green: Functions typecheck and production build passed. |
+| Regression | Green: 173 test files / 1,336 tests and OpenAPI normalization check passed. |
+| Service call | Deferred to Milestone 2 because Milestone 1 defines the NoxConnect executor boundary; product RPC producers are introduced next. |
+
 ## Milestone 2 — Service-owned discovery and configuration
 
 1. Add a versioned `describe()` RPC to each product service with its identity,
