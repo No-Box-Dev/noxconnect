@@ -52,3 +52,11 @@ bucket_name = "noxconnect-spec-attachments"
 [[r2_buckets]]
 binding = "NOXSPOT_ASSETS"
 bucket_name = "noxspot-assets"
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05

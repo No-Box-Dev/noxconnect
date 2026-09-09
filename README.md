@@ -27,7 +27,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. By default the dev server proxies `/api/*` to the hosted instance; the local read-only development UI can use a GitHub personal access token (`repo`, `read:org` scopes). This is a development convenience, not a third-party authentication contract for the hosted API. To run the full stack (backend Functions, D1, OAuth) against your own infrastructure, follow [DEPLOY.md](./DEPLOY.md).
+Open http://localhost:5173. By default the dev server proxies `/api/*` to the hosted instance. The hosted API accepts only NoxConnect browser sessions, short-lived native sessions, and project-scoped API tokens; GitHub provider tokens are never API credentials. To run the full stack (backend Functions, D1, OAuth) against your own infrastructure, follow [DEPLOY.md](./DEPLOY.md).
 
 Set `VITE_API_TARGET` in `.env.local` to point the dev proxy at your own deployment. See [.env.example](./.env.example) for all configuration.
 

@@ -99,6 +99,11 @@ read/write and project scopes are enforced before handlers run, token lifecycle 
 audited, and API tokens cannot mint other API tokens. New-organization admin
 bootstrap requires a verified active GitHub organization owner.
 
+Raw GitHub access tokens are not accepted as NoxConnect API bearer credentials.
+The narrowly scoped native migration exchange remains only for already-installed
+NoxFeed clients and is not a general authentication mode. Unknown bearer formats
+fail with `unsupported_credential` before any provider request is made.
+
 Each automation token belongs to exactly one enabled project. Collection reads
 are filtered to that project, direct references outside it return
 `resource_not_found`, and disabled services return `service_not_enabled` before
@@ -143,6 +148,12 @@ clients.
 NoxCue ingestion now has a stable same-origin public gateway at
 `/api/v1/cues/public/events`. It forwards through the private service binding,
 so client snippets no longer depend on a temporary Worker hostname.
+
+The cron control plane also turns recent background-operation and delivery
+failures into deduplicated `operations` outbox messages. Those messages use the
+organization's configured Slack operations route, redact credentials and URLs,
+and remain durable and auditable like product deliveries. Every deployed Worker
+publishes structured logs, with a bounded trace sample for cross-Worker diagnosis.
 
 ### 8. Verification
 

@@ -26,10 +26,6 @@
     },
     {
       "noxApiToken": []
-    },
-    {
-      "bearerAuth": [],
-      "organization": []
     }
   ],
   "paths": {
@@ -433,10 +429,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -517,10 +509,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -908,10 +896,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -956,10 +940,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -1022,10 +1002,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -1079,10 +1055,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -1128,10 +1100,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -1176,10 +1144,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -1236,10 +1200,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -1299,10 +1259,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -1348,10 +1304,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -1396,10 +1348,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -1469,10 +1417,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -2500,10 +2444,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -2558,10 +2498,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -2613,10 +2549,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -2674,10 +2606,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -2747,10 +2675,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -2795,10 +2719,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -2852,10 +2772,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -2919,10 +2835,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -2977,10 +2889,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3040,10 +2948,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3111,10 +3015,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -3165,10 +3065,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3235,10 +3131,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -3295,10 +3187,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -3351,10 +3239,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3420,10 +3304,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -3475,10 +3355,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -3527,10 +3403,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3581,10 +3453,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -3659,10 +3527,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -3720,10 +3584,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       },
@@ -3777,10 +3637,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -4131,10 +3987,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -4198,10 +4050,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ]
       }
@@ -4247,10 +4095,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -4321,10 +4165,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ]
@@ -4890,10 +4730,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -4955,10 +4791,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -4975,9 +4807,6 @@
           },
           {
             "nativeSession": []
-          },
-          {
-            "bearerAuth": []
           }
         ],
         "responses": {
@@ -5068,10 +4897,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -5131,10 +4956,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -5183,10 +5004,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5248,10 +5065,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -5309,10 +5122,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -5361,10 +5170,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5422,10 +5227,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5536,10 +5337,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -5588,10 +5385,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5653,10 +5446,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -5705,10 +5494,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5759,10 +5544,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -5812,10 +5593,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -5864,10 +5641,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -5928,10 +5701,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -5980,10 +5749,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6034,10 +5799,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -6086,10 +5847,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6140,10 +5897,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "safe_read"
@@ -6160,9 +5913,6 @@
           },
           {
             "nativeSession": []
-          },
-          {
-            "bearerAuth": []
           }
         ],
         "responses": {
@@ -6313,10 +6063,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -6365,10 +6111,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6429,10 +6171,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "destructive"
@@ -6481,10 +6219,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6545,10 +6279,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -6608,10 +6338,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -6660,10 +6386,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6721,10 +6443,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6785,10 +6503,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "write_not_safe_to_retry"
@@ -6837,10 +6551,6 @@
           },
           {
             "nativeSession": [],
-            "organization": []
-          },
-          {
-            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -6902,10 +6612,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "destructive"
@@ -6966,10 +6672,6 @@
           {
             "nativeSession": [],
             "organization": []
-          },
-          {
-            "bearerAuth": [],
-            "organization": []
           }
         ],
         "x-change-safety": "destructive"
@@ -6978,11 +6680,6 @@
   },
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Deprecated GitHub bearer compatibility for local development and one-time native migration. It will be removed after supported native clients have upgraded."
-      },
       "organization": {
         "type": "apiKey",
         "in": "header",

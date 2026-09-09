@@ -24,6 +24,7 @@ import { runNoxCueDigests } from "./noxcue-digests.js";
 import { runNoxSpotDailyDigests } from "./noxspot-digests.js";
 import { runNoxFeedDailySummaries } from "./noxfeed-daily-summaries.js";
 import { createOrUpdateNoxCueGitHubIssue, recoverNoxCueGithubIncidents } from "../../functions/lib/noxcue-github.js";
+import { runOperationalAlerts } from "./operational-alerts.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -133,6 +134,14 @@ async function runTick(env, nowMs = Date.now()) {
     console.error("[noxconnect-cron] NoxCue GitHub issue recovery failed:", err?.message ?? err);
   }
   await runSlackHealthSweep(env);
+  try {
+    await runOperationalAlerts(env);
+  } catch (err) {
+    console.error(JSON.stringify({
+      event: "operational_alert_sweep_failed",
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
   await healOrgInstallationLinks(db);
 
   try {

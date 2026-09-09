@@ -113,14 +113,20 @@ document.components.securitySchemes.nativeSession = {
   type: "http", scheme: "bearer", bearerFormat: "nox_at_…",
   description: "Short-lived first-party native application session. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect.",
 };
-document.components.securitySchemes.bearerAuth.description = "Deprecated GitHub bearer compatibility for local development and one-time native migration. It will be removed after supported native clients have upgraded.";
+delete document.components.securitySchemes.bearerAuth;
 document.components.responses.Unauthorized.description = "Missing, invalid, or expired supported credential";
 document.security = [
   { browserSession: [], organization: [] },
   { nativeSession: [], organization: [] },
   { noxApiToken: [] },
-  { bearerAuth: [], organization: [] },
 ];
+
+for (const pathItem of Object.values(document.paths)) {
+  for (const operation of Object.values(pathItem)) {
+    if (!operation || typeof operation !== "object" || !Array.isArray(operation.security)) continue;
+    operation.security = operation.security.filter((requirement) => !("bearerAuth" in requirement));
+  }
+}
 
 document.paths["/api/v1/auth/native/device/start"] = {
   post: nativeAuthOperation("startNativeDeviceAuthorization", "Start native GitHub authorization", {
@@ -361,7 +367,6 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
       operation.security = [
         { browserSession: [], organization: [] },
         { nativeSession: [], organization: [] },
-        { bearerAuth: [], organization: [] },
       ];
     }
     operation["x-change-safety"] = changeSafety(method, operation.operationId);
@@ -425,9 +430,9 @@ function nativeAuthOperation(operationId, summary, requestSchema, description) {
 function firstPartyClientOperation(operationId, summary, role, organization, method) {
   const requestBody = ["post", "put", "patch"].includes(method);
   const security = role === "platform_operator"
-    ? [{ browserSession: [] }, { nativeSession: [] }, { bearerAuth: [] }]
+    ? [{ browserSession: [] }, { nativeSession: [] }]
     : organization === false
-      ? [{ browserSession: [] }, { nativeSession: [] }, { bearerAuth: [] }]
+      ? [{ browserSession: [] }, { nativeSession: [] }]
       : undefined;
   return {
     operationId,
