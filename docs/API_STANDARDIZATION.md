@@ -112,6 +112,10 @@ and NoxCue operations. Organization-wide NoxConnect configuration and the
 organization-owned NoxTicket feature repository require a human session rather
 than pretending they can be safely project-scoped.
 
+Delivery history distinguishes actionable configuration failures from terminal
+outcomes. `blocked_service_disabled` records that a product was switched off;
+`superseded` records that an obsolete route was intentionally not replayed.
+
 ### 6. Safe writes and errors
 
 Config reads return a SHA-256 revision in both the JSON body and `ETag`. PATCH
