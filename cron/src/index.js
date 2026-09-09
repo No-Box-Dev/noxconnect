@@ -81,6 +81,10 @@ export default {
 
   // Manual trigger for `wrangler dev --test-scheduled` and curl /__scheduled.
   async fetch(request, env, ctx) {
+    // These routes mutate shared state and exist only for deliberate local
+    // diagnostics. Production has no ENABLE_MANUAL_CRON binding, so its public
+    // workers.dev hostname exposes no operator surface.
+    if (env.ENABLE_MANUAL_CRON !== "true") return new Response("not found", { status: 404 });
     const url = new URL(request.url);
     if (url.pathname === "/__scheduled") {
       ctx.waitUntil(runTick(env));
