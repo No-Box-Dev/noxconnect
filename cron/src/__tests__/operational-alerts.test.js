@@ -80,4 +80,3 @@ describe("operational Slack alerts", () => {
     warning.mockRestore();
   });
 });
-

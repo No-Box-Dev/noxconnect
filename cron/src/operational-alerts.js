@@ -145,4 +145,3 @@ function slackText(value, limit) {
     .replaceAll(">", "&gt;")
     .slice(0, limit);
 }
-
