@@ -14,16 +14,13 @@
     <script>
       (function () {
         function loadNoxSpot() {
-        if (window.location.pathname.startsWith('/share/')) return;
-        var s = document.createElement('script');
-        s.src = 'https://cdn.noxspot.dev/noxspot.min.js';
-        s.async = true;
-        s.onload = function () {
-          if (window.NoxSpot) {
-            window.NoxSpot.init({ siteId: '43139df3-30bb-4208-bee8-1cffb6939b9b' });
-          }
-        };
-        document.head.appendChild(s);
+          if (window.location.pathname.startsWith('/share/')) return;
+          if (document.querySelector('script[data-noxspot-loader]')) return;
+          var s = document.createElement('script');
+          s.src = 'https://api.noxspot.dev/widget/43139df3-30bb-4208-bee8-1cffb6939b9b.js';
+          s.async = true;
+          s.dataset.noxspotLoader = 'true';
+          document.head.appendChild(s);
         }
         if ('requestIdleCallback' in window) {
           window.requestIdleCallback(loadNoxSpot, { timeout: 2000 });
