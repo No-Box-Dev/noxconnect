@@ -222,6 +222,7 @@
           <div class="code-head"><span>terminal · install</span><button class="copy-button" type="button" data-copy="noxcue-install">Copy</button></div>
           <pre id="noxcue-install"><code>npm install @noxcue/sdk</code></pre>
         </div>
+        <p class="field-note">Available now as <a href="https://www.npmjs.com/package/@noxcue/sdk" rel="external">@noxcue/sdk 0.1.7 on npm</a>. Install without a version to receive the latest compatible release.</p>
 
         <div class="callouts">
           <article class="callout">
@@ -256,6 +257,20 @@ const noxcue = createNoxCue({
 await noxcue.user.registered(user.id);</code></pre>
             </div>
           </article>
+        </div>
+
+        <div class="code-block">
+          <div class="code-head"><span>typescript · common outcomes</span><button class="copy-button" type="button" data-copy="noxcue-outcomes">Copy</button></div>
+          <pre id="noxcue-outcomes"><code><span class="token-comment">// Wrap important journeys; the original result or error is preserved.</span>
+await noxcue.auth.login(() =&gt; auth.logIn(input));
+await noxcue.auth.passwordReset(() =&gt; auth.sendReset(email));
+
+<span class="token-comment">// Report safe errors and registered product activity.</span>
+await noxcue.error(error, { component: <span class="token-string">"checkout"</span> });
+await noxcue.activity(<span class="token-string">"custom.journals.added"</span>, user.id);
+
+<span class="token-comment">// Wait for queued feature reports in tests or long-running processes.</span>
+await noxcue.flush();</code></pre>
         </div>
 
         <div class="principle">
