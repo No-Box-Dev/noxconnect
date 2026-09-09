@@ -64,6 +64,13 @@ function makeCtx() {
 }
 
 describe("scheduled tick", () => {
+  it("does not expose manual cron controls without the local-only enable flag", async () => {
+    const { ctx } = makeCtx();
+    const response = await worker.fetch(new Request("https://x/__scheduled"), { DB: makeDb() }, ctx);
+    expect(response.status).toBe(404);
+    expect(reconcileOrg).not.toHaveBeenCalled();
+  });
+
   it("heals orgs missing installation_id/bootstrapped_at before dispatching reconcile", async () => {
     vi.mocked(reconcileOrg).mockReset();
     const db = makeDb({
@@ -78,7 +85,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.fetch(new Request("https://x/__scheduled"), { DB: db, ENABLE_MANUAL_CRON: "true" }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBe(111);
@@ -99,7 +106,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.fetch(new Request("https://x/__scheduled"), { DB: db, ENABLE_MANUAL_CRON: "true" }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBeNull();
@@ -118,7 +125,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.fetch(new Request("https://x/__scheduled"), { DB: db, ENABLE_MANUAL_CRON: "true" }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBe(111);
