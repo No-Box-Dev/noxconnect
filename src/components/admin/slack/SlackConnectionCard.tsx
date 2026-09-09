@@ -132,6 +132,11 @@ export function SlackConnectionCard() {
                 (!project.archived && project.routing_enabled === 1) || project.id === connection.projectId
               ))}
               projectRequired={Boolean(data.projectAssignmentRequired)}
+              reconnecting={busy === "connect"}
+              onReconnect={() => handleConnect({
+                team: connection.teamId,
+                projectId: connection.projectId,
+              })}
               onDisconnect={handleDisconnect}
               onError={setError}
             />
@@ -151,8 +156,8 @@ export function SlackConnectionCard() {
       {data?.needsReconnect && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           This organization is still connected through the legacy Slack app.
-          Reconnect once to migrate it to NoxConnect; existing channel choices
-          are retained when the workspace stays the same.
+          Use Reconnect on each affected workspace to migrate it to NoxConnect;
+          existing channel choices are retained.
         </div>
       )}
 
@@ -227,6 +232,8 @@ function SlackConnectionRow({
   disconnecting,
   projects,
   projectRequired,
+  reconnecting,
+  onReconnect,
   onDisconnect,
   onError,
 }: {
@@ -234,6 +241,8 @@ function SlackConnectionRow({
   disconnecting: boolean;
   projects: FeedProject[];
   projectRequired: boolean;
+  reconnecting: boolean;
+  onReconnect: () => Promise<void>;
   onDisconnect: (connectionId: string) => Promise<void>;
   onError: (message: string | null) => void;
 }) {
@@ -306,6 +315,18 @@ function SlackConnectionRow({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {connection.needsReconnect ? (
+          <button
+            type="button"
+            onClick={() => void onReconnect()}
+            disabled={reconnecting}
+            aria-label={`Reconnect ${connection.teamName}`}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+          >
+            {reconnecting ? <Loader2 size={12} className="animate-spin" /> : null}
+            {reconnecting ? "Opening Slack…" : "Reconnect"}
+          </button>
+        ) : null}
         <select
           value={connection.projectId ?? ""}
           onChange={(event) => void handleProjectChange(event.target.value)}
