@@ -1,6 +1,6 @@
 name = "unticket-cron"
 main = "src/index.js"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-09-09"
 
 [vars]
 SLACK_ACCEPT_LEGACY_INSTALLS = "true"
@@ -34,6 +34,14 @@ database_id = "c94084e6-d0be-423c-8de6-249e7cf8bf25"
 # installed. 30 min is a reasonable RPO without being chatty.
 [triggers]
 crons = ["*/30 * * * *"]
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
 
 # Durable background-work consumer. The Pages app (functions/api/webhook.js)
 # produces narrate / PR-match / bootstrap / repo-sync tasks here; this Worker's

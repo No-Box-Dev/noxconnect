@@ -289,11 +289,12 @@ export async function onRequest(context) {
       credentialId = nativeSession.id;
       token = nativeSession.githubToken;
     } else {
-      // Compatibility path for native clients and local `gh auth token` use.
-      // Browser code no longer stores or sends this provider credential.
-      credentialType = "github_legacy";
-      credentialId = await sha256(bearer);
-      token = bearer;
+      return apiError(
+        url,
+        "unsupported_credential",
+        "Use a NoxConnect native access token or a project-scoped API token",
+        401,
+      );
     }
 
     const validation = await validateGitHubToken(token);

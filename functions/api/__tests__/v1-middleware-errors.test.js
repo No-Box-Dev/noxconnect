@@ -17,6 +17,26 @@ describe("v1 middleware errors", () => {
     });
   });
 
+  it("rejects provider bearer tokens before calling GitHub or a handler", async () => {
+    const request = new Request("https://app.noxhere.com/api/v1/services", {
+      headers: { Authorization: "Bearer github_pat_not-a-noxconnect-credential" },
+    });
+    const response = await onRequest({
+      request,
+      env: {},
+      data: {},
+      next() { throw new Error("handler should not run"); },
+    });
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: {
+        code: "unsupported_credential",
+        message: "Use a NoxConnect native access token or a project-scoped API token",
+      },
+    });
+  });
+
   it("preserves the legacy error shape outside v1", async () => {
     const response = await onRequest({
       request: new Request("https://app.noxhere.com/api/projects"),

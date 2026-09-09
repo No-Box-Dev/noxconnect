@@ -310,7 +310,7 @@ async function main() {
   await request("browser session authenticates without exposing a GitHub bearer", "/api/v1/services", sessionOptions(sessionToken, csrfToken));
   await request("native NoxConnect session authenticates without sending a GitHub bearer", "/api/v1/services", authOptions(nativeAccessToken));
   await request("native access cannot mint long-lived automation credentials", "/api/v1/api-tokens", authOptions(nativeAccessToken), 403);
-  await request("legacy GitHub bearer cannot manage NoxConnect API tokens", "/api/v1/api-tokens", authOptions(token), 403);
+  await request("GitHub provider bearer is not a NoxConnect API credential", "/api/v1/services", authOptions(token), 401);
   await request("native NoxConnect session resolves the GitHub identity facade", "/api/auth/profile?scope=user", {
     headers: { Authorization: `Bearer ${nativeAccessToken}` },
   });
@@ -449,45 +449,45 @@ async function main() {
   await request("revoke the rotated automation token", `/api/v1/api-tokens/${rotatedTokenId}`, sessionOptions(sessionToken, csrfToken, { method: "DELETE" }));
   await request("revoked automation token is rejected", "/api/v1/services", authOptions(rotatedToken), 401);
 
-  const catalog = await request("authenticated service catalog using live GitHub identity", "/api/v1/services", authOptions(token));
+  const catalog = await request("authenticated service catalog using a server-side GitHub session", "/api/v1/services", sessionOptions(sessionToken, csrfToken));
   if (!Array.isArray(catalog.body?.services) || catalog.body.services.length !== 5) throw new Error("Expected all five service families");
   for (const service of ["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"]) {
-    await request(`${service} setup contract`, `/api/v1/services/${service}/setup`, authOptions(token));
-    await request(`${service} health contract`, `/api/v1/services/${service}/health`, authOptions(token));
-    await request(`${service} config contract`, `/api/v1/services/${service}/config`, authOptions(token));
+    await request(`${service} setup contract`, `/api/v1/services/${service}/setup`, sessionOptions(sessionToken, csrfToken));
+    await request(`${service} health contract`, `/api/v1/services/${service}/health`, sessionOptions(sessionToken, csrfToken));
+    await request(`${service} config contract`, `/api/v1/services/${service}/config`, sessionOptions(sessionToken, csrfToken));
   }
 
-  const currentConfig = await request("read versioned config and ETag", "/api/v1/services/noxconnect/config", authOptions(token));
+  const currentConfig = await request("read versioned config and ETag", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken));
   const etag = currentConfig.response.headers.get("etag");
   if (!etag) throw new Error("Config response did not return ETag");
-  await request("config write requires If-Match", "/api/v1/services/noxconnect/config", authOptions(token, {
+  await request("config write requires If-Match", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
     method: "PATCH", body: JSON.stringify({ newRepositoryPolicy: "exclude" }),
   }), 428);
-  await request("stale config write is rejected", "/api/v1/services/noxconnect/config", authOptions(token, {
+  await request("stale config write is rejected", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
     method: "PATCH", headers: { "If-Match": '"stale"' }, body: JSON.stringify({ newRepositoryPolicy: "exclude" }),
   }), 412);
-  const updated = await request("config compare-and-swap update", "/api/v1/services/noxconnect/config", authOptions(token, {
+  const updated = await request("config compare-and-swap update", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
     method: "PATCH", headers: { "If-Match": etag }, body: JSON.stringify({ newRepositoryPolicy: "exclude" }),
   }));
-  await request("restore config after compare-and-swap check", "/api/v1/services/noxconnect/config", authOptions(token, {
+  await request("restore config after compare-and-swap check", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
     method: "PATCH", headers: { "If-Match": updated.response.headers.get("etag") }, body: JSON.stringify({ newRepositoryPolicy: "include" }),
   }));
 
-  const projects = await request("project discovery from local installation fixture", "/api/v1/projects", authOptions(token));
+  const projects = await request("project discovery from local installation fixture", "/api/v1/projects", sessionOptions(sessionToken, csrfToken));
   if (!projects.body?.projects?.some((project) => project.id === projectId)) throw new Error("Fixture project was not returned");
-  const legacyProjects = await request("legacy project discovery remains available during migration", "/api/projects", authOptions(token));
+  const legacyProjects = await request("legacy project discovery remains available during migration", "/api/projects", sessionOptions(sessionToken, csrfToken));
   const canonicalProjectIds = projects.body.projects.map((project) => project.id).sort();
   const legacyProjectIds = legacyProjects.body?.projects?.map((project) => project.id).sort();
   if (JSON.stringify(canonicalProjectIds) !== JSON.stringify(legacyProjectIds)) {
     throw new Error("Canonical and legacy project discovery returned different resources");
   }
 
-  const source = await request("create a NoxCue source through the control API", "/api/v1/cues/sources", authOptions(token, {
+  const source = await request("create a NoxCue source through the control API", "/api/v1/cues/sources", sessionOptions(sessionToken, csrfToken, {
     method: "POST",
     body: JSON.stringify({ name: "Local E2E", projectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
   }), 201);
   const sourceId = source.body.id;
-  const key = await request("create a one-time NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys`, authOptions(token, {
+  const key = await request("create a one-time NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys`, sessionOptions(sessionToken, csrfToken, {
     method: "POST", body: JSON.stringify({ name: "Local E2E", kind: "secret" }),
   }), 201);
   const keyId = key.body.key.id;
@@ -504,15 +504,15 @@ async function main() {
     body: JSON.stringify({ version: 1, type: "user.registered", userId: "local-e2e-user", idempotencyKey: "local-e2e-registration" }),
   }, 202);
   if (duplicate.body?.duplicate !== true) throw new Error("NoxCue duplicate was not detected");
-  const metrics = await request("read persisted NoxCue metrics", `/api/v1/cues/metrics?sourceId=${encodeURIComponent(sourceId)}&days=1`, authOptions(token));
+  const metrics = await request("read persisted NoxCue metrics", `/api/v1/cues/metrics?sourceId=${encodeURIComponent(sourceId)}&days=1`, sessionOptions(sessionToken, csrfToken));
   if (!Array.isArray(metrics.body?.days)) throw new Error("NoxCue metrics response is malformed");
-  await request("revoke the NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys/${keyId}`, authOptions(token, { method: "DELETE" }));
+  await request("revoke the NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys/${keyId}`, sessionOptions(sessionToken, csrfToken, { method: "DELETE" }));
   await request("revoked NoxCue key is rejected", "/api/v1/cues/public/events", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Nox-Ingest-Key": keyValue },
     body: JSON.stringify({ version: 1, type: "user.active", userId: "local-e2e-user" }),
   }, 401);
 
-  const site = await request("create a NoxSpot site through the control API", "/api/v1/spots/sites", authOptions(token, {
+  const site = await request("create a NoxSpot site through the control API", "/api/v1/spots/sites", sessionOptions(sessionToken, csrfToken, {
     method: "POST", body: JSON.stringify({ name: "Local E2E", projectId, widgetMode: "development", autoErrorLogging: true }),
   }), 201);
   const siteId = site.body.site.id;
