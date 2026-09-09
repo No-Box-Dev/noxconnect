@@ -156,8 +156,9 @@ so client snippets no longer depend on a temporary Worker hostname.
 The cron control plane also turns recent background-operation and delivery
 failures into deduplicated `operations` outbox messages. Those messages use the
 organization's configured Slack operations route, redact credentials and URLs,
-and remain durable and auditable like product deliveries. Every deployed Worker
-publishes structured logs, with a bounded trace sample for cross-Worker diagnosis.
+and remain durable and auditable like product deliveries. The cron and public
+capture Workers publish structured logs with a bounded trace sample; Pages
+Functions continue to use Cloudflare's project-level invocation logs.
 
 ### 8. Verification
 
