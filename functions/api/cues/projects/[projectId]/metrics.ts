@@ -7,6 +7,7 @@ import {
   saveNoxCueProjectMetrics,
 } from "../../../../lib/noxcue-project-metrics.js";
 import { validate } from "../../../../lib/validate";
+import { canReadProjectResource } from "../../../../lib/api-auth.js";
 
 const MetricKeySchema = z.enum(NOXCUE_USER_METRIC_KEYS);
 const UpdateSchema = z.object({
@@ -18,7 +19,7 @@ const UpdateSchema = z.object({
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
   params: { projectId: string };
   request: Request;
 }
@@ -37,9 +38,9 @@ async function findProject(context: Ctx) {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!canReadProjectResource(context.data)) return errorResponse("Admin required", 403);
   const project = await findProject(context);
   if (!project) return errorResponse("Active project not found", 404);
   const state = await loadNoxCueProjectMetrics(getNoxDb(context.env), orgId, project.id);

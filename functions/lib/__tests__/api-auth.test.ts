@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canReadProjectResource,
   createApiTokenValue,
   normalizeApiTokenScopes,
   projectScopedApiTokenPathSupported,
@@ -49,6 +50,13 @@ describe("API authentication primitives", () => {
     expect(projectScopedApiTokenPathSupported("/api/llm-settings", "GET")).toBe(false);
     expect(projectScopedApiTokenPathSupported("/api/features", "GET")).toBe(false);
     expect(projectScopedApiTokenPathSupported("/api/v1/features", "GET")).toBe(false);
+  });
+
+  it("admits pre-scoped API tokens to project reads without promoting human members", () => {
+    expect(canReadProjectResource({ isAdmin: true, auth: { type: "session" } })).toBe(true);
+    expect(canReadProjectResource({ isAdmin: false, auth: { type: "api_token" } })).toBe(true);
+    expect(canReadProjectResource({ isAdmin: false, auth: { type: "session" } })).toBe(false);
+    expect(canReadProjectResource({ isAdmin: false })).toBe(false);
   });
 
   it("issues a hardened opaque session cookie and separate CSRF cookie", () => {

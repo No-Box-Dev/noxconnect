@@ -3,6 +3,7 @@ import { getCtx, errorResponse, jsonResponse } from "../../../../../lib/db";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../../../lib/nox-db";
 import { findCueFeatureScope, loadCueFeatureCatalog } from "../../../../../lib/noxcue-feature-catalog";
 import { validate } from "../../../../../lib/validate";
+import { canReadProjectResource } from "../../../../../lib/api-auth.js";
 
 const FEATURE_KEY = /^custom\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){0,4}$/;
 const CreateSchema = z.object({
@@ -13,7 +14,7 @@ const CreateSchema = z.object({
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
   params: { id: string };
   request: Request;
 }
@@ -24,9 +25,9 @@ async function scopeFor(context: Ctx) {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!canReadProjectResource(context.data)) return errorResponse("Admin required", 403);
   const scope = await scopeFor(context);
   if (!scope) return errorResponse("Cue source not found", 404);
   return jsonResponse(await loadCueFeatureCatalog(getNoxDb(context.env), orgId, scope));

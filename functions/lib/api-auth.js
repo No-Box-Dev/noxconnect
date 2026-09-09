@@ -147,6 +147,16 @@ export function normalizeApiTokenScopes(scopes) {
   return unique.sort();
 }
 
+// Project API tokens have already passed route, service-scope, project, and
+// resource checks in middleware. Read handlers that are admin-only for human
+// sessions may therefore admit them without incorrectly presenting the token
+// as an organization administrator. Mutation handlers continue to rely on
+// isAdmin, which middleware grants only after validating a matching write
+// scope.
+export function canReadProjectResource(data) {
+  return Boolean(data?.isAdmin || data?.auth?.type === "api_token");
+}
+
 export async function resolveApiToken(db, bearer) {
   if (!bearer.startsWith("nox_sk_")) return null;
   const tokenHash = await sha256(bearer);
