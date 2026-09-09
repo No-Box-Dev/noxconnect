@@ -35,10 +35,15 @@ function makeDb() {
   return db;
 }
 
-function context(db: ReturnType<typeof makeDb>, body?: unknown, isAdmin = true) {
+function context(
+  db: ReturnType<typeof makeDb>,
+  body?: unknown,
+  isAdmin = true,
+  authType?: string,
+) {
   return {
     env: { DB: db },
-    data: { orgId: 2, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin },
+    data: { orgId: 2, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin, auth: authType ? { type: authType } : undefined },
     params: { projectId: "playnist" },
     request: new Request("https://app.noxhere.com/api/cues/projects/playnist/metrics", {
       method: body === undefined ? "GET" : "PUT",
@@ -70,5 +75,10 @@ describe("project-scoped NoxCue metric API", () => {
     expect((await onRequestPut(context(makeDb(), { enabledMetricKeys: [] }) as never)).status).toBe(400);
     expect((await onRequestPut(context(makeDb(), { enabledMetricKeys: ["users.new", "users.new"] }) as never)).status).toBe(400);
     expect((await onRequestGet(context(makeDb(), undefined, false) as never)).status).toBe(403);
+  });
+
+  it("allows a middleware-scoped API token to read without granting mutation access", async () => {
+    expect((await onRequestGet(context(makeDb(), undefined, false, "api_token") as never)).status).toBe(200);
+    expect((await onRequestPut(context(makeDb(), { enabledMetricKeys: ["users.new"] }, false, "api_token") as never)).status).toBe(403);
   });
 });

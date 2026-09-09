@@ -3,10 +3,18 @@ import { getNoxDb, type NoxDatabaseEnv } from "../../../lib/nox-db";
 import { cueSourceInputSchema } from "../../../lib/noxcue-settings";
 import { validateProjectSlackDestination } from "../../../lib/project-routing";
 import { validate } from "../../../lib/validate";
+import { canReadProjectResource } from "../../../lib/api-auth.js";
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; projectId?: string | null };
+  data: {
+    orgId: number;
+    orgLogin: string;
+    userLogin: string;
+    isAdmin: boolean;
+    projectId?: string | null;
+    auth?: { type?: string };
+  };
   request: Request;
 }
 
@@ -54,9 +62,9 @@ interface KeyRow {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!canReadProjectResource(context.data)) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
 
   const [sourcesResult, keysResult, projectsResult] = await Promise.all([

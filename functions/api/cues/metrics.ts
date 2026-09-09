@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCtx, errorResponse, jsonResponse } from "../../lib/db";
 import { validate } from "../../lib/validate";
+import { canReadProjectResource } from "../../lib/api-auth.js";
 
 const QuerySchema = z.object({
   sourceId: z.string().uuid(),
@@ -9,7 +10,7 @@ const QuerySchema = z.object({
 
 interface Ctx {
   env: { DB: D1Database };
-  data: { orgId: number; isAdmin: boolean };
+  data: { orgId: number; isAdmin: boolean; auth?: { type?: string } };
   request: Request;
 }
 
@@ -31,9 +32,9 @@ interface ActivityMetricRow {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!canReadProjectResource(context.data)) return errorResponse("Admin required", 403);
   const parsed = validate(QuerySchema, Object.fromEntries(new URL(context.request.url).searchParams.entries()));
   if (!parsed.ok) return parsed.response;
   const source = await context.env.DB.prepare(
