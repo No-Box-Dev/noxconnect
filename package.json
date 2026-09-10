@@ -17,6 +17,8 @@
     "build": "tsc -b && vite build",
     "build:api-gateway": "wrangler pages functions build functions --outdir workers/api-gateway/.generated --fallback-service ASSETS",
     "deploy:api-gateway:staging": "npm run build:api-gateway && wrangler deploy --config workers/api-gateway/wrangler.jsonc",
+    "deploy:legacy-bridge": "wrangler deploy --config workers/legacy-bridge/wrangler.jsonc",
+    "test:legacy-bridge": "vitest run --config workers/legacy-bridge/vitest.config.ts",
     "openapi:standardize": "node scripts/standardize-openapi.mjs",
     "openapi:check": "node scripts/standardize-openapi.mjs --check",
     "typecheck:functions": "tsc -p tsconfig.functions.json",
