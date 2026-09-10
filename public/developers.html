@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NoxConnect API — Developer documentation</title>
-  <meta name="description" content="Build against the NoxConnect capability API: authentication, services, configuration, safe writes, and errors.">
+  <title>NoxHere API — Developer documentation</title>
+  <meta name="description" content="Build on NoxHere through one public API backed by NoxConnect and focused product services.">
   <meta name="theme-color" content="#FAFAF8">
   <link rel="canonical" href="https://app.noxhere.com/developers">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -15,9 +15,9 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="/" aria-label="NoxConnect home">
+      <a class="brand" href="/" aria-label="NoxHere home">
         <img src="/logo-mark.svg" alt="">
-        <strong>NoxConnect</strong>
+        <strong>NoxHere</strong>
         <span>Developers</span>
       </a>
       <nav class="top-actions" aria-label="Document links">
@@ -54,7 +54,7 @@
       <section class="hero" aria-labelledby="page-title">
         <div class="eyebrow">API version 1 · Capability contract</div>
         <h1 id="page-title">One API. Five focused <span class="gradient-word">services.</span></h1>
-        <p class="lede">NoxConnect is the shared control plane for the Nox product family. Discover what each service can do, check readiness, and make bounded changes without handling provider credentials.</p>
+        <p class="lede">NoxHere is the public platform for the Nox product family. Its API authenticates and scopes every request, then uses NoxConnect and focused product services without exposing provider credentials.</p>
         <div class="hero-actions">
           <a class="button accent" href="#quickstart">Make your first request →</a>
           <a class="button" href="/openapi.json">Download OpenAPI</a>
@@ -79,7 +79,7 @@
           </div>
         </div>
         <ol class="flow" aria-label="Recommended API flow">
-          <li class="flow-step"><span class="flow-number">01</span><strong>Discover</strong><span>Ask NoxConnect which services are available to this organization. The response lists what each service can do and the exact operations clients may call.</span></li>
+          <li class="flow-step"><span class="flow-number">01</span><strong>Discover</strong><span>Ask NoxHere which services are available to this organization. The response lists what each service can do and the exact operations clients may call.</span></li>
           <li class="flow-step"><span class="flow-number">02</span><strong>Inspect</strong><span>Check whether the chosen service is enabled and healthy. Setup reports anything still needed, such as a GitHub or Slack connection.</span></li>
           <li class="flow-step"><span class="flow-number">03</span><strong>Connect</strong><span>Start a provider connection through the API. A person opens the returned link and approves access in GitHub or Slack; the client never receives the provider credential.</span></li>
           <li class="flow-step"><span class="flow-number">04</span><strong>Configure</strong><span>Read the current settings and keep the returned revision. Send it back with a change so newer work cannot be overwritten accidentally.</span></li>
@@ -90,7 +90,7 @@
       <section class="section" id="quickstart">
         <p class="section-kicker">Quickstart</p>
         <h2>Discover your workspace</h2>
-        <p class="section-intro">Create a scoped token under NoxConnect → API access while signed in as an organization admin, choose exactly one enabled project, copy it once, and keep it in your runtime's secret store. The token cannot read or change resources assigned to another project.</p>
+        <p class="section-intro">Create a scoped token under NoxHere → API access while signed in as an organization admin, choose exactly one enabled project, copy it once, and keep it in your runtime's secret store. The token cannot read or change resources assigned to another project.</p>
         <div class="callout caution standalone-callout">
           <h3>Use the credential made for the caller</h3>
           <p>Browsers use an opaque HttpOnly session and CSRF proof. Automation uses a scoped <code>nox_sk_…</code> token. Ingestion uses a source key. Never extract a browser cookie or reuse a GitHub or Slack provider token.</p>
@@ -125,7 +125,7 @@
         <div class="callouts">
           <article class="callout">
             <h3>Browser session</h3>
-            <p>GitHub OAuth establishes an opaque <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code> NoxConnect cookie. Unsafe requests also require the matching <code>X-CSRF-Token</code>. GitHub credentials stay encrypted on the server.</p>
+            <p>GitHub OAuth establishes an opaque <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code> NoxHere session cookie. Unsafe requests also require the matching <code>X-CSRF-Token</code>. GitHub credentials stay encrypted behind NoxConnect.</p>
           </article>
           <article class="callout">
             <h3>Native session</h3>
@@ -136,7 +136,7 @@
             <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, one project, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
           </article>
         </div>
-        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by NoxConnect on every automation request. A resource outside the token's project returns <code>resource_not_found</code>. A disabled product returns <code>409 service_not_enabled</code> with an enable-service remediation link; an enabled but unreachable Worker returns <code>503 service_unavailable</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
+        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by the NoxHere gateway on every automation request. A resource outside the token's project returns <code>resource_not_found</code>. A disabled product returns <code>409 service_not_enabled</code> with an enable-service remediation link; an enabled but unreachable Worker returns <code>503 service_unavailable</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
         <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
         <p class="field-note">A raw GitHub token is not a NoxConnect API credential. Unsupported bearer formats return <code>unsupported_credential</code> without being sent to GitHub.</p>
         <div class="callouts">
@@ -161,9 +161,9 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Client or service</th><th>Connection to NoxConnect</th><th>Credential boundary</th></tr></thead>
+            <thead><tr><th>Client or service</th><th>Connection to NoxHere</th><th>Credential boundary</th></tr></thead>
             <tbody>
-              <tr><td>NoxConnect and NoxTicket web UI</td><td>Same-origin <code>/api/v1</code></td><td>HttpOnly browser session; CSRF proof on writes</td></tr>
+              <tr><td>NoxHere and NoxTicket web UI</td><td>Same-origin <code>/api/v1</code></td><td>HttpOnly browser session; CSRF proof on writes</td></tr>
               <tr><td>NoxFeed for macOS</td><td><code>https://app.noxhere.com/api/v1</code></td><td>Short-lived <code>nox_at_…</code> plus rotating <code>nox_rt_…</code>; no GitHub token in the app</td></tr>
               <tr><td>NoxCue SDK</td><td><code>POST /api/v1/cues/public/events</code></td><td>Source-scoped <code>X-Nox-Ingest-Key</code></td></tr>
               <tr><td>NoxSpot widget</td><td><code>https://api.noxspot.dev/api/spots/public/v1</code></td><td>Origin-bound site identity; no organization credential in the browser</td></tr>
@@ -175,17 +175,22 @@
 
       <section class="section" id="services">
         <p class="section-kicker">Service catalog</p>
-        <h2>Clear ownership at every boundary</h2>
-        <p class="section-intro">NoxConnect owns shared infrastructure. Each product owns the resources and behavior unique to its job.</p>
+        <h2>One platform, clean service ownership</h2>
+        <p class="section-intro">NoxHere is the public platform. NoxConnect is private connection plumbing. Each product service owns the behavior and data unique to its job.</p>
         <div class="principle">
           <div class="principle-mark" aria-hidden="true">↳</div>
           <div><h3>Public façade, private Workers</h3><p>Clients call only <code>app.noxhere.com</code>. NoxHere authenticates and scopes the request, then calls NoxConnect or product Workers through private service bindings. Product Workers return provider-neutral commands; only NoxConnect can use GitHub, Slack, or managed-AI credentials.</p></div>
         </div>
         <div class="service-grid">
+          <article class="service-card platform">
+            <div class="service-top"><h3>NoxHere</h3><span class="service-type">Platform</span></div>
+            <p>The public web application and API gateway. It owns sessions, API tokens, organization and project authorization, service enablement, discovery, and the public API contract.</p>
+            <div class="pills"><span class="pill">Public API</span><span class="pill">Authentication</span><span class="pill">Authorization</span><span class="pill">Discovery</span><span class="pill">OpenAPI</span></div>
+          </article>
           <article class="service-card foundation">
-            <div class="service-top"><h3>NoxConnect</h3><span class="service-type">Foundation</span></div>
-            <p>Connections and shared workspace control: provider connections, identities, repositories, projects, and Slack routing.</p>
-            <div class="pills"><span class="pill">Connections</span><span class="pill">People</span><span class="pill">Repositories</span><span class="pill">Shared delivery</span><span class="pill provider">GitHub + Slack</span></div>
+            <div class="service-top"><h3>NoxConnect</h3><span class="service-type">Connector</span></div>
+            <p>Private connection and delivery plumbing. It owns GitHub and Slack OAuth, encrypted provider credentials, repository identity mapping, provider calls, routing, the delivery outbox, retries, and receipts.</p>
+            <div class="pills"><span class="pill">OAuth</span><span class="pill">Provider capabilities</span><span class="pill">Routing</span><span class="pill">Outbox + retries</span><span class="pill provider">Only service with provider secrets</span></div>
           </article>
           <article class="service-card">
             <div class="service-top"><h3>NoxTicket</h3><span class="service-type">Product</span></div>
@@ -208,6 +213,24 @@
             <div class="pills"><span class="pill">Sources</span><span class="pill">Ingest keys</span><span class="pill">Health metrics</span><span class="pill">GitHub incidents</span><span class="pill">Delivery</span></div>
           </article>
         </div>
+        <h3 class="service-map-title">Runtime and data map</h3>
+        <div class="table-wrap service-map">
+          <table>
+            <thead><tr><th>Component</th><th>Called through</th><th>Owns</th><th>Does not receive</th><th>Owned state</th></tr></thead>
+            <tbody>
+              <tr><td>NoxHere</td><td><code>app.noxhere.com/api/v1</code></td><td>Identity, scope, enablement and API contract</td><td>Product policy</td><td>Control-plane D1</td></tr>
+              <tr><td>NoxConnect</td><td>Private RPC; forwarded OAuth/webhooks</td><td>Connections, provider execution and delivery</td><td>Product decisions</td><td>Connection/outbox D1 + queue/DLQ</td></tr>
+              <tr><td>NoxTicket</td><td>Private service binding</td><td>Features, workflow, specs and attachments</td><td>GitHub or Slack credentials</td><td>NoxTicket D1 + attachment R2</td></tr>
+              <tr><td>NoxFeed</td><td>Private service binding</td><td>Feed projections, narration and release notes</td><td>GitHub, Slack or AI credentials</td><td>NoxFeed D1 + queue/DLQ</td></tr>
+              <tr><td>NoxSpot</td><td>Private RPC; forwarded capture routes</td><td>Sites, widget capture, reports and screenshots</td><td>GitHub or Slack credentials</td><td>NoxSpot D1 + queue/DLQ + screenshot R2</td></tr>
+              <tr><td>NoxCue</td><td>Private RPC; forwarded ingest route</td><td>Sources, events, metrics, incidents and digests</td><td>GitHub, Slack or AI credentials</td><td>NoxCue D1 + queue/DLQ + chart storage</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout caution split-status">
+          <h3>Service split rollout</h3>
+          <p>The public URL and API shape do not change. Private service contracts and repositories are separated, and NoxTicket now has dedicated storage. NoxConnect, NoxFeed, NoxSpot, and NoxCue data and queue cutovers remain staged behind compatibility adapters until parity checks pass; clients should continue using <code>app.noxhere.com/api/v1</code>.</p>
+        </div>
         <p class="field-note"><code>runtime.source: binding</code> means the product Worker answered discovery. <code>runtime.source: snapshot</code> keeps its contract visible during an outage, but setup and capabilities are blocked until the binding is healthy.</p>
       </section>
 
@@ -217,7 +240,7 @@
         <p class="section-intro">NoxCue turns a few meaningful app outcomes into immediate, actionable alerts and a completed-day product pulse. It detects and preserves evidence; it never retries a user action, changes application state, or tries to replace logs, traces, and observability.</p>
 
         <ol class="flow" aria-label="NoxCue setup flow">
-          <li class="flow-step"><span class="flow-number">01</span><strong>Create a source</strong><span>In NoxConnect, open NoxCue and create one source for each app environment. Link it to a project when the organization has more than one project.</span></li>
+          <li class="flow-step"><span class="flow-number">01</span><strong>Create a source</strong><span>In NoxHere, open NoxCue and create one source for each app environment. Link it to a project when the organization has more than one project.</span></li>
           <li class="flow-step"><span class="flow-number">02</span><strong>Choose delivery</strong><span>Select the Slack workspace and channels for daily statistics and immediate alerts. Optionally connect a GitHub repository for deduplicated incident issues.</span></li>
           <li class="flow-step"><span class="flow-number">03</span><strong>Create the right key</strong><span>Use an origin-restricted <code>nox_pub_…</code> publishable key in browsers or mobile clients. Keep a <code>nox_secret_…</code> key in the server's secret store for trusted user and activity facts.</span></li>
           <li class="flow-step"><span class="flow-number">04</span><strong>Add outcome calls</strong><span>Wrap critical user journeys such as sign-up, login, password reset, and email verification. Send registration and meaningful activity facts from the trusted server.</span></li>
@@ -411,7 +434,7 @@ curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
       </section>
 
       <footer class="footer">
-        NoxConnect API v1 · <a href="/openapi.json">OpenAPI</a> · <a href="/docs/ai-setup.md">Agent setup</a> · <a href="/llms.txt">llms.txt</a>
+        NoxHere API v1 · <a href="/openapi.json">OpenAPI</a> · <a href="/docs/ai-setup.md">Agent setup</a> · <a href="/llms.txt">llms.txt</a>
       </footer>
     </main>
   </div>
