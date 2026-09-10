@@ -15,6 +15,8 @@ const NOXCUE_ENDPOINT = "https://noxcue.internal/v1/events";
 const NOXCUE_PUBLIC_INGEST_PATHS = new Set([
   "/api/cues/public/v1/events",
   "/api/v1/cues/public/events",
+  "/api/health/live",
+  "/api/health/ready",
 ]);
 
 function serviceFetch(service: Fetcher): typeof fetch {
