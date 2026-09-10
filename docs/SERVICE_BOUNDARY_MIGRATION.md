@@ -72,6 +72,27 @@ Every milestone records the following dimensions for every affected service:
 A milestone is healthy only when all applicable dimensions pass. A skipped
 dimension must include a written reason; it is not silently counted as green.
 
+## Forward-port status — 2026-09-10
+
+The previously certified boundary work has been forward-ported to current main
+on `feat/clean-service-split`. This establishes the private NoxConnect
+capability executor, service-owned manifests, NoxTicket RPC adapters, standard
+service errors, and provider-credential boundary checks without regressing the
+current public API.
+
+| Deployable | Repository boundary | Credential boundary | Storage boundary | Current state |
+|---|---|---|---|---|
+| NoxHere | Target defined | Public authentication remains in the current Pages code | Still shares the legacy database during extraction | Not yet extracted to its own repository/deployment |
+| NoxConnect | Private capability Worker implemented | GitHub, Slack and managed-AI execution stays here | Connection/outbox rows still share the legacy database | Code boundary ready; data migration pending |
+| NoxTicket | Private `No-Box-Dev/NoxTicket` repository created | No provider credentials or clients | Dedicated `noxticket` D1 and `noxticket-spec-attachments` R2 provisioned with owned migration | Storage PR ready; traffic not cut over |
+| NoxFeed | Service branch published | No provider credentials or clients in the product Worker | Demo storage only; feed projections still live in legacy NoxConnect D1 | Policy boundary ready; data/job extraction pending |
+| NoxCue | Current upstream forward-ported with private AI RPC | Direct managed-AI credential removed | Still bound to legacy NoxConnect D1/queue | Policy boundary ready; schema/queue extraction pending |
+| NoxSpot | Capture service branch published and NoxHere callback fixed | No provider credentials or clients in capture Worker | Still bound to legacy NoxConnect D1/queue; R2 is already product-specific | Runtime boundary ready; config/queue extraction pending |
+
+No production route is switched merely because a repository exists. Cutover is
+allowed only after owned schemas are populated, dual-read parity is measured,
+and the product-specific queue/DLQ has processed a real staging request.
+
 ## Milestone 0 — Baseline and isolated worktrees
 
 1. Preserve the user's dirty NoxConnect, NoxCue, and NoxFeed checkouts.
