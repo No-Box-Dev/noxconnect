@@ -1,5 +1,6 @@
 import { getCtx, errorResponse, jsonResponse } from "../lib/db";
 import { getNoxDb, type NoxDatabaseEnv } from "../lib/nox-db";
+import { createNoxCueServer } from "../lib/noxcue-client";
 
 interface Env extends NoxDatabaseEnv {
   NOXCUE_INGEST?: Fetcher;
@@ -34,23 +35,18 @@ async function requestedApp(request: Request): Promise<TrackedApp> {
 }
 
 async function sendUserEvent(
-  service: Fetcher,
+  env: Env,
   key: string,
   type: "user.registered" | "user.active",
   userId: string,
   occurredAt: string,
 ): Promise<void> {
-  const response = await service.fetch("https://noxcue.internal/v1/events", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Nox-Ingest-Key": key,
-    },
-    body: JSON.stringify({ version: 1, type, userId, occurredAt }),
-  });
-  if (!response.ok) {
-    throw new Error(`NoxCue rejected ${type} with status ${response.status}`);
-  }
+  const client = createNoxCueServer(env, key);
+  if (!client) throw new Error("NoxCue user tracking is not configured");
+  const result = type === "user.registered"
+    ? await client.user.registered(userId, { occurredAt })
+    : await client.user.active(userId, { occurredAt });
+  if (!result.ok) throw new Error(`NoxCue rejected ${type}${result.status ? ` with status ${result.status}` : ""}`);
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
@@ -77,7 +73,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
 
   try {
     if (!existing) {
-      await sendUserEvent(service, key, "user.registered", userLogin, occurredAt);
+      await sendUserEvent(context.env, key, "user.registered", userLogin, occurredAt);
       await db.prepare(
         `INSERT INTO noxcue_app_user_activity
            (app_id, github_login, registered_at, last_active_period, last_event_at)
@@ -91,7 +87,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       return jsonResponse({ app: appId, recorded: "already_active", period });
     }
 
-    await sendUserEvent(service, key, "user.active", userLogin, occurredAt);
+    await sendUserEvent(context.env, key, "user.active", userLogin, occurredAt);
     await db.prepare(
       `UPDATE noxcue_app_user_activity
           SET last_active_period = ?, last_event_at = ?

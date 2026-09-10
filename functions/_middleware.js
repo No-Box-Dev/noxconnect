@@ -18,6 +18,7 @@ import {
   resolveNativeSession,
   revokeNativeSession,
 } from "./lib/native-auth.js";
+import { reportNoxCueHttpFailure } from "./lib/noxcue-client";
 
 // Cache validated tokens for 5 min to avoid hammering GitHub /user
 const tokenCache = new Map();
@@ -462,9 +463,12 @@ export async function onRequest(context) {
 async function nextApiResponse(context, url) {
   const versioned = url.pathname.startsWith("/api/v1/");
   try {
-    const response = await context.next();
-    return versioned ? normalizeLegacyError(response) : response;
+    const rawResponse = await context.next();
+    const response = versioned ? await normalizeLegacyError(rawResponse) : rawResponse;
+    if (response.status >= 500) reportNoxCueHttpFailure(context, null, response.status);
+    return response;
   } catch (error) {
+    reportNoxCueHttpFailure(context, error);
     if (!versioned) throw error;
     console.error("[noxconnect] API v1 handler failed:", error);
     return apiError(url, "internal_error", "Request failed", 500);
