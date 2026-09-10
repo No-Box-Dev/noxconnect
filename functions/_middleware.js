@@ -88,6 +88,12 @@ export function isPlatformOperator(env, githubUserId) {
   return allowed.includes(String(githubUserId));
 }
 
+export function isPersonalWorkspaceRequest(workspaceLogin, userLogin) {
+  return typeof workspaceLogin === "string"
+    && typeof userLogin === "string"
+    && workspaceLogin.toLowerCase() === userLogin.toLowerCase();
+}
+
 /**
  * Verify user is a member of the given org. Caches for 5 min.
  * Returns true if member, false otherwise.
@@ -338,8 +344,15 @@ export async function onRequest(context) {
 
     if (!presentedOrg) return apiError(url, "missing_organization", "Missing X-Org header or org query param", 400);
     orgLogin = presentedOrg;
-    const isMember = await verifyOrgMembership(token, validation._cacheKey, orgLogin, userLogin);
-    if (!isMember) return apiError(url, "organization_forbidden", "Not a member of this organization", 403);
+    // A GitHub App installation can belong to either an organization or the
+    // signed-in user's personal account. Personal access is authorized only
+    // when the requested workspace exactly matches the verified GitHub login;
+    // every other workspace still requires a live organization membership.
+    const isPersonalWorkspace = isPersonalWorkspaceRequest(orgLogin, userLogin);
+    if (!isPersonalWorkspace) {
+      const isMember = await verifyOrgMembership(token, validation._cacheKey, orgLogin, userLogin);
+      if (!isMember) return apiError(url, "organization_forbidden", "Not a member of this organization", 403);
+    }
 
     orgRow = await context.env.DB.prepare(
       "SELECT id, suspended_at FROM orgs WHERE github_login = ?",
@@ -378,7 +391,8 @@ export async function onRequest(context) {
     // an active GitHub organization owner, never merely by the first member
     // who happens to make a request.
     const configuredAdmins = Number(adminCount.results?.[0]?.count ?? 0);
-    if (!isAdmin && configuredAdmins === 0 && await verifyOrgAdmin(token, orgLogin, userLogin)) {
+    if (!isAdmin && configuredAdmins === 0
+        && (isPersonalWorkspace || await verifyOrgAdmin(token, orgLogin, userLogin))) {
       await context.env.DB.prepare(
         `INSERT OR IGNORE INTO org_admins (org_id, login, granted_by_login)
          VALUES (?, ?, ?)`,
