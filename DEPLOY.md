@@ -185,12 +185,10 @@ and deploys both Workers on a green `main`. It needs repo secrets
 
 The NoxSpot capture Worker has no application secrets. It uses direct bindings
 to the shared D1 database, `noxconnect-tasks` Queue, `noxspot-assets` R2 bucket,
-and its sharded rate-limit Durable Object. After its first deploy, attach the
-`api.noxspot.dev` custom route only during the documented NoxSpot cutover. Keep
-the existing hostname until cached widget installations have migrated.
-The staged migration and rollback gates are documented in
-`docs/NOXSPOT_CUTOVER.md`; migration and widget publication commands default to
-read-only validation and require an explicit `--apply` to write remote state.
+and its sharded rate-limit Durable Object. It is the sole owner of
+`api.noxspot.dev`. Customer installations use only the project-specific
+`/widget/{project-id}.js` route; the NoxSpot repository's tested deployment
+workflow publishes its loader and matching immutable core artifact.
 
 Pages and the cron Worker require three private, versioned response bindings:
 `NOXSPOT_RESPONSE` targets `noxspot-api`, `NOXCUE_RESPONSE` targets

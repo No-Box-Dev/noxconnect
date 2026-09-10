@@ -103,16 +103,16 @@ New backend code (Pages Functions + cron) is written in **TypeScript**, not JS. 
 `workers/noxspot-capture/` is a separate NoxConnect-owned Cloudflare Worker for
 the anonymous cross-origin NoxSpot capture surface. It is intentionally not a
 Pages Function and never uses NoxConnect browser bearer tokens. Versioned routes
-live under `/api/spots/public/v1`; legacy `/sites/:id/config`, `/report`,
-`/errors`, `/r2/*`, `/v1/widget.js`, and `/widget/:id.js` remain compatibility
-aliases during cutover. The Worker reads `spot_sites`, enforces enabled origin
+live under `/api/spots/public/v1`; `/sites/:id/config`, `/report`, `/errors`, and
+`/r2/*` support the project-specific `/widget/:id.js` installation contract.
+The Worker reads `spot_sites`, enforces enabled origin
 allowlists, streams bounded JSON, stores temporary screenshots in R2, applies
 IP and per-site limits through a sharded SQLite Durable Object, and sends a
 versioned `spot_create_github_issue` task through `noxconnect-tasks`. The cron
 queue consumer remains the only GitHub/Slack provider-delivery owner. It calls
-the NoxSpot `noxspot-api` Worker through the private `NOXSPOT_RESPONSE` service
-binding for versioned issue and Slack response construction. NoxSpot owns all
-issue body/label and Block Kit presentation; NoxConnect validates the contract,
+the same `noxspot-api` Worker through the private `NOXSPOT_RESPONSE` service
+binding for versioned issue and Slack response construction. The Worker owns all
+issue body/label and Block Kit presentation contracts,
 resolves authoritative credentials/routes, and owns delivery/retry receipts.
 A daily scheduled handler deletes screenshots older than 90 days.
 
