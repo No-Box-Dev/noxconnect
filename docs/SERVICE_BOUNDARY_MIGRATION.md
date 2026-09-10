@@ -2,26 +2,48 @@
 
 ## Objective
 
-Make NoxConnect the single public API and the only holder/executor of GitHub,
-Slack, and managed-AI credentials, while NoxTicket, NoxFeed, NoxSpot, and NoxCue
-own their product rules, product data projections, configuration validation, and
-provider-neutral output intents.
+Make NoxHere the single public platform/API, NoxConnect the only
+holder/executor of GitHub, Slack, and managed-AI credentials, and NoxTicket,
+NoxFeed, NoxSpot, and NoxCue the owners of their product rules, product data,
+configuration validation, and provider-neutral output intents.
 
-The public API remains under `app.unticket.ai/api/v1`. Product Workers are
-called through private Cloudflare service bindings; they are not exposed as a
-second authenticated public API.
+The public API remains under `https://app.noxhere.com/api/v1` during the split
+and may later gain the equivalent `https://api.noxhere.com/v1` hostname without
+changing its contract. NoxConnect and product Workers are called through private
+Cloudflare service bindings; they are not exposed as additional authenticated
+public APIs.
+
+## Target deployment and repository topology
+
+| Repository / deployable | Responsibility | Public exposure | Persistent state |
+|---|---|---|---|
+| `noxhere` | Web app, public API gateway, sessions, API tokens, tenant/project authorization, service enablement, OpenAPI | `app.noxhere.com` | NoxHere identity/control D1 only |
+| `noxconnect` | GitHub/Slack OAuth and webhooks, provider credentials, provider-neutral capability execution, routes, outbox and delivery | Only provider callback/webhook paths forwarded by NoxHere | NoxConnect connection/delivery D1 and queue/DLQ |
+| `noxticket` | Features, workflow, specifications and attachments | Private service binding | NoxTicket D1 and R2 |
+| `noxfeed` | Feed projections, narration, release notes and summaries | Private service binding | NoxFeed D1 and queue/DLQ |
+| `noxcue` | Sources, event ingestion, metrics, incidents and digests | NoxHere-forwarded ingest route plus private RPC | NoxCue D1, queue/DLQ and chart storage |
+| `noxspot` | Sites, capture, screenshots, reports and digests | NoxHere-forwarded capture routes plus private RPC | NoxSpot D1, queue/DLQ and screenshot R2 |
+
+Repository separation is an ownership boundary, not a reason to use public
+service-to-service HTTP. All internal calls use versioned service-binding RPC.
+Each deployable has its own migrations, tests, generated Worker binding types,
+observability, and rollback version.
 
 ## Boundary rule
 
+NoxHere owns:
+
+- browser/native sessions and project-scoped API token authorization;
+- organization membership, project scope, and service enablement;
+- the public API contract, OpenAPI, developer documentation, and gateway;
+- authentication and authorization before any internal RPC call.
+
 NoxConnect owns:
 
-- authentication, organization membership, and project-token authorization;
-- service enablement and the standard `service_not_enabled` response;
 - GitHub and Slack OAuth, token storage, refresh, and provider clients;
 - managed-AI credentials and provider invocation;
 - project/repository/identity mapping and provider webhook verification;
-- shared routing, outbox, retry, queue, audit, and failure infrastructure;
-- public API versioning, OpenAPI, and service discovery aggregation.
+- connection routing, outbox, retry, queue, audit, and delivery failures.
 
 Each product service owns:
 

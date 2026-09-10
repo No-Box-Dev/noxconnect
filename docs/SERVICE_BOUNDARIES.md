@@ -1,6 +1,15 @@
 # Nox service boundaries
 
-NoxConnect is the always-on integration layer. It owns organization identity, GitHub and Slack installations, encrypted tokens, channel routing, shared configuration, durable outbox state, retries, and final Slack delivery. It does not decide what a product says or renders.
+NoxHere is the customer-facing platform: the web app, public API, sessions,
+organization/project authorization, product enablement, and API documentation at
+`app.noxhere.com`. NoxHere authenticates and scopes every request before it calls
+an internal service.
+
+NoxConnect is private integration plumbing. It owns GitHub and Slack
+installations, encrypted provider tokens, provider clients, connection health,
+channel routing, the durable delivery outbox, retries, and final provider
+delivery. It does not own the public user experience or decide what a product
+says or renders.
 
 GitHub is exclusively a NoxConnect capability. NoxConnect owns webhook receipt
 and normalization, installation-token minting, repository discovery, issue and
@@ -31,6 +40,17 @@ Every adapter validates the contract version, structure, and Slack payload size 
 
 ## Control plane versus product policy
 
-The Admin UI and authenticated `/api/v1` endpoints remain the control plane. They may read and write shared D1 configuration because that is setup and routing, not product behavior. Turning a product off keeps its data but gates its public/runtime paths. Product Workers own public product execution and presentation policy.
+The NoxHere Admin UI and authenticated `/api/v1` endpoints are the public control
+plane. Turning a product off keeps its data but gates its public/runtime paths.
+Product Workers own product execution and presentation policy. Product storage
+must be service-owned; a product Worker must not receive the NoxHere or
+NoxConnect database binding.
 
-When adding behavior, use this rule: if the code answers “what should this product do or say?”, it belongs to that product. If it answers “who is connected, where should this go, and was it delivered?”, it belongs to NoxConnect.
+When adding behavior, use these rules:
+
+- If it answers “who may do this, for which organization/project, and which
+  product is enabled?”, it belongs to NoxHere.
+- If it answers “which provider is connected, how do we call it, where should
+  this go, and was it delivered?”, it belongs to NoxConnect.
+- If it answers “what should this product store, do, detect, or say?”, it belongs
+  to that product.
