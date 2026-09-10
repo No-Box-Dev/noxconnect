@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from "vitest";
 import { onRequest } from "../../_middleware.js";
 
 describe("v1 middleware errors", () => {
+  async function signedRequest(pathname) {
+    const secret = "test-internal-secret";
+    const now = Math.floor(Date.now() / 1000);
+    const assertion = {
+      version: 1, issuer: "noxhere", audience: "noxconnect",
+      issuedAt: now, expiresAt: now + 30, method: "GET", path: pathname,
+      auth: {
+        credentialType: "session", credentialId: "session-hash", principalId: "github:42",
+        userLogin: "octocat", userId: 42, orgId: 7, orgLogin: "acme", isAdmin: true,
+        projectId: null, scopes: [], connectionId: null,
+      },
+    };
+    const payload = Buffer.from(JSON.stringify(assertion)).toString("base64url");
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const signature = Buffer.from(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)))
+      .toString("base64url");
+    return {
+      request: new Request(`https://app.noxhere.com${pathname}`, { headers: {
+        "X-NoxHere-Internal-Assertion": payload,
+        "X-NoxHere-Internal-Signature": signature,
+      } }),
+      secret,
+    };
+  }
+
   function noxCueEnv(requests) {
     return {
       NOXCUE_INGEST_KEY: `nox_secret_${"a".repeat(40)}`,
@@ -25,7 +52,10 @@ describe("v1 middleware errors", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(await response.json()).toEqual({
       apiVersion: 1,
-      error: { code: "unauthorized", message: "Authentication required" },
+      error: {
+        code: "missing_internal_assertion",
+        message: "NoxConnect accepts authenticated requests only from NoxHere",
+      },
     });
   });
 
@@ -43,8 +73,8 @@ describe("v1 middleware errors", () => {
     expect(await response.json()).toEqual({
       apiVersion: 1,
       error: {
-        code: "unsupported_credential",
-        message: "Use a NoxConnect native access token or a project-scoped API token",
+        code: "missing_internal_assertion",
+        message: "NoxConnect accepts authenticated requests only from NoxHere",
       },
     });
   });
@@ -56,7 +86,9 @@ describe("v1 middleware errors", () => {
       data: {},
       next() { throw new Error("handler should not run"); },
     });
-    expect(await response.json()).toEqual({ error: "Authentication required" });
+    expect(await response.json()).toEqual({
+      error: "NoxConnect accepts authenticated requests only from NoxHere",
+    });
   });
 
   it("lets the source-key-authenticated NoxCue gateway bypass GitHub auth", async () => {
@@ -114,9 +146,14 @@ describe("v1 middleware errors", () => {
   it("reports a server response without changing it", async () => {
     const requests = [];
     const pending = [];
+    const signed = await signedRequest("/api/v1/events");
     const response = await onRequest({
-      request: new Request("https://app.noxhere.com/api/v1/auth/profile"),
-      env: noxCueEnv(requests),
+      request: signed.request,
+      env: {
+        ...noxCueEnv(requests),
+        NOXHERE_INTERNAL_SECRET: signed.secret,
+        DB: { prepare: () => ({ bind: () => ({ first: async () => ({ id: 7, github_login: "acme", suspended_at: null }) }) }) },
+      },
       data: {},
       waitUntil(promise) { pending.push(promise); },
       next() { return new Response("failed", { status: 500 }); },
@@ -126,12 +163,12 @@ describe("v1 middleware errors", () => {
     expect(requests).toHaveLength(1);
     expect(await requests[0].json()).toMatchObject({
       type: "error.occurred",
-      title: "NoxConnect GET /api/v1/auth/profile failed",
+      title: "NoxConnect GET /api/v1/events failed",
       message: "A NoxConnect API request returned an unexpected server error.",
       error: { name: "HTTPResponseError", code: "HTTP_500", status: 500 },
       data: {
         component: "noxconnect.pages-api",
-        fingerprint: "noxconnect.http|GET|/api/v1/auth/profile|500",
+        fingerprint: "noxconnect.http|GET|/api/v1/events|500",
       },
     });
   });

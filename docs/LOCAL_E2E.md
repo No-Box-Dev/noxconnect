@@ -9,7 +9,7 @@ provider secrets.
 
 | Local service | Port | Role |
 |---|---:|---|
-| NoxConnect Pages | 8788 | public app, API, auth boundary, and control plane |
+| NoxConnect Pages | 8788 | connector API behind a simulated private NoxHere boundary |
 | NoxSpot Worker | 8790 | public feedback capture and response RPC |
 | NoxFeed Worker | 8791 | feed response RPC |
 | NoxCue Worker | 8792 | event ingestion, metrics, and response RPC |
@@ -19,7 +19,8 @@ provider secrets.
 All services use one newly created local persistence directory. NoxConnect's
 migrations are the sole schema authority and are applied before any Worker is
 started. The runner seeds a disposable organization, installation, repository,
-and project without storing a provider token in D1.
+project, and opaque connector identity. It does not create a browser/native
+session or API token inside NoxConnect; those credentials belong to NoxHere.
 
 ## Prerequisites
 
@@ -55,10 +56,9 @@ Worker, and checks:
 - developer documentation, its JavaScript, and the OpenAPI contract;
 - all three product HTTP health endpoints and the cron runtime;
 - private RPC contracts for NoxSpot, NoxCue, and NoxFeed;
-- anonymous rejection, real GitHub identity and org-membership auth, opaque
-  browser and native sessions, native access/refresh rotation and revocation, CSRF enforcement,
-  project-scoped NoxCue GitHub-incident configuration,
-  and one-project API-token create/list/rotate/revoke;
+- anonymous and direct-provider-bearer rejection, signed short-lived NoxHere
+  assertions, connector identity resolution, and project-scope enforcement;
+- project-scoped NoxCue GitHub-incident configuration;
 - all five service catalog, setup, health, and config contracts;
 - ETag/`If-Match` config writes, missing preconditions, and stale revisions;
 - project discovery from an installation record;
@@ -68,15 +68,14 @@ Worker, and checks:
 - NoxSpot site creation, shared-D1 public config, and Queue submission;
 - invalid and valid HMAC-signed GitHub webhooks.
 
-### API credential assertions
+### Authorization-boundary assertions
 
 The key checks use real HTTP requests and fresh D1 rows, not handler mocks. The
-runner verifies one-time secret return, hashed-at-rest lookup, redacted listing,
-organization, project, and service scope enforcement, cross-project denial,
-project-filtered feed results, the disabled-service error, CSRF protection for
-lifecycle operations, project-preserving rotation, immediate invalidation,
-revocation, and rejection after revocation. It also proves that an automation
-token cannot mint, rotate, list, or revoke automation tokens.
+runner signs the same method-and-path-bound assertion that NoxHere sends over
+the private binding, verifies connector-side HMAC validation, resolves a real
+encrypted connector identity, and exercises organization, project, service,
+cross-project, filtered-feed, and disabled-service enforcement. NoxHere owns
+separate lifecycle tests for browser/native sessions, CSRF, and API tokens.
 
 ## Deliberate external boundary
 

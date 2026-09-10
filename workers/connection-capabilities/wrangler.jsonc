@@ -14,7 +14,7 @@
   "vars": {
     "GITHUB_APP_ID": "3652510",
     "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
-    "NOXHERE_OAUTH_CALLBACK_URL": "https://app.noxhere.com/api/auth/callback"
+    "NOXHERE_OAUTH_CALLBACK_URL": "https://app.noxhere.com/auth/github/callback"
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "noxconnect", "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25" }
@@ -28,7 +28,7 @@
     "staging": {
       "name": "noxconnect-capabilities-staging",
       "vars": {
-        "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/api/auth/callback"
+        "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/auth/github/callback"
       },
       "d1_databases": [
         {

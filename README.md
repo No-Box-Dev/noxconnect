@@ -27,16 +27,17 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. By default the dev server proxies `/api/*` to the hosted instance. The hosted API accepts only NoxConnect browser sessions, short-lived native sessions, and project-scoped API tokens; GitHub provider tokens are never API credentials. To run the full stack (backend Functions, D1, OAuth) against your own infrastructure, follow [DEPLOY.md](./DEPLOY.md).
+Open http://localhost:5173 only when maintaining the compatibility UI. The production public application and all user authentication live in NoxHere. Authenticated connector requests arrive only through NoxHere's private service binding with a signed internal assertion; GitHub provider tokens are never public API credentials.
 
 Set `VITE_API_TARGET` in `.env.local` to point the dev proxy at your own deployment. See [.env.example](./.env.example) for all configuration.
 
-## Auth modes
+## Authentication boundary
 
-- **GitHub App + OAuth** (recommended for self-host/production) — "Sign in with GitHub", real-time webhooks, refresh-token rotation. Requires registering your own GitHub App.
-- **Personal Access Token (local development only)** — works with zero backend setup, but is read-only: webhooks can't be created in PAT mode, so data is only as fresh as the last manual sync. Production users sign in through GitHub App OAuth; production automation uses scoped NoxConnect API tokens.
+- **NoxHere** owns GitHub sign-in, browser/native sessions, CSRF, and project-scoped API-token lifecycle.
+- **NoxConnect** completes the private provider exchange, encrypts provider credentials, and resolves only opaque connection IDs carried in verified NoxHere assertions.
+- **Direct provider tokens are rejected** as public Nox API credentials.
 
-Hosted browser sign-in creates an opaque HttpOnly NoxConnect session; GitHub access and refresh tokens remain encrypted server-side. Automation uses expiring `nox_sk_…` API tokens bound to one organization, one enabled project, and explicit project-safe service read/write scopes. Public NoxCue/NoxSpot ingestion keys and private Worker service bindings remain separate credential classes.
+Hosted browser sign-in creates an opaque HttpOnly NoxHere session. Automation uses expiring NoxHere API tokens bound to one organization, one enabled project, and explicit project-safe service scopes. GitHub access and refresh tokens remain encrypted only in NoxConnect.
 
 ## Stack
 
