@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "noxconnect-staging",
+  "name": "noxconnect-api",
   "main": ".generated/index.js",
   "compatibility_date": "2026-09-10",
   "compatibility_flags": ["nodejs_compat"],
@@ -17,23 +17,60 @@
     "traces": { "enabled": true, "head_sampling_rate": 0.05 }
   },
   "vars": {
-    "PLATFORM_ADMIN_GITHUB_IDS": "196446605"
+    "PLATFORM_ADMIN_GITHUB_IDS": "196446605",
+    "GITHUB_APP_ID": "3652510",
+    "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
+    "SLACK_APP_ID": "A0BQAKAPG2Y",
+    "SLACK_ACCEPT_LEGACY_INSTALLS": "true"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "noxconnect-staging",
-      "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3",
+      "database_name": "noxconnect",
+      "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25",
       "migrations_dir": "../../migrations"
     }
   ],
   "queues": {
     "producers": [
-      { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks-staging" }
+      { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks" }
     ]
   },
+  "services": [
+    { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api" },
+    { "binding": "NOXTICKET_SERVICE", "service": "noxticket" },
+    { "binding": "NOXCUE_RESPONSE", "service": "noxcue" },
+    { "binding": "NOXCUE_INGEST", "service": "noxcue" },
+    { "binding": "NOXFEED_RESPONSE", "service": "noxfeed-response" }
+  ],
   "r2_buckets": [
-    { "binding": "SPEC_ATTACHMENTS", "bucket_name": "noxconnect-spec-attachments-staging" },
-    { "binding": "NOXSPOT_ASSETS", "bucket_name": "noxspot-assets-staging" }
-  ]
+    { "binding": "SPEC_ATTACHMENTS", "bucket_name": "noxconnect-spec-attachments" },
+    { "binding": "NOXSPOT_ASSETS", "bucket_name": "noxspot-assets" }
+  ],
+  "env": {
+    "staging": {
+      "name": "noxconnect-staging",
+      "vars": {
+        "PLATFORM_ADMIN_GITHUB_IDS": "196446605"
+      },
+      "services": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "noxconnect-staging",
+          "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3",
+          "migrations_dir": "../../migrations"
+        }
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks-staging" }
+        ]
+      },
+      "r2_buckets": [
+        { "binding": "SPEC_ATTACHMENTS", "bucket_name": "noxconnect-spec-attachments-staging" },
+        { "binding": "NOXSPOT_ASSETS", "bucket_name": "noxspot-assets-staging" }
+      ]
+    }
+  }
 }
