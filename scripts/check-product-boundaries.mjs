@@ -2,11 +2,12 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import process from "node:process";
 
-const roots = process.argv.slice(2).map((root) => resolve(root));
-if (!roots.length) {
-  console.error("Usage: node scripts/check-product-boundaries.mjs <product-root> [...]");
-  process.exitCode = 2;
-} else {
+const requestedRoots = process.argv.slice(2);
+const roots = (requestedRoots.length ? requestedRoots : [
+  "functions/products/noxticket",
+  "workers/noxspot-capture/src",
+]).map((root) => resolve(root));
+{
   const forbidden = [
     /https:\/\/api\.github\.com/i,
     /https:\/\/slack\.com\/api/i,

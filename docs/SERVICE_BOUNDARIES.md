@@ -18,9 +18,10 @@ services receive bounded domain records or public GitHub URLs only; they never
 receive an installation token, App private key, GitHub client, or permission to
 call GitHub directly. Generic issue transport lives in `functions/lib/github-issues.js`.
 Browser and native clients use `/api/v1/auth/profile`, `/api/v1/github/details`, and
-the other canonical NoxConnect APIs rather than Octokit or `api.github.com`. Native apps
-receive NoxConnect `nox_at_…`/`nox_rt_…` sessions; they do not keep or forward
-GitHub credentials after the one-time upgrade from an older release.
+the other canonical NoxHere APIs rather than Octokit or `api.github.com`. NoxConnect
+brokers GitHub approval and stores its encrypted provider token; NoxHere issues the
+app-facing `nox_at_…`/`nox_rt_…` session. Native apps never receive, keep, or
+forward the GitHub credential.
 
 | Product | Owns | Shared NoxConnect plumbing it uses |
 | --- | --- | --- |

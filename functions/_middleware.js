@@ -19,6 +19,8 @@ import {
   revokeNativeSession,
 } from "./lib/native-auth.js";
 import { reportNoxCueHttpFailure } from "./lib/noxcue-client";
+import { resolveIdentityConnection } from "./lib/connection-identity";
+import { verifyNoxHereAssertion } from "./lib/noxhere-assertion";
 
 // Cache validated tokens for 5 min to avoid hammering GitHub /user
 const tokenCache = new Map();
@@ -184,6 +186,85 @@ export async function onRequest(context) {
   // Skip middleware for non-API routes
   if (!url.pathname.startsWith("/api/")) {
     return context.next();
+  }
+
+  // NoxHere authenticates public callers against its dedicated control-plane
+  // database. A short-lived HMAC assertion crosses the private binding; raw
+  // provider credentials stay here and are resolved by opaque connection id.
+  let noxHereAuth;
+  try {
+    noxHereAuth = await verifyNoxHereAssertion(
+      context.request,
+      context.env.NOXHERE_INTERNAL_SECRET,
+      context.env.NOXHERE_INTERNAL_SECRET_PREVIOUS,
+    );
+  } catch {
+    return apiError(url, "invalid_internal_assertion", "Invalid NoxHere authorization assertion", 401);
+  }
+  if (noxHereAuth) {
+    const org = await context.env.DB.prepare(
+      "SELECT id, github_login, suspended_at FROM orgs WHERE id = ? AND github_login = ? COLLATE NOCASE",
+    ).bind(noxHereAuth.orgId, noxHereAuth.orgLogin).first();
+    if (!org) return apiError(url, "organization_forbidden", "Organization is unavailable", 403);
+    if (org.suspended_at) {
+      return apiError(url, "organization_suspended", "This organization has been suspended. Contact support.", 403);
+    }
+
+    if (noxHereAuth.credentialType === "api_token") {
+      if (!noxHereAuth.projectId || !projectScopedApiTokenPathSupported(url.pathname, context.request.method)) {
+        return apiError(
+          url,
+          "project_scope_unsupported",
+          "This organization-level operation is not available to project-scoped tokens",
+          403,
+        );
+      }
+      const resource = await apiTokenProjectResource(
+        context.env.DB,
+        url.pathname,
+        noxHereAuth.orgId,
+        url.searchParams,
+      );
+      if (resource && resource.projectId !== noxHereAuth.projectId) {
+        return apiError(url, "resource_not_found", "The requested resource was not found", 404);
+      }
+    }
+
+    let providerToken = null;
+    if (noxHereAuth.connectionId) {
+      const identity = await resolveIdentityConnection(context.env, noxHereAuth.connectionId);
+      if (!identity || identity.user.login.toLowerCase() !== noxHereAuth.userLogin.toLowerCase()) {
+        return apiError(url, "identity_connection_expired", "Connection identity expired; sign in again", 401);
+      }
+      providerToken = identity.token;
+    } else if (noxHereAuth.credentialType === "session") {
+      const legacy = await resolveBrowserSession(context.env.DB, context.env.ENCRYPTION_KEY, context.request).catch(() => null);
+      providerToken = legacy?.githubToken ?? null;
+    } else if (noxHereAuth.credentialType === "native_session") {
+      const authorization = context.request.headers.get("Authorization") ?? "";
+      const legacy = await resolveNativeSession(
+        context.env.DB,
+        context.env.ENCRYPTION_KEY,
+        authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "",
+      ).catch(() => null);
+      providerToken = legacy?.githubToken ?? null;
+    }
+
+    context.data.orgId = noxHereAuth.orgId;
+    context.data.orgLogin = noxHereAuth.orgLogin;
+    context.data.userLogin = noxHereAuth.userLogin;
+    context.data.userId = noxHereAuth.userId;
+    context.data.token = providerToken;
+    context.data.isAdmin = noxHereAuth.isAdmin;
+    context.data.isPlatformOperator = false;
+    context.data.projectId = noxHereAuth.projectId;
+    context.data.auth = {
+      type: noxHereAuth.credentialType,
+      id: noxHereAuth.credentialId,
+      scopes: noxHereAuth.scopes,
+      projectId: noxHereAuth.projectId,
+    };
+    return nextApiResponse(context, url);
   }
 
   const authHeader = context.request.headers.get("Authorization") || "";
