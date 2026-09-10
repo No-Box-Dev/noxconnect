@@ -12,7 +12,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codebase = resolve(root, "..");
 const noxCueDir = resolve(process.env.NOXCUE_DIR || join(codebase, "NoxAlert"));
 const noxFeedDir = resolve(process.env.NOXFEED_SERVICE_DIR || join(codebase, "noxfeed-mac/service"));
-const noxSpotDir = join(root, "workers/noxspot-capture");
+const noxSpotDir = resolve(process.env.NOXSPOT_CAPTURE_DIR || join(root, "workers/noxspot-capture"));
+const noxTicketDir = resolve(process.env.NOXTICKET_SERVICE_DIR || join(codebase, "noxticket-service"));
+const capabilityDir = join(root, "workers/connection-capabilities");
 const wrangler = join(root, "node_modules/.bin/wrangler");
 const keepState = process.argv.includes("--keep-state");
 const allowAuthSkip = process.argv.includes("--allow-auth-skip");
@@ -47,6 +49,7 @@ function checkPrerequisites() {
     [join(noxFeedDir, "wrangler.toml"), "Set NOXFEED_SERVICE_DIR to the NoxFeed service checkout"],
     [join(noxFeedDir, "node_modules"), "Run npm ci in the NoxFeed service checkout"],
     [join(noxSpotDir, "node_modules"), "Run npm ci in workers/noxspot-capture"],
+    [join(noxTicketDir, "node_modules"), "Set NOXTICKET_SERVICE_DIR to the NoxTicket service checkout"],
   ];
   const missing = required.filter(([path]) => !existsSync(path));
   if (missing.length) {
@@ -198,16 +201,18 @@ function makeRpcSmokeWorker() {
       { binding: "NOXSPOT", service: "noxspot-api" },
       { binding: "NOXCUE", service: "noxcue" },
       { binding: "NOXFEED", service: "noxfeed-response" },
+      { binding: "NOXTICKET", service: "noxticket" },
     ],
   }, null, 2), { mode: 0o600 });
   writeFileSync(join(rpcDir, "index.js"), `export default {
   async fetch(_request, env) {
-    const [spot, cue, feed] = await Promise.all([
-      env.NOXSPOT.buildTestResponse("local-e2e"),
-      env.NOXCUE.buildTestResponse("local-e2e"),
-      env.NOXFEED.buildTestResponse("local-e2e", "posts"),
+    const [spot, cue, feed, ticket] = await Promise.all([
+      env.NOXSPOT.describe(),
+      env.NOXCUE.describe(),
+      env.NOXFEED.describe(),
+      env.NOXTICKET.describe(),
     ]);
-    return Response.json({ spot, cue, feed });
+    return Response.json({ spot, cue, feed, ticket });
   }
 };\n`, { mode: 0o600 });
 }
@@ -236,14 +241,16 @@ async function main() {
   ]);
 
   const commonDev = ["--local", "--persist-to", persistence, "--log-level", "warn", "--show-interactive-dev-session=false"];
-  start("noxfeed", noxFeedDir, ["dev", "--port", "8791", "--inspector-port", "9230", ...commonDev]);
+  start("capabilities", capabilityDir, ["dev", "--port", "8796", "--inspector-port", "9236", ...commonDev]);
+  await waitFor("capabilities", "http://127.0.0.1:8796/", { expected: 404 });
   start("noxcue", noxCueDir, ["dev", "--port", "8792", "--inspector-port", "9232", ...commonDev]);
+  await waitFor("noxcue", "http://127.0.0.1:8792/health");
   start("noxspot", noxSpotDir, ["dev", "--port", "8790", "--inspector-port", "9229", ...commonDev]);
-  await Promise.all([
-    waitFor("noxfeed", "http://127.0.0.1:8791/health"),
-    waitFor("noxcue", "http://127.0.0.1:8792/health"),
-    waitFor("noxspot", "http://127.0.0.1:8790/health"),
-  ]);
+  await waitFor("noxspot", "http://127.0.0.1:8790/health");
+  start("noxfeed", noxFeedDir, ["dev", "--port", "8791", "--inspector-port", "9230", ...commonDev]);
+  await waitFor("noxfeed", "http://127.0.0.1:8791/health");
+  start("noxticket", noxTicketDir, ["dev", "--port", "8795", "--inspector-port", "9235", ...commonDev]);
+  await waitFor("noxticket", "http://127.0.0.1:8795/health");
 
   start("cron", root, ["dev", "-c", "cron/wrangler.toml", "--port", "8794", "--inspector-port", "9234", ...commonDev]);
   makeRpcSmokeWorker();
@@ -260,6 +267,7 @@ async function main() {
     "--service", "NOXCUE_RESPONSE=noxcue",
     "--service", "NOXCUE_INGEST=noxcue",
     "--service", "NOXFEED_RESPONSE=noxfeed-response",
+    "--service", "NOXTICKET_SERVICE=noxticket",
   ]);
   await waitFor("noxconnect", `${base}/developers`);
   await waitFor("rpc", "http://127.0.0.1:8793/");
@@ -269,9 +277,9 @@ async function main() {
   if (!String(docs.body).includes("NoxConnect API")) throw new Error("Developer documentation is missing its title");
   await request("OpenAPI contract", "/openapi.json");
   await request("developer documentation JavaScript", "/developers.js");
-  const rpc = await request("private RPC contracts for NoxSpot, NoxCue, and NoxFeed", "http://127.0.0.1:8793/");
-  for (const service of ["spot", "cue", "feed"]) {
-    if (!rpc.body?.[service]?.contract || rpc.body[service].version !== 1) throw new Error(`Invalid ${service} RPC contract`);
+  const rpc = await request("private RPC contracts for all product services", "http://127.0.0.1:8793/");
+  for (const service of ["spot", "cue", "feed", "ticket"]) {
+    if (rpc.body?.[service]?.contract !== "nox.service-manifest" || rpc.body[service].version !== 1) throw new Error(`Invalid ${service} RPC contract`);
   }
 
   await request("protected API rejects an anonymous caller", "/api/v1/services", {}, 401);
@@ -372,11 +380,11 @@ async function main() {
     headers: { "If-Match": serviceSwitchConfig.response.headers.get("etag") },
     body: JSON.stringify({ enabledServices: { noxspot: false, noxfeed: false } }),
   }));
-  const disabledService = await request("legacy route keeps its compatibility error while the service is disabled", "/api/spots/sites", authOptions(apiToken), 403);
+  const disabledService = await request("disabled service returns the standard project API error", "/api/spots/sites", authOptions(apiToken), 409);
   if (disabledService.body?.error !== "NoxSpot is not enabled. Enable it in NoxConnect before trying again.") {
     throw new Error("Disabled service response did not use the standard message");
   }
-  const disabledV1Service = await request("disabled v1 service returns the coded enablement error", "/api/v1/feed", authOptions(apiToken), 403);
+  const disabledV1Service = await request("disabled v1 service returns the coded enablement error", "/api/v1/feed", authOptions(apiToken), 409);
   if (disabledV1Service.body?.error?.code !== "service_not_enabled" || disabledV1Service.body.error.message !== "NoxFeed is not enabled. Enable it in NoxConnect before trying again.") {
     throw new Error("Disabled v1 service response did not use the standard error contract");
   }

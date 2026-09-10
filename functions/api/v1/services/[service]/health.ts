@@ -15,6 +15,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const service = result.body!.services.find((item) => item.id === serviceId)!;
   const checks = [
     { id: "service_enabled", state: service.enabled ? "pass" : "fail", required: true },
+    {
+      id: "service_runtime",
+      state: service.runtime.state === "ready" ? "pass" : "fail",
+      required: true,
+      detail: service.runtime.source,
+    },
     ...service.setup.connections.map((connection) => ({
       id: `${connection.provider}_connection`,
       state: connection.state === "ready" ? "pass" : connection.state === "degraded" ? "warn" : "fail",

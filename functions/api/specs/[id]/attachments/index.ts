@@ -8,8 +8,9 @@ import {
   sanitizeFilename,
   type SpecAttachmentRow,
 } from "../../../../lib/spec-attachments";
+import { callNoxTicket, type NoxTicketEnvironment } from "../../../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
   SPEC_ATTACHMENTS?: R2Bucket;
 }
@@ -31,6 +32,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 
   const specId = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(specId) || specId <= 0) return errorResponse("Invalid spec id", 400);
+
+  const delegated = await callNoxTicket(context.env, (service) => service.listAttachments(
+    { orgId, userLogin: context.data.userLogin },
+    specId,
+  ));
+  if (delegated) return delegated;
 
   const { results } = await context.env.DB.prepare(
     `SELECT id, org_id, spec_id, filename, content_type, size, r2_key,
@@ -55,36 +62,6 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
 
   const specId = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(specId) || specId <= 0) return errorResponse("Invalid spec id", 400);
-
-  if (!context.env.SPEC_ATTACHMENTS) {
-    return errorResponse(
-      "Nox attachment storage is not provisioned for this deployment.",
-      503,
-    );
-  }
-
-  // Verify the spec exists and belongs to this org — cheap guard against
-  // a stray upload against a foreign / deleted spec.
-  const spec = await context.env.DB.prepare(
-    "SELECT id FROM specs WHERE id = ? AND org_id = ?",
-  )
-    .bind(specId, orgId)
-    .first<{ id: number }>();
-  if (!spec) return errorResponse(`Unknown spec ${specId}`, 404);
-
-  // Enforce per-spec attachment cap early so a spammer discovers the
-  // limit before uploading a 10 MB file.
-  const countRow = await context.env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM spec_attachments WHERE spec_id = ?",
-  )
-    .bind(specId)
-    .first<{ n: number }>();
-  if ((countRow?.n ?? 0) >= MAX_ATTACHMENTS_PER_SPEC) {
-    return errorResponse(
-      `Spec already has ${MAX_ATTACHMENTS_PER_SPEC} attachments (the cap)`,
-      409,
-    );
-  }
 
   let form: FormData;
   try {
@@ -117,6 +94,33 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     );
   }
 
+  const delegated = await callNoxTicket(context.env, async (service) => service.putAttachment(
+    { orgId, userLogin },
+    specId,
+    filename,
+    await new Response(file.stream()).arrayBuffer(),
+  ));
+  if (delegated) return delegated;
+
+  if (!context.env.SPEC_ATTACHMENTS) {
+    return errorResponse(
+      "Nox attachment storage is not provisioned for this deployment.",
+      503,
+    );
+  }
+
+  const spec = await context.env.DB.prepare(
+    "SELECT id FROM specs WHERE id = ? AND org_id = ?",
+  ).bind(specId, orgId).first<{ id: number }>();
+  if (!spec) return errorResponse(`Unknown spec ${specId}`, 404);
+
+  const countRow = await context.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM spec_attachments WHERE org_id = ? AND spec_id = ?",
+  ).bind(orgId, specId).first<{ n: number }>();
+  if ((countRow?.n ?? 0) >= MAX_ATTACHMENTS_PER_SPEC) {
+    return errorResponse(`Spec already has ${MAX_ATTACHMENTS_PER_SPEC} attachments (the cap)`, 409);
+  }
+
   // Two-phase: insert D1 row first so we get an id, then write to R2
   // with a key derived from that id. If the R2 write fails we roll back
   // the D1 row so an orphan row never surfaces in list()/download().
@@ -133,7 +137,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       file.size,
       // Placeholder; we UPDATE below once we have the real id (which is
       // also part of the key). Cheaper than a second SELECT.
-      "__pending__",
+      `pending/${orgId}/${specId}/${crypto.randomUUID()}`,
       userLogin,
     )
     .first<SpecAttachmentRow>();

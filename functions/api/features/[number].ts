@@ -36,14 +36,17 @@ import {
   hasNoxTicketLabel,
 } from "../../lib/feature-issues";
 import { validate } from "../../lib/validate";
+import { delegateFeatureMutation } from "../../lib/noxticket-features";
+import type { NoxTicketEnvironment } from "../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
+  TASK_QUEUE: Queue;
 }
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin?: boolean };
   request: Request;
   params?: { number?: string };
   waitUntil: (promise: Promise<unknown>) => void;
@@ -108,6 +111,13 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   try { rawBody = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+
+  const delegated = await delegateFeatureMutation(context.env, {
+    orgId,
+    userLogin: context.data.userLogin,
+    isAdmin: context.data.isAdmin,
+  }, context.request, "update", number, rawBody);
+  if (delegated) return delegated;
 
   const parsed = validate(PatchFeatureBody, rawBody);
   if (!parsed.ok) return parsed.response;
@@ -242,6 +252,13 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
 
   const number = parseFeatureNumber(context);
   if (!number) return errorResponse("Invalid feature number", 400);
+
+  const delegated = await delegateFeatureMutation(context.env, {
+    orgId,
+    userLogin: context.data.userLogin,
+    isAdmin: context.data.isAdmin,
+  }, context.request, "close", number);
+  if (delegated) return delegated;
 
   const row = await readFeatureRow(context.env.DB, orgId, number);
   if (!row) return errorResponse("Feature not found", 404);

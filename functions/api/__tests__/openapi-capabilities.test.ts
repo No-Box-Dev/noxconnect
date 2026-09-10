@@ -15,6 +15,13 @@ const openapi = openapiDocument as {
 
 const services = buildServiceCatalog({
   enabledApps: { noxticket: true, noxfeed: true, noxspot: true, noxcue: true },
+  runtimeStates: {
+    noxconnect: { state: "ready", source: "binding" },
+    noxticket: { state: "ready", source: "binding" },
+    noxfeed: { state: "ready", source: "binding" },
+    noxspot: { state: "ready", source: "binding" },
+    noxcue: { state: "ready", source: "binding" },
+  },
   integrations: {
     github: { configured: true, connected: true, bootstrapping: false, health: "ok" },
     slack: { configured: true, connected: true, needsReconnect: false, health: "ok" },
@@ -105,6 +112,7 @@ describe("capability discovery and OpenAPI stay aligned", () => {
 
     const withoutGitHub = buildServiceCatalog({
       enabledApps: { noxticket: true, noxfeed: true, noxspot: true, noxcue: true },
+      runtimeStates: { noxcue: { state: "ready", source: "binding" } },
       integrations: {
         github: { configured: false, connected: false, bootstrapping: false, health: "unavailable" },
         slack: { configured: true, connected: true, needsReconnect: false, health: "ok" },

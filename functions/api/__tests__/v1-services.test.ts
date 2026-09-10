@@ -3,6 +3,7 @@ import { onRequestGet as listServices } from "../v1/services/index";
 import { onRequestGet as getService } from "../v1/services/[service]";
 import { onRequestGet as getSetup } from "../v1/services/[service]/setup";
 import { onRequestGet as getHealth } from "../v1/services/[service]/health";
+import { SERVICE_DEFINITIONS } from "../../lib/service-capabilities";
 
 interface CapabilityBody {
   apiVersion: number;
@@ -95,7 +96,10 @@ describe("Nox service capabilities API", () => {
     if (!noxcue) throw new Error("NoxCue missing from service catalog");
     expect(noxcue.setup).toMatchObject({
       state: "needs_setup",
-      blockers: [{ type: "connection", provider: "slack", state: "disconnected" }],
+      blockers: expect.arrayContaining([
+        { type: "runtime", state: "unavailable" },
+        { type: "connection", provider: "slack", state: "disconnected" },
+      ]),
     });
     expect(JSON.stringify(body)).not.toContain("private");
     expect(JSON.stringify(body)).not.toContain("signing-secret");
@@ -114,7 +118,7 @@ describe("Nox service capabilities API", () => {
     expect(body.service).toMatchObject({
       id: "noxticket",
       focus: "Plan and organize delivery work",
-      setup: { state: "ready" },
+      setup: { state: "needs_setup" },
     });
     expect(body.service.setup.sections.map((section: { id: string }) => section.id)).toEqual([
       "workflow", "storage", "delivery",
@@ -139,21 +143,48 @@ describe("Nox service capabilities API", () => {
     const response = await getSetup(context("noxticket") as never);
     const body = await response.json() as any;
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ service: "noxticket", state: "ready" });
+    expect(body).toMatchObject({
+      service: "noxticket",
+      state: "needs_setup",
+      blockers: [expect.objectContaining({ type: "runtime", state: "unavailable" })],
+    });
     expect(body.sections).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "workflow", state: "ready" }),
+      expect.objectContaining({ id: "workflow", state: "blocked" }),
       expect.objectContaining({ id: "delivery", state: "blocked" }),
     ]));
   });
 
-  it("reports required failures separately from optional connection failures", async () => {
+  it("reports runtime failures separately from optional connection failures", async () => {
     const response = await getHealth(context("noxticket") as never);
     const body = await response.json() as any;
     expect(response.status).toBe(200);
-    expect(body.state).toBe("healthy");
+    expect(body.state).toBe("blocked");
     expect(body.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "service_runtime", state: "fail", required: true, detail: "snapshot" }),
       expect.objectContaining({ id: "github_connection", state: "pass", required: true }),
       expect.objectContaining({ id: "slack_connection", state: "fail", required: false }),
     ]));
+  });
+
+  it("uses a valid service-owned manifest and exposes binding health", async () => {
+    const ctx = context();
+    const definition = SERVICE_DEFINITIONS.find((service) => service.id === "noxfeed")!;
+    (ctx.env as typeof ctx.env & { NOXFEED_RESPONSE: { describe(): Promise<unknown> } }).NOXFEED_RESPONSE = {
+      describe: vi.fn(async () => ({
+        contract: "nox.service-manifest",
+        version: 1,
+        service: { ...definition, focus: "Service-owned feed focus" },
+        configuration: { schemaVersion: 1, mode: "service", writable: true, writableFields: ["projectScope", "releaseNotesPrompt"] },
+      })),
+    };
+    const response = await listServices(ctx as never);
+    const body = await response.json() as CapabilityBody;
+    expect(body.services.find((service) => service.id === "noxfeed")).toMatchObject({
+      focus: "Service-owned feed focus",
+      runtime: { state: "ready", source: "binding" },
+    });
+    expect(body.services.find((service) => service.id === "noxticket")).toMatchObject({
+      runtime: { state: "unavailable", source: "snapshot" },
+    });
   });
 });

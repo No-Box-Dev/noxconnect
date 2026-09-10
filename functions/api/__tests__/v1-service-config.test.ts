@@ -33,9 +33,10 @@ interface ContextOptions {
   isAdmin?: boolean;
   changes?: number;
   projectFound?: boolean;
+  noxFeedService?: { validateConfigPatch(current: unknown, patch: unknown): Promise<unknown> };
 }
 
-function context({ service = "noxticket", raw = null, method = "GET", body, etag, isAdmin = true, changes = 1, projectFound = true }: ContextOptions = {}) {
+function context({ service = "noxticket", raw = null, method = "GET", body, etag, isAdmin = true, changes = 1, projectFound = true, noxFeedService }: ContextOptions = {}) {
   const db = makeDb(raw, changes, projectFound);
   const headers = new Headers();
   if (body !== undefined) headers.set("Content-Type", "application/json");
@@ -43,7 +44,7 @@ function context({ service = "noxticket", raw = null, method = "GET", body, etag
   return {
     db,
     ctx: {
-      env: { DB: db },
+      env: { DB: db, ...(noxFeedService ? { NOXFEED_RESPONSE: noxFeedService } : {}) },
       data: { orgId: 7, orgLogin: "acme", userLogin: "alice", isAdmin },
       params: { service },
       request: new Request(`https://app.noxhere.com/api/v1/services/${service}/config`, {
@@ -153,5 +154,29 @@ describe("service-scoped configuration API", () => {
     });
     expect(response.headers.get("Allow")).toBe("GET");
     expect(update.db.calls.runs).toHaveLength(0);
+  });
+
+  it("delegates NoxFeed config validation to the service binding", async () => {
+    const validator = {
+      validateConfigPatch: async (current: unknown, patch: unknown) => ({
+        contract: "nox.service-config-validation",
+        version: 1,
+        valid: true,
+        patch: { ...(patch as object), releaseNotesPrompt: "normalized by service" },
+        config: { ...(current as object), ...(patch as object), releaseNotesPrompt: "normalized by service" },
+      }),
+    };
+    const initial = context({ service: "noxfeed" });
+    const etag = (await onRequestGet(initial.ctx as never)).headers.get("ETag")!;
+    const update = context({
+      service: "noxfeed",
+      method: "PATCH",
+      body: { releaseNotesPrompt: "raw" },
+      etag,
+      noxFeedService: validator,
+    });
+    const response = await onRequestPatch(update.ctx as never);
+    expect(response.status).toBe(200);
+    expect((await response.json() as any).config.releaseNotesPrompt).toBe("normalized by service");
   });
 });

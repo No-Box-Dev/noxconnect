@@ -24,14 +24,17 @@ import {
 } from "../lib/feature-issues";
 import { sanitizeSpecLinks } from "../lib/spec-links";
 import { validate } from "../lib/validate";
+import { delegateFeatureList, delegateFeatureMutation } from "../lib/noxticket-features";
+import type { NoxTicketEnvironment } from "../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
+  TASK_QUEUE: Queue;
 }
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string };
+  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin?: boolean };
   request: Request;
 }
 
@@ -62,6 +65,13 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const { orgId } = getCtx(context) as { orgId: number };
   const url = new URL(context.request.url);
   const state = url.searchParams.get("state") || "open";
+
+  const delegated = await delegateFeatureList(context.env, {
+    orgId,
+    userLogin: context.data.userLogin,
+    isAdmin: context.data.isAdmin,
+  }, state);
+  if (delegated) return delegated;
 
   const featureRows = await context.env.DB
     .prepare(
@@ -98,6 +108,13 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   try { rawBody = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+
+  const delegated = await delegateFeatureMutation(context.env, {
+    orgId,
+    userLogin: context.data.userLogin,
+    isAdmin: context.data.isAdmin,
+  }, context.request, "create", undefined, rawBody);
+  if (delegated) return delegated;
 
   const parsed = validate(CreateFeatureBody, rawBody);
   if (!parsed.ok) return parsed.response;

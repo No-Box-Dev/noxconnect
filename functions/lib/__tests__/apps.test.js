@@ -54,13 +54,14 @@ describe("server app state", () => {
     expect(appForSlackKind("noxfeed_daily_summary")).toBe("noxfeed");
   });
 
-  it("returns a clear forbidden response when a service is not enabled", async () => {
+  it("returns a clear conflict with remediation when a service is not enabled", async () => {
     const response = serviceDisabledResponse("noxfeed");
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       error: "NoxFeed is not enabled. Enable it in NoxConnect before trying again.",
       code: "service_not_enabled",
       service: "noxfeed",
+      remediation: { action: "enable_service", href: "/api/v1/services/noxfeed/config" },
     });
   });
 });

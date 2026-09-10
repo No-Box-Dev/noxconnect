@@ -1,4 +1,4 @@
-name = "unticket-cron"
+name = "noxconnect-orchestrator"
 main = "src/index.js"
 compatibility_date = "2026-09-09"
 
@@ -82,5 +82,5 @@ bucket_name = "noxconnect-events-archive"
 #   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY  (reconcile + bootstrap/sync tasks)
 #   ANTHROPIC_API_KEY + ENCRYPTION_KEY (managed narration and NoxSpot Slack tasks)
 #   NOXCUE_INGEST_KEY (NoxConnect-scoped background failure reporting)
-# Set via: wrangler secret put <NAME> --name unticket-cron
+# Set via: wrangler secret put <NAME> --name noxconnect-orchestrator
 # (ANTHROPIC_API_KEY is also needed for reconcile's PR-merged narration.)

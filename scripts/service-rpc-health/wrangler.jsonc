@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "nox-service-rpc-health",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-06",
+  "services": [
+    { "binding": "PRODUCT_SERVICE", "service": "product-service" }
+  ]
+}

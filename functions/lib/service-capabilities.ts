@@ -28,7 +28,7 @@ interface CatalogInput {
   integrations: IntegrationStatus;
 }
 
-interface CapabilityDefinition {
+export interface CapabilityDefinition {
   id: string;
   name: string;
   description: string;
@@ -37,7 +37,7 @@ interface CapabilityDefinition {
   operations: CapabilityOperation[];
 }
 
-interface CapabilityOperation {
+export interface CapabilityOperation {
   id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
@@ -45,13 +45,13 @@ interface CapabilityOperation {
   description: string;
 }
 
-interface SetupSectionDefinition {
+export interface SetupSectionDefinition {
   id: string;
   name: string;
   capabilityIds: string[];
 }
 
-interface ServiceDefinition {
+export interface ServiceDefinition {
   id: ServiceId;
   name: string;
   kind: "foundation" | "product";
@@ -63,7 +63,7 @@ interface ServiceDefinition {
   setupSections: SetupSectionDefinition[];
 }
 
-const SERVICE_DEFINITIONS: ServiceDefinition[] = [
+export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   {
     id: "noxconnect",
     name: "NoxConnect",
@@ -282,18 +282,31 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   },
 ];
 
-export function buildServiceCatalog({ enabledApps, integrations }: CatalogInput) {
+export function buildServiceCatalog({
+  enabledApps,
+  integrations,
+  definitions = SERVICE_DEFINITIONS,
+  runtimeStates = {},
+}: CatalogInput & {
+  definitions?: ServiceDefinition[];
+  runtimeStates?: Partial<Record<ServiceId, { state: "ready" | "unavailable"; source: "binding" | "snapshot" }>>;
+}) {
   const connections = {
     github: githubState(integrations.github),
     slack: slackState(integrations.slack),
   } satisfies Record<ProviderId, ConnectionState>;
 
-  return SERVICE_DEFINITIONS.map((definition) => {
+  return definitions.map((definition) => {
     const enabled = definition.id === "noxconnect" || enabledApps[definition.id];
+    const runtime = runtimeStates[definition.id] ?? {
+      state: definition.id === "noxconnect" ? "ready" as const : "unavailable" as const,
+      source: definition.id === "noxconnect" ? "binding" as const : "snapshot" as const,
+    };
+    const runtimeReady = runtime.state === "ready";
     const requiredBlockers = definition.requiredConnections.filter((provider) => connections[provider] !== "ready");
     const setupState: SetupState = !enabled
       ? "disabled"
-      : requiredBlockers.length > 0
+      : !runtimeReady || requiredBlockers.length > 0
         ? "needs_setup"
         : "ready";
 
@@ -303,14 +316,18 @@ export function buildServiceCatalog({ enabledApps, integrations }: CatalogInput)
       kind: definition.kind,
       focus: definition.focus,
       description: definition.description,
+      runtime,
       enabled,
       setup: {
         state: setupState,
-        blockers: requiredBlockers.map((provider) => ({
-          type: "connection" as const,
-          provider,
-          state: connections[provider],
-        })),
+        blockers: [
+          ...(!runtimeReady ? [{ type: "runtime" as const, state: runtime.state }] : []),
+          ...requiredBlockers.map((provider) => ({
+            type: "connection" as const,
+            provider,
+            state: connections[provider],
+          })),
+        ],
         connections: [
           ...definition.requiredConnections.map((provider) => ({
             provider,
@@ -327,7 +344,11 @@ export function buildServiceCatalog({ enabledApps, integrations }: CatalogInput)
       },
       capabilities: definition.capabilities.map((capability) => {
         const blockers = (capability.requires ?? []).filter((provider) => connections[provider] !== "ready");
-        const state: CapabilityState = !enabled ? "disabled" : blockers.length > 0 ? "blocked" : "ready";
+        const state: CapabilityState = !enabled
+          ? "disabled"
+          : !runtimeReady || blockers.length > 0
+            ? "blocked"
+            : "ready";
         return {
           id: capability.id,
           name: capability.name,
@@ -335,7 +356,7 @@ export function buildServiceCatalog({ enabledApps, integrations }: CatalogInput)
           access: capability.access,
           state,
           requires: capability.requires ?? [],
-          blockers,
+          blockers: runtimeReady ? blockers : ["service_runtime", ...blockers],
           operations: capability.operations,
         };
       }),

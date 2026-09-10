@@ -3,8 +3,9 @@ import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { validate } from "../../lib/validate";
 import { sanitizeSpecLinks } from "../../lib/spec-links";
 import { specRowToDto, type SpecRow } from "../../lib/spec-dto";
+import { callNoxTicket, type NoxTicketEnvironment } from "../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
 }
 
@@ -57,6 +58,17 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     binds.push(n);
   }
 
+  const delegated = await callNoxTicket(context.env, (service) => service.listSpecs(
+    { orgId, userLogin: context.data.userLogin },
+    {
+      includeArchived,
+      ...(featureParam === "unfiled"
+        ? { featureNumber: "unfiled" as const }
+        : featureParam ? { featureNumber: Number.parseInt(featureParam, 10) } : {}),
+    },
+  ));
+  if (delegated) return delegated;
+
   if (!includeArchived) clauses.push("archived = 0");
 
   const { results } = await context.env.DB.prepare(
@@ -84,6 +96,11 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+  const delegated = await callNoxTicket(context.env, (service) => service.createSpec(
+    { orgId, userLogin },
+    rawBody,
+  ));
+  if (delegated) return delegated;
   const parsed = validate(CreateSpecBody, rawBody);
   if (!parsed.ok) return parsed.response;
   const { title, description, featureNumber, links } = parsed.data;

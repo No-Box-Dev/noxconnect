@@ -1,0 +1,6 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "fake-connection-capability",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-06"
+}

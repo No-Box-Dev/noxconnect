@@ -1,14 +1,15 @@
 import { getCtx, jsonResponse, errorResponse } from "../../../../lib/db";
 import type { SpecAttachmentRow } from "../../../../lib/spec-attachments";
+import { callNoxTicket, type NoxTicketEnvironment } from "../../../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
   SPEC_ATTACHMENTS?: R2Bucket;
 }
 
 interface Ctx {
   env: Env;
-  data: { orgId: number };
+  data: { orgId: number; userLogin: string };
   request: Request;
   params: { id: string; attachmentId: string };
 }
@@ -35,6 +36,25 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   if (!orgId) return errorResponse("Missing org context", 400);
   const ids = parseIds(context);
   if (!ids) return errorResponse("Invalid ids", 400);
+
+  if (context.env.NOXTICKET_SERVICE) {
+    try {
+      const response = await context.env.NOXTICKET_SERVICE.getAttachment(
+        { orgId, userLogin: context.data.userLogin },
+        ids.specId,
+        ids.attachmentId,
+      );
+      const disposition = new URL(context.request.url).searchParams.get("disposition") === "attachment";
+      if (!disposition) return response;
+      const headers = new Headers(response.headers);
+      const current = headers.get("Content-Disposition") ?? "attachment";
+      headers.set("Content-Disposition", current.replace(/^inline/, "attachment"));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      console.error(JSON.stringify({ event: "noxticket_service_unavailable", error: error instanceof Error ? error.message : String(error) }));
+      return Response.json({ error: "NoxTicket is temporarily unavailable", code: "service_unavailable", service: "noxticket" }, { status: 503 });
+    }
+  }
 
   if (!context.env.SPEC_ATTACHMENTS) {
     return errorResponse("Attachment storage not provisioned", 503);
@@ -81,6 +101,13 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
   if (!orgId) return errorResponse("Missing org context", 400);
   const ids = parseIds(context);
   if (!ids) return errorResponse("Invalid ids", 400);
+
+  const delegated = await callNoxTicket(context.env, (service) => service.deleteAttachment(
+    { orgId, userLogin: context.data.userLogin },
+    ids.specId,
+    ids.attachmentId,
+  ));
+  if (delegated) return delegated;
 
   const row = await context.env.DB.prepare(
     "SELECT id, r2_key FROM spec_attachments WHERE id = ? AND spec_id = ? AND org_id = ?",

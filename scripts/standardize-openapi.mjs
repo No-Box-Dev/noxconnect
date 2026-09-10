@@ -350,7 +350,7 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
           operation.responses[status] = { "$ref": "#/components/responses/V1Error" };
         }
       }
-      for (const status of ["400", "401", "403", "429"]) {
+      for (const status of ["400", "401", "403", "409", "429"]) {
         operation.responses[status] ??= { "$ref": "#/components/responses/V1Error" };
       }
     }
@@ -358,7 +358,10 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
     operation["x-authentication"] = authenticationFor(operation);
     if (!isV1 && ["member", "admin"].includes(operation["x-authentication"])) {
       operation.responses["401"] ??= { description: "Authentication required" };
-      operation.responses["403"] ??= { description: "Insufficient access or service not enabled" };
+      operation.responses["403"] ??= { description: "Insufficient access" };
+      if (/^\/api\/(?:features|specs|spots|cues)(?:\/|$)/.test(path) || path === "/api/v1/feed") {
+        operation.responses["409"] ??= { description: "Product service is not enabled" };
+      }
     }
     if (["member", "admin"].includes(operation["x-authentication"])
         && !operation["x-browser-session-only"]

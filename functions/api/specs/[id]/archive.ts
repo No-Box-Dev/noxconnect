@@ -1,12 +1,13 @@
 import { getCtx, jsonResponse, errorResponse } from "../../../lib/db";
+import { callNoxTicket, type NoxTicketEnvironment } from "../../../lib/noxticket-service";
 
-interface Env {
+interface Env extends NoxTicketEnvironment {
   DB: D1Database;
 }
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; isAdmin: boolean };
+  data: { orgId: number; userLogin: string; isAdmin: boolean };
   request: Request;
   params: { id: string };
 }
@@ -30,6 +31,13 @@ async function setArchived(context: Ctx, archive: boolean): Promise<Response> {
 
   const id = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(id) || id <= 0) return errorResponse("Invalid spec id", 400);
+
+  const delegated = await callNoxTicket(context.env, (service) => service.setSpecArchived(
+    { orgId, userLogin: context.data.userLogin, isAdmin },
+    id,
+    archive,
+  ));
+  if (delegated) return delegated;
 
   const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const targetFlag = archive ? 1 : 0;

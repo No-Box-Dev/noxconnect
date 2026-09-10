@@ -77,6 +77,8 @@ export async function onRequestPost(context) {
           period,
           selected.metrics,
           selected.comparisons,
+          selected.metricLabels,
+          source.project_id ? { organizationId: orgId, projectId: source.project_id, sourceId } : undefined,
         )).message;
       } else {
         payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
@@ -119,7 +121,9 @@ export async function onRequestPost(context) {
         payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
       }
     } else if (kind === "noxticket") {
-      payload = buildNoxTicketTestResponse(orgLogin).message;
+      payload = context.env.NOXTICKET_SERVICE?.buildTestMessage
+        ? await context.env.NOXTICKET_SERVICE.buildTestMessage(orgLogin)
+        : buildNoxTicketTestResponse(orgLogin).message;
     } else if (kind === "noxfeed_daily_summary") {
       payload = {
         text: `NoxFeed daily summary delivery test for ${orgLogin}`,
