@@ -2,6 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { onRequest } from "../../_middleware.js";
 
 describe("v1 middleware errors", () => {
+  function noxCueEnv(requests) {
+    return {
+      NOXCUE_INGEST_KEY: `nox_secret_${"a".repeat(40)}`,
+      NOXCUE_INGEST: {
+        async fetch(request) {
+          requests.push(request);
+          return new Response(JSON.stringify({ accepted: true }), { status: 202 });
+        },
+      },
+    };
+  }
+
   it("uses the coded v1 envelope before a handler runs", async () => {
     const response = await onRequest({
       request: new Request("https://app.noxhere.com/api/v1/services"),
@@ -97,5 +109,42 @@ describe("v1 middleware errors", () => {
     } finally {
       errorLog.mockRestore();
     }
+  });
+
+  it("reports a server response without changing it", async () => {
+    const requests = [];
+    const pending = [];
+    const response = await onRequest({
+      request: new Request("https://app.noxhere.com/api/v1/auth/profile"),
+      env: noxCueEnv(requests),
+      data: {},
+      waitUntil(promise) { pending.push(promise); },
+      next() { return new Response("failed", { status: 500 }); },
+    });
+    await Promise.all(pending);
+    expect(response.status).toBe(500);
+    expect(requests).toHaveLength(1);
+    expect(await requests[0].json()).toMatchObject({
+      type: "error.occurred",
+      title: "NoxConnect GET /api/v1/auth/profile failed",
+      message: "A NoxConnect API request returned an unexpected server error.",
+      error: { name: "HTTPResponseError", code: "HTTP_500", status: 500 },
+      data: {
+        component: "noxconnect.pages-api",
+        fingerprint: "noxconnect.http|GET|/api/v1/auth/profile|500",
+      },
+    });
+  });
+
+  it("does not recursively report a NoxCue ingest failure", async () => {
+    const requests = [];
+    const response = await onRequest({
+      request: new Request("https://app.noxhere.com/api/v1/cues/public/events", { method: "POST" }),
+      env: noxCueEnv(requests),
+      data: {},
+      next() { return new Response("failed", { status: 500 }); },
+    });
+    expect(response.status).toBe(500);
+    expect(requests).toHaveLength(0);
   });
 });
