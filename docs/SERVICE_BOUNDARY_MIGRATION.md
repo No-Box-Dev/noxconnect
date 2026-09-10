@@ -82,7 +82,7 @@ current public API.
 
 | Deployable | Repository boundary | Credential boundary | Storage boundary | Current state |
 |---|---|---|---|---|
-| NoxHere | Target defined | Public authentication remains in the current Pages code | Still shares the legacy database during extraction | Not yet extracted to its own repository/deployment |
+| NoxHere | Private `No-Box-Dev/NoxHere` repository and bootstrap PR created | Credential-free public gateway relays through a private NoxConnect service binding; authentication remains in the legacy façade until its control-plane migration | Dedicated control-plane schema/data migration still pending | UI, developer portal, OpenAPI, CI, and staging-safe Worker are extracted; traffic not cut over |
 | NoxConnect | Private capability Worker implemented | GitHub, Slack and managed-AI execution stays here | Connection/outbox rows still share the legacy database | Code boundary ready; data migration pending |
 | NoxTicket | Private `No-Box-Dev/NoxTicket` repository created | No provider credentials or clients | Dedicated `noxticket` D1 and `noxticket-spec-attachments` R2 provisioned with owned migration | Storage PR ready; traffic not cut over |
 | NoxFeed | Service branch published | No provider credentials or clients in the product Worker | Demo storage only; feed projections still live in legacy NoxConnect D1 | Policy boundary ready; data/job extraction pending |
@@ -365,14 +365,20 @@ parity succeeds.
 - NoxConnect remains the public façade and still contains shared orchestration
   and some legacy NoxCue/NoxFeed projection adapters. Provider access is cleanly
   isolated, but deleting these adapters should wait for post-deployment parity.
+- The NoxHere repository now has a credential-free public Worker and static app.
+  Its first staging release intentionally relays `/api/*` over the private
+  `NOXCONNECT` binding. Browser/native sessions, API-token rows, authorization,
+  and service enablement remain in the legacy façade until the NoxHere
+  control-plane schema is populated and parity-tested.
 - The retired NoxSpot `api/` tree still contains its historical provider code;
   it is not an active deployment target. The production `capture/` Worker is
   credential-free.
 - The NoxSpot legacy API dependency audit remains at its pre-existing baseline:
   1 critical, 5 high, and 1 low vulnerability. This is not introduced by the
   boundary migration, but should be resolved before reactivating that package.
-- NoxTicket currently exists as a standalone local Git repository and needs a
-  remote/repository ownership decision before any deployment.
+- NoxTicket now has the private `No-Box-Dev/NoxTicket` repository, a dedicated
+  D1 database and attachment bucket, and an initial storage PR. Production
+  traffic remains on the compatibility adapter pending staging parity.
 
 ## Commit and rollback discipline
 
