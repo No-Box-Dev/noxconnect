@@ -147,6 +147,8 @@ Auto-include vs. auto-exclude policy (`settings.newRepoDefault`, default `includ
 
 `reconcileRepoEvents` (in `functions/lib/event-reconcile.js`) is the single source of truth for "what's missing in events for this repo." Three sources, in order: (1) `pull_requests` → `github:pr:opened|closed|merged`, (2) `issues` → `github:issue:opened|closed`, (3) `GET /repos/{owner}/{repo}/events` → reviews/pushes/releases (events GitHub doesn't expose as webhooks-into-D1). Idempotent via deterministic `delivery_id` of `reconcile:<org>:<repo>:pr-<n>:<kind>` / `issue-<n>:<kind>` / `gh-event-<id>` + the `events.delivery_id UNIQUE` constraint. Inserted rows are passed to all three narrators in parallel (`Promise.allSettled`): `narrateEvent` + `narrateReleaseNotes` (gated by `NARRATABLE_TYPES = ['github:pr:merged']`) and `narratePrOpened` (gated by `NARRATABLE_TYPES_OPENED = ['github:pr:opened']`), so backfilling closes/reviews/pushes doesn't trigger LLM spend but backfilled opens still land in the Opened feed.
 
+The cron treats service-specific synchronization as isolated work. In particular, an optional NoxTicket repository that is missing or misconfigured is logged but cannot abort the active-repository loop that restores NoxFeed PRs, issues, events, and release notes.
+
 ### Narration (three voices, one PR lifecycle)
 Every narratable event produces downstream `events` rows via functions in `functions/lib/narrator.js`. Same PR appears in all three feeds as it moves through its lifecycle — one LLM call at open time, zero at merge time:
 - `narratePrOpened` → `type='pr_narrative'`, `source='pr-opened-narrator'` — the **Opened feed** (first-person "just opened this PR" post, `PR_OPENED_SYSTEM` prompt). Fires on `github:pr:opened`.

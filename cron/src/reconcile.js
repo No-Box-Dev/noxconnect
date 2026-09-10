@@ -59,7 +59,19 @@ export async function reconcileOrg(env, db, orgId, orgLogin, installationId) {
     await reconcileDeletedMembers(db, orgId, apiMembers);
     await reconcileDeletedRepos(db, orgId, apiRepos);
     await syncTeams(db, token, orgId, orgLogin);
-    await syncFeatures(db, token, orgId, orgLogin);
+
+    // NoxTicket is optional. A missing/misconfigured ticket repository must
+    // never stop the shared safety net before it reaches NoxFeed's PR sync.
+    // Keep the failure visible in logs while allowing the rest of the org to
+    // reconcile normally.
+    try {
+      await syncFeatures(db, token, orgId, orgLogin);
+    } catch (err) {
+      console.error(
+        `[noxconnect-cron] org=${orgLogin} NoxTicket feature sync failed; continuing service reconcile:`,
+        err?.message ?? err,
+      );
+    }
 
     // Issues + PRs per active repo with incremental `since` cursor.
     const inactive = await getInactiveRepoSet(db, orgId, orgLogin);

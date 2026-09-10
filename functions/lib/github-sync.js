@@ -13,6 +13,29 @@ import { startRepoTracking, stopRepoTracking } from "./repo-tracking";
 // only if you also split the call across multiple invocations.
 const MAX_PAGES = 50;
 
+async function ghFetch(url, init = {}, token) {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "NoxConnect",
+      Accept: "application/vnd.github+json",
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const error = new Error(body?.message || `GitHub API error: ${res.status} ${res.statusText}`);
+    error.status = res.status;
+    error.ghBody = body;
+    throw error;
+  }
+
+  return res.json();
+}
+
 async function fetchAllPages(token, url, params = {}, emptyStatuses = []) {
   const all = [];
   let page = 1;

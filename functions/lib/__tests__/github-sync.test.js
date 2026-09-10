@@ -42,6 +42,7 @@ import {
   syncMembers,
   syncRepo,
   syncCommits,
+  syncFeatures,
   decideReconcileAction,
 } from "../github-sync.js";
 
@@ -574,6 +575,50 @@ describe("syncMembers", () => {
     expect(result).toEqual(["alice"]);
     // The INSERT SQL hardcodes 'human' as the kind.
     expect(db._calls.batches[0][0].sql).toContain("'human'");
+  });
+});
+
+describe("syncFeatures", () => {
+  it("migrates a legacy feature label with an authenticated GitHub request", async () => {
+    const legacyLabel = ["un", "ticket"].join("");
+    const issue = {
+      number: 17,
+      title: "Restore release notes",
+      state: "open",
+      body: "",
+      assignees: [],
+      labels: [{ name: legacyLabel, color: "999999" }, { name: "feature", color: "123456" }],
+      milestone: null,
+      html_url: "https://github.com/no-box-dev/noxconnect/issues/17",
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-09T00:00:00Z",
+    };
+
+    fetch.mockImplementation(async (url, init = {}) => {
+      if (init.method === "POST") {
+        return { ok: true, json: async () => ({ name: "noxticket" }) };
+      }
+      if (init.method === "PATCH") {
+        return { ok: true, json: async () => ({ ...issue, labels: [{ name: "noxticket" }, { name: "feature" }] }) };
+      }
+      return {
+        ok: true,
+        headers: { get: () => null },
+        json: async () => [issue],
+      };
+    });
+
+    const db = makeDb();
+    await expect(syncFeatures(db, "install-token", 1, "no-box-dev")).resolves.toMatchObject({ synced: 1 });
+
+    const patchCall = fetch.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(patchCall).toBeDefined();
+    expect(patchCall[1].headers).toMatchObject({
+      Authorization: "Bearer install-token",
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    });
+    expect(JSON.parse(patchCall[1].body).labels).toEqual(["noxticket", "feature"]);
   });
 });
 
