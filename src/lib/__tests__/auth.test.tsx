@@ -24,6 +24,7 @@ function TestConsumer() {
       <span data-testid="loading">{String(auth.isLoading)}</span>
       <span data-testid="user">{auth.user?.login ?? "none"}</span>
       <span data-testid="org">{auth.selectedOrg ?? "none"}</span>
+      <span data-testid="error">{auth.authError ?? "none"}</span>
       <button onClick={auth.logout}>logout</button>
       <button onClick={() => auth.setSelectedOrg("test-org")}>setOrg</button>
     </div>
@@ -203,6 +204,30 @@ describe("useAuth", () => {
     });
     expect(storage.ut_token).toBeUndefined();
     expect(window.history.replaceState).toHaveBeenCalled();
+  });
+
+  it("OAuth callback: returns an unauthorized user to sign-in without a Retry-only error", async () => {
+    storage.ut_org = "No-Box-Dev";
+    Object.defineProperty(window, "location", {
+      value: {
+        origin: "http://localhost",
+        pathname: "/",
+        search: "?login=ok",
+        hash: "",
+        href: "http://localhost/?login=ok",
+      },
+      writable: true,
+      configurable: true,
+    });
+    mockFetchUser.mockRejectedValue(Object.assign(new Error("Authentication required"), { status: 401 }));
+
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
+
+    await waitFor(() => expect(screen.getByTestId("loading").textContent).toBe("false"));
+    expect(screen.getByTestId("user").textContent).toBe("none");
+    expect(screen.getByTestId("org").textContent).toBe("none");
+    expect(screen.getByTestId("error").textContent).toBe("none");
+    expect(storage.ut_org).toBeUndefined();
   });
 
   it("logout: clears localStorage, resets user + org", async () => {

@@ -118,15 +118,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         })
         .catch((err) => {
-          if (isRateLimitError(err)) {
+          if (isUnauthorizedError(err)) {
+            // The callback did not establish (or could no longer resolve) a
+            // browser session. Return to the normal sign-in screen instead of
+            // trapping the user on a Retry-only error page. Keep
+            // `ut_return_to` so the next successful OAuth round-trip still
+            // restores the original deep link.
+            localStorage.removeItem("ut_org");
+            setUser(null);
+            setSelectedOrg(null);
+            setAuthError(null);
+          } else if (isRateLimitError(err)) {
             setAuthError("GitHub API rate limit exceeded. Please wait a few minutes and refresh.");
           } else {
             const msg = err instanceof Error ? err.message : "Authentication failed";
             setAuthError(msg);
             broadcastError(msg);
-            if (isUnauthorizedError(err)) {
-              localStorage.removeItem("ut_org");
-            }
           }
         })
         .finally(() => setIsLoading(false));
