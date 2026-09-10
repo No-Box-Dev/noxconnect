@@ -45,10 +45,10 @@ describe("GitHub OAuth identity connection", () => {
       GITHUB_APP_CLIENT_ID: "client-id",
       GITHUB_APP_CLIENT_SECRET: "client-secret",
       ENCRYPTION_KEY: "11".repeat(32),
-      NOXHERE_OAUTH_CALLBACK_URL: "https://app.noxhere.com/api/auth/callback",
+      NOXHERE_OAUTH_CALLBACK_URL: "https://app.noxhere.com/auth/github/callback",
     }, {
       code: "one-time-code",
-      redirectUri: "https://app.noxhere.com/api/auth/callback",
+      redirectUri: "https://app.noxhere.com/auth/github/callback",
     });
 
     expect(result).toMatchObject({
@@ -73,7 +73,7 @@ describe("GitHub OAuth identity connection", () => {
       GITHUB_APP_CLIENT_ID: "client-id",
       GITHUB_APP_CLIENT_SECRET: "client-secret",
       ENCRYPTION_KEY: "11".repeat(32),
-      NOXHERE_OAUTH_CALLBACK_URL: "https://app.noxhere.com/api/auth/callback",
+      NOXHERE_OAUTH_CALLBACK_URL: "https://app.noxhere.com/auth/github/callback",
     }, {
       code: "one-time-code",
       redirectUri: "https://attacker.example/callback",

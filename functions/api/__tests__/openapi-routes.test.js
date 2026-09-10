@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import openapi from "../../../public/openapi.json";
 
 describe("canonical OpenAPI routes", () => {
-  it("has a Pages Function route for every canonical path", () => {
+  it("has a connector route for every canonical non-control-plane path", () => {
     const functionsRoot = join(process.cwd(), "functions");
     const routeRoot = join(functionsRoot, "api", "v1");
     const routes = walkRouteFiles(routeRoot).map((file) => {
@@ -23,7 +23,7 @@ describe("canonical OpenAPI routes", () => {
     });
 
     for (const [path, operations] of Object.entries(openapi.paths)
-      .filter(([candidate]) => candidate.startsWith("/api/v1/"))) {
+      .filter(([candidate]) => candidate.startsWith("/api/v1/") && !isNoxHereControlPath(candidate))) {
       const route = routes.find((candidate) => candidate.pattern.test(path));
       expect(route, `${path} has no matching file under functions/api/v1`).toBeDefined();
       for (const method of ["get", "post", "put", "patch", "delete"]) {
@@ -43,6 +43,13 @@ function walkRouteFiles(directory) {
     const path = join(directory, entry.name);
     return entry.isDirectory() ? walkRouteFiles(path) : /\.(?:js|ts)$/.test(entry.name) ? [path] : [];
   });
+}
+
+function isNoxHereControlPath(path) {
+  return path === "/api/v1/auth/profile"
+    || path.startsWith("/api/v1/auth/native/")
+    || path === "/api/v1/api-tokens"
+    || path.startsWith("/api/v1/api-tokens/");
 }
 
 function escapeRegex(value) {

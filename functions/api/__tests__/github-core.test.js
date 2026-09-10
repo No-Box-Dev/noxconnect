@@ -8,7 +8,6 @@ vi.mock("../../lib/github-app.js", () => ({
   getInstallationToken: vi.fn(async () => "installation-token"),
 }));
 
-import { onRequestGet as getProfile } from "../auth/profile.js";
 import { onRequestGet as getComments } from "../github/comments.js";
 import { onRequestGet as getDetails } from "../github/details.js";
 import { onRequestGet as getRateLimit } from "../github/rate-limit.js";
@@ -25,19 +24,6 @@ function context(path, { token = "user-token", orgId = 7, orgLogin = "acme" } = 
 
 describe("NoxConnect GitHub facade", () => {
   beforeEach(() => vi.restoreAllMocks());
-
-  it("resolves user identity and organizations without product-side GitHub calls", async () => {
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ login: "ada", avatar_url: "https://img/ada" }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => [{ id: 1, login: "acme" }] });
-    const response = await getProfile(context("/api/auth/profile"));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      user: { login: "ada", avatar_url: "https://img/ada" },
-      orgs: [{ id: 1, login: "acme" }],
-    });
-    expect(globalThis.fetch.mock.calls.every(([, init]) => init.headers.Authorization === "Bearer user-token")).toBe(true);
-  });
 
   it("returns a bounded live issue projection using an installation token", async () => {
     globalThis.fetch = vi.fn(async () => ({ ok: true, json: async () => ({

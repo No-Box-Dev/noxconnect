@@ -308,7 +308,7 @@ async function loadGitHubIdentity(
 
 function parseExchangeInput(
   input: unknown,
-  configuredCallback = "https://app.noxhere.com/api/auth/callback",
+  configuredCallback = "https://app.noxhere.com/auth/github/callback",
 ): { code: string; redirectUri: string } {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid_identity_exchange");
   const value = input as Record<string, unknown>;

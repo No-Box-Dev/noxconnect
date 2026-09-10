@@ -82,7 +82,7 @@ current public API.
 
 | Deployable | Repository boundary | Credential boundary | Storage boundary | Current state |
 |---|---|---|---|---|
-| NoxHere | Private `No-Box-Dev/NoxHere` repository and bootstrap PR created | Browser/native sessions, project tokens, tenant/project authorization, and service enablement now execute in the gateway | Dedicated production and staging control D1s; staging schema applied | Control plane ready in shadow/enforce modes; traffic not cut over |
+| NoxHere | Private `No-Box-Dev/NoxHere` repository and production Worker | Browser/native sessions, project tokens, tenant/project authorization, and service enablement execute in the gateway | Dedicated production and staging control D1s | Enforced in production; GitHub callback and sessions are NoxHere-owned |
 | NoxConnect | Private capability Worker implemented | GitHub OAuth/device approval returns identity claims plus opaque connection IDs; encrypted provider credentials stay here | Identity connection/device tables added alongside connection/outbox state | Signed NoxHere assertions and defense-in-depth project checks implemented; deployment pending |
 | NoxTicket | Private `No-Box-Dev/NoxTicket` repository created | No provider credentials or clients | Dedicated `noxticket` D1 and `noxticket-spec-attachments` R2 provisioned with owned migration | Storage PR ready; traffic not cut over |
 | NoxFeed | Service branch published | No provider credentials or clients in the product Worker | Demo storage only; feed projections still live in legacy NoxConnect D1 | Policy boundary ready; data/job extraction pending |
@@ -362,15 +362,13 @@ parity succeeds.
 
 ### Known transitional items
 
-- NoxConnect remains the public façade and still contains shared orchestration
-  and some legacy NoxCue/NoxFeed projection adapters. Provider access is cleanly
-  isolated, but deleting these adapters should wait for post-deployment parity.
-- The NoxHere repository now owns browser/native sessions, hashed API-token
-  rows, organization/project authorization, and service enablement in a
-  dedicated D1. In `shadow`, successful project/service configuration is
-  mirrored and legacy authentication remains a rollback path. Existing users
-  reconnect and existing automation keys rotate rather than copying provider
-  credentials. `enforce` remains gated on staging parity and zero fallback use.
+- NoxHere is the only public authenticated façade. NoxConnect accepts user and
+  automation authorization only as short-lived, signed NoxHere assertions over
+  its private binding. Its callback and credential-lifecycle handlers have
+  been removed.
+- NoxHere owns browser/native sessions, hashed API-token rows,
+  organization/project authorization, and service enablement in its dedicated
+  D1. There is no shadow-mode or legacy-auth fallback.
 - The retired NoxSpot `api/` tree still contains its historical provider code;
   it is not an active deployment target. The production `capture/` Worker is
   credential-free.

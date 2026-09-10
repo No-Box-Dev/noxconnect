@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compatibilityApiPath, isNativeAuthPath } from "../api-paths.js";
+import { compatibilityApiPath } from "../api-paths.js";
 
 describe("canonical API paths", () => {
   it("maps v1 resources onto compatibility handlers", () => {
@@ -19,13 +19,6 @@ describe("canonical API paths", () => {
     expect(compatibilityApiPath("/api/v1/services/noxcue/health")).toBe(
       "/api/v1/services/noxcue/health",
     );
-    expect(compatibilityApiPath("/api/v1/api-tokens")).toBe("/api/v1/api-tokens");
     expect(compatibilityApiPath("/api/v1/feed")).toBe("/api/v1/feed");
-  });
-
-  it("recognizes both native authentication generations", () => {
-    expect(isNativeAuthPath("/api/auth/native/device/start")).toBe(true);
-    expect(isNativeAuthPath("/api/v1/auth/native/device/start")).toBe(true);
-    expect(isNativeAuthPath("/api/v1/actors")).toBe(false);
   });
 });

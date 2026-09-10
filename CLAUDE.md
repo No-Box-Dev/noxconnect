@@ -18,10 +18,10 @@
 
 ## OAuth
 
-- GitHub App client ID (`Iv23l…`) — stored in noxkey at `noboxdev/noxconnect/GITHUB_APP_CLIENT_ID`. Used at BOTH build time (Vite injects it as `VITE_GITHUB_APP_CLIENT_ID` via the `VITE_GITHUB_CLIENT_ID` repo variable, see `deploy-pages.yml`) AND runtime (Cloudflare Pages secret `GITHUB_APP_CLIENT_ID` consumed by `functions/api/auth/callback.js`). Both must reference the same App — a mismatch makes the code exchange fail with "The code passed is incorrect or expired."
+- GitHub App client ID (`Iv23l…`) — stored in noxkey at `noboxdev/noxconnect/GITHUB_APP_CLIENT_ID`. NoxHere initiates and validates the browser callback; the private NoxConnect identity binding completes the provider exchange.
 - **Do not use the legacy OAuth App** (`Ov23l…`). NoxConnect auth is the GitHub App's user-authorization flow (`Iv23l…`); only that App has install + webhook permissions. An OAuth App client ID used for sign-in cannot be exchanged at the GitHub App callback.
 - Cloudflare Pages secrets: `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` (+ `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET`, `ENCRYPTION_KEY`).
-- OAuth callback is exposed at `functions/auth/github/callback.js` and handled by the shared implementation in `functions/api/auth/callback.js`.
+- NoxConnect exposes no browser OAuth callback. NoxHere validates callback state, calls the private identity binding, and owns the resulting browser session.
 
 ## Stack
 
@@ -92,10 +92,7 @@ New backend code (Pages Functions + cron) is written in **TypeScript**, not JS. 
 - `functions/api/prs.js` and `functions/api/prs/[repo]/[number].js` expose `head_sha` from `pull_requests`. All PR sync and webhook upsert paths persist `pull_request.head.sha` (migration `0045_pr_head_sha.sql`) so review clients can invalidate results when new commits land.
 - `functions/api/repos/acknowledge.ts` — Admin-only POST. Marks one or more repos as reviewed by setting `repos.acknowledged_at` (`COALESCE` keeps first-acknowledgment timestamp). Called by the NewRepoBanner's Dismiss-all, and by the Settings → Newly detected section's Track / Mark draft / Acknowledge all buttons (Track + Mark draft also flip the `projects.archived` flag through the existing `/api/projects/:id/archive` endpoint).
 - `functions/api/specs/*.ts` — CRUD for the manual Specs feature (schema seeded by migration `0034_specs.sql`, later unified into Features via `0037_spec_feature_number.sql`). Specs belong to a Feature via `feature_number` (or Unfiled when null); they live entirely in D1 — no GitHub round-trip. GET/POST on the collection and PATCH on the single-resource endpoint are open to any authenticated org member; the `/archive` endpoint (POST=archive, DELETE=unarchive) is **admin-gated via `getCtx(context).isAdmin`**. Link sanitizer (`sanitizeSpecLinks` in `functions/lib/spec-links.ts`) is shared with the Feature `SpecLink[]` field. The retired `spec_folders` endpoints + `folderId` DTO field were removed in a post-audit cleanup — the `spec_folders` table + `specs.folder_id` / `specs.legacy_folder_name` columns still exist in D1 as frozen historical data but no code reads them.
-- `functions/api/auth/callback.js` — OAuth callback. Also persists the GitHub App `refresh_token` into the `oauth_tokens` table (keyed by SHA-256 of the access token).
-- `functions/api/auth/exchange.js` — One-time exchange code → access token (immediately after callback redirect).
-- `functions/api/auth/refresh.js` — POST `{ token }` (the expired access token). Looks up the matching `oauth_tokens` row, calls GitHub's `grant_type=refresh_token` flow, rotates both tokens, returns the new access token. Used by `apiFetch` and `fetchUser` to silently recover from 401s so users stay signed in for the refresh-token TTL (~6 months) instead of the 8-hour access-token TTL.
-- `functions/_middleware.js`, `functions/api/_middleware.js` — auth middleware (webhook route bypasses auth)
+- `functions/_middleware.js` — verifies short-lived method/path-bound NoxHere assertions. Only explicitly self-authenticating webhook, Slack, public-share, and ingest routes bypass it.
 - `functions/lib/github-sync.js`, `functions/lib/db.js`, `functions/lib/crypto.js` — server-side helpers
 
 ### NoxSpot public capture Worker
@@ -207,12 +204,12 @@ All API failures must reach the user. `broadcastError(message, status?)` in `src
 
 ### Auth
 
-GitHub App user access tokens expire after ~8 hours, but NoxConnect keeps the browser session alive via the rotating refresh token stored encrypted in `oauth_tokens` (normally ~6 months). `refreshAccessToken` in `src/lib/api.ts` uses the Web Locks API to serialize refresh across tabs, reuses a token another tab already rotated, and treats only a confirmed refresh 401 as terminal; network/5xx refresh failures preserve the stored session. Browser and native clients send the user token only to NoxConnect APIs; NoxConnect performs GitHub calls and surfaces 401/429 responses through the shared refresh-and-retry path. Never clear `ut_token` for a 401 from an older token when localStorage already contains a newer one.
+NoxHere owns browser/native sessions, project API tokens, CSRF, organization membership, and service enablement. NoxConnect owns only encrypted provider identity connections and resolves them from the opaque `connectionId` carried inside a verified, short-lived NoxHere assertion. It exposes no browser callback, profile, logout, refresh, native-session, or API-token lifecycle routes.
 - `useAuth()` returns `user` (with `login`, `avatar_url`, `name`), `selectedOrg`, `isLoading`, `loginWithOAuth()`, `logout()`, `setSelectedOrg()`
 - **OAuth only.** PAT/`loginWithToken` was removed — the login page only renders "Sign in with GitHub" which redirects to the GitHub App's user-authorization flow. The dev-mode escape hatch (`VITE_DEV_TOKEN` / `VITE_DEV_ORG`) still works for local development. Build-time requirement: `VITE_GITHUB_APP_CLIENT_ID` must be set or `getOAuthLoginUrl()` throws — deploy workflow maps it from the `VITE_GITHUB_CLIENT_ID` repo variable.
 - Dev mode: `VITE_DEV_TOKEN` / `VITE_DEV_ORG` env vars for local development
 - Per-user features filter by `user.login`
-- **Refresh-token rotation:** GitHub App user-to-server access tokens expire after 8 hours. The callback persists the `refresh_token` server-side in `oauth_tokens` (encrypted, keyed by SHA-256 of the access token). `src/lib/api.ts apiFetch` and `src/lib/github.ts fetchUser` intercept 401s by POSTing the expired token to `/api/auth/refresh`, which uses the stored refresh token to obtain a new pair and updates `localStorage.ut_token`. Concurrent 401s coalesce on a single in-flight refresh promise. If refresh fails (refresh-token expired or revoked) the row is deleted and the existing force-logout path runs. The refresh token rotates on every call — old tokens are invalid as soon as a new pair is issued.
+- **Provider refresh rotation:** NoxConnect refreshes encrypted GitHub provider credentials only while resolving an opaque connection identity. No provider credential crosses into NoxHere or a product service.
 
 ## Features
 
