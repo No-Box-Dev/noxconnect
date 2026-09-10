@@ -166,8 +166,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         projectId: share.project_id, projectName: share.project_name,
       }),
       context.env.DB.prepare(
-        `SELECT fingerprint, title, error_code, component, first_seen_at, last_seen_at, occurrence_count
-           FROM cue_error_groups WHERE source_id = ? ORDER BY last_seen_at DESC LIMIT 10`,
+        `SELECT fingerprint, title, error_code, component, first_seen_at, last_seen_at, occurrence_count,
+                status, acknowledged_at, acknowledged_by, resolved_at, resolved_by
+           FROM cue_error_groups WHERE source_id = ?
+          ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
+                   last_seen_at DESC LIMIT 20`,
       ).bind(source.id).all<Record<string, unknown>>(),
     ]);
     const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
@@ -221,9 +224,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         };
       }),
       errors: (errorResult.results ?? []).map((row) => ({
-        title: row.title, errorCode: row.error_code, component: row.component,
+        fingerprint: row.fingerprint, title: row.title, errorCode: row.error_code, component: row.component,
         firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,
         occurrenceCount: Number(row.occurrence_count ?? 0),
+        status: row.status ?? "open", acknowledgedAt: row.acknowledged_at ?? null,
+        acknowledgedBy: row.acknowledged_by ?? null, resolvedAt: row.resolved_at ?? null,
+        resolvedBy: row.resolved_by ?? null,
         occurrences: (occurrences.get(`${source.id}\u0000${String(row.fingerprint ?? "")}`) ?? []).map((item) => ({
           id: item.id,
           message: item.message,

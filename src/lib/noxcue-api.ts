@@ -43,6 +43,11 @@ export interface NoxCueMetricsResponse {
     lastSeenAt: string;
     occurrenceCount: number;
     lastNotifiedAt: string | null;
+    status: "open" | "acknowledged" | "resolved";
+    acknowledgedAt: string | null;
+    acknowledgedBy: string | null;
+    resolvedAt: string | null;
+    resolvedBy: string | null;
   }>;
 }
 

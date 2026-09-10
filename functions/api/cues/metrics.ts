@@ -69,11 +69,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
        SELECT periods.period, definitions.metric_key, definitions.label,
          (SELECT COUNT(*) FROM cue_activity_events activity
            WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key
-             AND activity.period <= periods.period) AS total_events,
+             AND activity.period = periods.period) AS total_events,
          (SELECT COUNT(*) FROM cue_user_registrations registration
            WHERE registration.source_id = ? AND registration.period <= periods.period) AS total_users,
          COALESCE((SELECT MAX(activity.received_at) FROM cue_activity_events activity
-           WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key), '') AS updated_at
+           WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key
+             AND activity.period = periods.period), '') AS updated_at
        FROM periods CROSS JOIN definitions ORDER BY periods.period DESC, definitions.metric_key`,
     ).bind(`-${parsed.data.days - 1} days`, parsed.data.sourceId, parsed.data.sourceId,
       parsed.data.sourceId, parsed.data.sourceId).all<ActivityMetricRow>(),
@@ -86,7 +87,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     ).bind(parsed.data.sourceId, parsed.data.days).all<Record<string, unknown>>(),
     context.env.DB.prepare(
       `SELECT fingerprint, title, error_code, component, environment,
-              first_seen_at, last_seen_at, occurrence_count, last_notified_at
+              first_seen_at, last_seen_at, occurrence_count, last_notified_at,
+              status, acknowledged_at, acknowledged_by, resolved_at, resolved_by
          FROM cue_error_groups
         WHERE source_id = ?
         ORDER BY last_seen_at DESC LIMIT 20`,
@@ -108,7 +110,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     if (users > 0) values[`${row.metric_key}.per_user`] = { value: total / users, origin: "calculated", updatedAt: row.updated_at };
     days.set(row.period, values);
     customCatalog.set(row.metric_key, { key: row.metric_key, label: `${row.label} total`, unit: "count" });
-    customCatalog.set(`${row.metric_key}.per_user`, { key: `${row.metric_key}.per_user`, label: `${row.label} per user`, unit: "decimal" });
+    customCatalog.set(`${row.metric_key}.per_user`, { key: `${row.metric_key}.per_user`, label: `${row.label} / registered user`, unit: "decimal" });
   }
   return jsonResponse({
     catalog: [...(catalog.results ?? []).map((row) => ({
@@ -141,6 +143,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       lastSeenAt: row.last_seen_at,
       occurrenceCount: row.occurrence_count,
       lastNotifiedAt: row.last_notified_at,
+      status: row.status ?? "open",
+      acknowledgedAt: row.acknowledged_at ?? null,
+      acknowledgedBy: row.acknowledged_by ?? null,
+      resolvedAt: row.resolved_at ?? null,
+      resolvedBy: row.resolved_by ?? null,
     })),
   });
 }

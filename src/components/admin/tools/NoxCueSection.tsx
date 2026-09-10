@@ -15,7 +15,7 @@ export function NoxCueSection({ noxConnect }: { noxConnect: IntegrationsStatus }
           <ReadinessBadge readiness={noxConnect.features.noxCue} blockedLabel="Needs Slack" />
         </div>
         <p className="text-xs leading-5 text-stone-500">
-          Send one-line registration and activity events; NoxCue derives the daily user statistics and posts them to the Slack channel below.
+          Detect critical product failures and turn individual user events into daily statistics. Configure either workflow independently for every project and environment.
         </p>
         {!slackConnected ? (
           <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">

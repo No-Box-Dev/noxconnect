@@ -25,6 +25,7 @@ import {
   useSaveNoxCueSource,
   useSaveNoxCueProjectMetrics,
   useTestNoxCueEndpoint,
+  useUpdateNoxCueError,
   useUpsertNoxCueDashboardShare,
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
@@ -146,6 +147,14 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
 
   return (
     <div className="space-y-6">
+      {!creating && selected ? <SetupProgress
+        key={selected.id}
+        source={selected}
+        slackConnected={noxConnect.slack.connected}
+        checking={checkingEvents || sources.isFetching}
+        checkedWithoutEvent={checkedWithoutEvent}
+        onCheck={() => void checkForEvents()}
+      /> : null}
       <form onSubmit={submit} className="space-y-5 rounded-xl border border-stone-200 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -217,15 +226,8 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         </> : <p className="text-sm text-stone-500">Create your first source to get a server ingest key.</p>}
       </form>
 
-      {!creating && selected ? <SetupProgress
-        key={selected.id}
-        source={selected}
-        slackConnected={noxConnect.slack.connected}
-        checking={checkingEvents || sources.isFetching}
-        checkedWithoutEvent={checkedWithoutEvent}
-        onCheck={() => void checkForEvents()}
-      /> : null}
       {!creating && selected ? <EndpointHealthPanel source={selected} /> : null}
+      {!creating && selected ? <ErrorIncidentsPanel source={selected} /> : null}
       {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <CustomMetricRegistry source={selected} /> : null}
       {!creating && selected ? <CustomFeatureRegistry source={selected} /> : null}
@@ -259,140 +261,97 @@ export function SetupProgress({
 }) {
   const destination = useSlackChannels(source.effectiveSlackConnectionId || undefined);
   const channel = destination.channels.data?.find((candidate) => candidate.id === source.effectiveSlackChannelId);
+  const alertDestination = useSlackChannels(source.effectiveAlertSlackConnectionId || undefined);
+  const alertChannel = alertDestination.channels.data?.find((candidate) => candidate.id === source.effectiveAlertSlackChannelId);
   const channelStatus = findSlackChannelStatus(
     destination.status.data?.channelStatuses,
     source.effectiveSlackConnectionId ?? "",
     source.effectiveSlackChannelId ?? "",
   );
-  const [testingDelivery, setTestingDelivery] = useState(false);
-  const [testFeedback, setTestFeedback] = useState<{ ok: boolean; message: string } | null>(null);
-  const activeKeys = source.keys.filter((key) => key.kind === "secret" && !key.revokedAt);
+  const alertChannelStatus = findSlackChannelStatus(
+    alertDestination.status.data?.channelStatuses,
+    source.effectiveAlertSlackConnectionId ?? "",
+    source.effectiveAlertSlackChannelId ?? "",
+  );
+  const [testingKind, setTestingKind] = useState<"noxcue" | "noxcue_alerts" | null>(null);
+  const [testFeedback, setTestFeedback] = useState<Record<string, { ok: boolean; message: string } | undefined>>({});
+  const activeKeys = source.keys.filter((key) => !key.revokedAt);
+  const secretKeys = activeKeys.filter((key) => key.kind === "secret");
   const eventAt = lastUserEventAt(source);
-  const destinationReady = Boolean(slackConnected && source.digestEnabled && source.effectiveSlackChannelId);
-  const deliveryHealthy = channelStatus?.status === "verified";
-  const deliveryIssue = channelStatus?.status === "issue";
-  const testDelivery = async () => {
-    if (!source.effectiveSlackChannelId || !source.effectiveSlackConnectionId) return;
-    setTestingDelivery(true);
-    setTestFeedback(null);
+  const statsDestinationReady = Boolean(slackConnected && source.digestEnabled && source.effectiveSlackChannelId);
+  const alertDestinationReady = Boolean(slackConnected && source.alertsEnabled && source.effectiveAlertSlackChannelId);
+  const testDelivery = async (kind: "noxcue" | "noxcue_alerts") => {
+    const isAlert = kind === "noxcue_alerts";
+    const connectionId = isAlert ? source.effectiveAlertSlackConnectionId : source.effectiveSlackConnectionId;
+    const channelId = isAlert ? source.effectiveAlertSlackChannelId : source.effectiveSlackChannelId;
+    const selectedChannel = isAlert ? alertChannel : channel;
+    const selectedDestination = isAlert ? alertDestination : destination;
+    if (!channelId || !connectionId) return;
+    setTestingKind(kind);
+    setTestFeedback((current) => ({ ...current, [kind]: undefined }));
     try {
       await apiPost("/api/v1/slack/test", {
-        kind: "noxcue",
-        connectionId: source.effectiveSlackConnectionId,
-        channelId: source.effectiveSlackChannelId,
+        kind,
+        connectionId,
+        channelId,
       });
-      await destination.status.refetch();
-      setTestFeedback({
+      await selectedDestination.status.refetch();
+      setTestFeedback((current) => ({ ...current, [kind]: {
         ok: true,
-        message: `Test message posted${channel ? ` to #${channel.name}` : ""}. Confirm it in Slack.`,
-      });
+        message: `Test message posted${selectedChannel ? ` to #${selectedChannel.name}` : ""}. Confirm it in Slack.`,
+      } }));
     } catch (error) {
-      await destination.status.refetch();
-      setTestFeedback({
+      await selectedDestination.status.refetch();
+      setTestFeedback((current) => ({ ...current, [kind]: {
         ok: false,
         message: error instanceof Error ? error.message : "Slack delivery failed",
-      });
+      } }));
     } finally {
-      setTestingDelivery(false);
+      setTestingKind(null);
     }
   };
-  const steps = [
+  const tracks = [
     {
-      label: "App configured",
-      detail: source.projectName ? `Linked to ${source.projectName}` : "Source saved in this organization",
-      complete: source.enabled,
+      key: "noxcue_alerts" as const,
+      title: "Critical detection",
+      description: "Errors, failed user journeys, and endpoint incidents.",
+      steps: [
+        { label: "Collection", complete: source.enabled, detail: source.enabled ? "Accepting critical signals" : "Collection is paused" },
+        { label: "Ingest key", complete: activeKeys.length > 0, detail: activeKeys.length ? `${activeKeys.length} active` : "Create a browser or server key" },
+        { label: "Alert route", complete: alertDestinationReady, detail: alertDestinationReady ? `${alertChannel ? `#${alertChannel.name}` : "Channel selected"} · ${routeLabel(source.alertSlackRouteLevel)}` : source.alertsEnabled ? "Choose an alerts destination" : "Immediate alerts are paused" },
+        { label: "End-to-end test", complete: alertChannelStatus?.status === "verified", issue: alertChannelStatus?.status === "issue", detail: alertChannelStatus?.status === "verified" ? "Slack accepted the last alert" : alertChannelStatus?.status === "issue" ? alertChannelStatus.lastError ?? "Delivery issue" : "Send a test alert" },
+      ],
+      ready: alertDestinationReady && activeKeys.length > 0 && alertChannelStatus?.status === "verified",
+      destinationReady: alertDestinationReady,
+      connectionId: source.effectiveAlertSlackConnectionId,
+      channelId: source.effectiveAlertSlackChannelId,
     },
     {
-      label: "Slack destination",
-      detail: destinationReady
-        ? `${channel ? `#${channel.name}` : "Channel selected"} · ${routeLabel(source.slackRouteLevel)}`
-        : source.digestEnabled ? "Choose a channel or configure a fallback route" : "Daily Slack pulse is paused",
-      complete: destinationReady,
-    },
-    {
-      label: "Secret key",
-      detail: activeKeys.length
-        ? `${activeKeys.length} active key${activeKeys.length === 1 ? "" : "s"}`
-        : "Create a secret key and save it in the server environment",
-      complete: activeKeys.length > 0,
-    },
-    {
-      label: "First user event",
-      detail: eventAt
-        ? `Received and stored ${new Date(eventAt).toLocaleString()}`
-        : "Waiting for user.registered or user.active",
-      complete: Boolean(eventAt),
-    },
-    {
-      label: "Slack delivery",
-      detail: deliveryHealthy
-        ? `Healthy${channelStatus?.lastDeliveredAt ? ` · posted ${new Date(channelStatus.lastDeliveredAt).toLocaleString()}` : ""}`
-        : deliveryIssue ? `Issue · ${channelStatus?.lastError ?? "A message could not be posted"}` : "Send a real test message and verify it in Slack",
-      complete: deliveryHealthy,
-      issue: deliveryIssue,
+      key: "noxcue" as const,
+      title: "Daily stats",
+      description: "Individual user events aggregated into completed-day metrics.",
+      steps: [
+        { label: "Secret key", complete: secretKeys.length > 0, detail: secretKeys.length ? `${secretKeys.length} active` : "Create a server key" },
+        { label: "First user event", complete: Boolean(eventAt), detail: eventAt ? `Stored ${new Date(eventAt).toLocaleString()}` : "Waiting for user.registered or user.active" },
+        { label: "Digest route", complete: statsDestinationReady, detail: statsDestinationReady ? `${channel ? `#${channel.name}` : "Channel selected"} · ${routeLabel(source.slackRouteLevel)}` : source.digestEnabled ? "Choose a stats destination" : "Daily digest is paused" },
+        { label: "End-to-end test", complete: channelStatus?.status === "verified", issue: channelStatus?.status === "issue", detail: channelStatus?.status === "verified" ? "Slack accepted the last digest" : channelStatus?.status === "issue" ? channelStatus.lastError ?? "Delivery issue" : "Send a test digest" },
+      ],
+      ready: statsDestinationReady && secretKeys.length > 0 && Boolean(eventAt) && channelStatus?.status === "verified",
+      destinationReady: statsDestinationReady,
+      connectionId: source.effectiveSlackConnectionId,
+      channelId: source.effectiveSlackChannelId,
     },
   ];
-  const completed = steps.filter((step) => step.complete).length;
 
   return <Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h3 className="text-sm font-semibold text-stone-900">Setup progress</h3>
-        <p className="mt-1 text-xs text-stone-500">Each check reflects the saved {environmentLabel(source.environment).toLowerCase()} configuration.</p>
-      </div>
-      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${completed === steps.length ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}>
-        {completed} of {steps.length} complete
-      </span>
-    </div>
-    <ol className="grid gap-3 sm:grid-cols-2">
-      {steps.map((step, index) => <li key={step.label} className={`flex items-start gap-3 rounded-lg border p-3 ${step.complete ? "border-green-200 bg-green-50/60" : step.issue ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-stone-50"}`}>
-        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${step.complete ? "bg-green-600 text-white" : step.issue ? "bg-amber-500 text-white" : "border border-stone-300 bg-white text-stone-500"}`}>
-          {step.complete ? <Check size={12} /> : step.issue ? <AlertTriangle size={12} /> : index + 1}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-xs font-medium text-stone-800">{step.label}</span>
-          <span className="mt-0.5 block text-[11px] leading-4 text-stone-500">{step.detail}</span>
-        </span>
-      </li>)}
-    </ol>
-    {destinationReady ? <div className={`rounded-lg border p-4 ${deliveryHealthy ? "border-green-200 bg-green-50" : deliveryIssue ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          {deliveryHealthy
-            ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />
-            : deliveryIssue
-              ? <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-700" />
-              : <Send size={16} className="mt-0.5 shrink-0 text-blue-700" />}
-          <div>
-            <p className={`text-sm font-semibold ${deliveryHealthy ? "text-green-900" : deliveryIssue ? "text-amber-900" : "text-blue-900"}`}>
-              {deliveryHealthy ? "Slack delivery healthy" : deliveryIssue ? "Slack delivery issue" : "Verify Slack delivery"}
-            </p>
-            <p className={`mt-1 text-xs leading-5 ${deliveryHealthy ? "text-green-800" : deliveryIssue ? "text-amber-800" : "text-blue-700"}`}>
-              {deliveryHealthy
-                ? `Slack accepted the last message${channel ? ` in #${channel.name}` : ""}. Future successful posts keep this healthy.`
-                : deliveryIssue
-                  ? `${channelStatus?.lastError ?? "Slack did not accept the message."} The next successful post automatically restores healthy status.`
-                  : `Post a real NoxCue test message${channel ? ` to #${channel.name}` : ""}. Slack must return a delivery receipt before setup is complete.`}
-            </p>
-          </div>
-        </div>
-        <button type="button" onClick={() => void testDelivery()} disabled={testingDelivery} className={`inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-xs font-medium disabled:opacity-50 ${deliveryIssue ? "border-amber-200 text-amber-800" : deliveryHealthy ? "border-green-200 text-green-800" : "border-blue-200 text-blue-800"}`}>
-          {testingDelivery ? <Spinner size="sm" /> : <Send size={13} />} {deliveryHealthy ? "Send another test" : deliveryIssue ? "Retry test" : "Send test message"}
-        </button>
-      </div>
-      {testFeedback ? <p role="status" className={`mt-2 text-xs ${testFeedback.ok ? "text-green-700" : "text-amber-800"}`}>{testFeedback.message}</p> : null}
-    </div> : null}
-    {completed === steps.length ? <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4">
-      <div className="flex items-start gap-2">
-        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />
-        <div>
-          <p className="text-sm font-semibold text-green-900">NoxCue is live</p>
-          <p className="mt-1 text-xs leading-5 text-green-800">
-            A user event was received and stored. The next completed-day pulse will post {channel ? `to #${channel.name} ` : "to the configured Slack destination "}after {source.digestTimeLocal} {source.timezone}.
-          </p>
-        </div>
-      </div>
-    </div> : activeKeys.length ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+    <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">{sourceLabel(source)}</p><h3 className="mt-1 text-lg font-semibold text-stone-900">NoxCue overview</h3><p className="mt-1 text-xs text-stone-500">Critical detection and daily stats are independent. Complete only the track this project needs.</p></div>
+    <div className="grid gap-4 lg:grid-cols-2">{tracks.map((track) => <section key={track.key} className={`rounded-xl border p-4 ${track.ready ? "border-green-200 bg-green-50/50" : track.steps.some((step) => step.issue) ? "border-amber-200 bg-amber-50/50" : "border-stone-200 bg-stone-50"}`}>
+      <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-stone-900">{track.title}</h4><p className="mt-1 text-xs text-stone-500">{track.description}</p></div><HealthBadge status={track.ready ? "healthy" : track.steps.some((step) => step.issue) ? "issue" : "waiting"} /></div>
+      <ol className="mt-4 space-y-2">{track.steps.map((step) => <li key={step.label} className="flex items-start gap-2 text-xs"><span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full ${step.complete ? "bg-green-600 text-white" : step.issue ? "bg-amber-500 text-white" : "border border-stone-300 bg-white text-stone-400"}`}>{step.complete ? <Check size={10} /> : step.issue ? <AlertTriangle size={10} /> : <CircleDashed size={10} />}</span><span><span className="font-medium text-stone-700">{step.label}</span><span className="ml-1 text-stone-500">· {step.detail}</span></span></li>)}</ol>
+      {track.destinationReady ? <div className="mt-4"><button type="button" onClick={() => void testDelivery(track.key)} disabled={testingKind !== null || !track.connectionId || !track.channelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">{testingKind === track.key ? <Spinner size="sm" /> : <Send size={13} />} {track.ready ? "Send another test" : "Send end-to-end test"}</button>{testFeedback[track.key] ? <p role="status" className={`mt-2 text-xs ${testFeedback[track.key]?.ok ? "text-green-700" : "text-amber-800"}`}>{testFeedback[track.key]?.message}</p> : null}</div> : null}
+    </section>)}</div>
+    <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><strong>DAU definition:</strong> a unique user for whom your app sends <code>user.active</code> during the local day. A signup only counts when your app also chooses to send <code>user.active</code>.</div>
+    {!eventAt && secretKeys.length ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-blue-900">Waiting for the first real user event</p>
@@ -799,6 +758,22 @@ function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
   </Panel>;
 }
 
+function ErrorIncidentsPanel({ source }: { source: NoxCueSource }) {
+  const metrics = useNoxCueMetrics(source.id);
+  const update = useUpdateNoxCueError(source.id);
+  const groups = metrics.data?.errorGroups ?? [];
+  const unresolved = groups.filter((group) => group.status !== "resolved");
+  const resolved = groups.filter((group) => group.status === "resolved");
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><AlertTriangle size={16} /><h3 className="text-sm font-semibold text-stone-900">Error incidents</h3></div><p className="mt-1 text-xs leading-5 text-stone-500">Every fingerprint stays open until a person acknowledges or resolves it. A new occurrence reopens a resolved incident.</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${unresolved.length ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>{unresolved.length ? `${unresolved.length} unresolved` : "No action required"}</span></div>
+    {metrics.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : metrics.isError ? <p className="text-xs text-red-600">Could not load error incidents.</p> : unresolved.length ? <div className="space-y-3">{unresolved.map((group) => <article key={group.fingerprint} className={`rounded-lg border p-4 ${group.status === "open" ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${group.status === "open" ? "text-red-600" : "text-amber-700"}`}>{group.status === "open" ? "Action required" : "Acknowledged"}</p><p className="mt-1 text-sm font-semibold text-stone-900">{group.title}</p><p className="mt-1 break-all font-mono text-[10px] text-stone-500">{group.fingerprint}</p><p className="mt-2 text-xs text-stone-500">{group.occurrenceCount} occurrence{group.occurrenceCount === 1 ? "" : "s"} · last seen {new Date(group.lastSeenAt).toLocaleString()}</p></div><div className="flex gap-2">{group.status === "open" ? <button type="button" disabled={update.isPending} onClick={() => update.mutate({ fingerprint: group.fingerprint, status: "acknowledged" })} className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-800 disabled:opacity-50">Acknowledge</button> : <button type="button" disabled={update.isPending} onClick={() => update.mutate({ fingerprint: group.fingerprint, status: "open" })} className="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 disabled:opacity-50">Reopen</button>}<button type="button" disabled={update.isPending} onClick={() => update.mutate({ fingerprint: group.fingerprint, status: "resolved" })} className="rounded-lg bg-stone-900 px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50">Resolve</button></div></div>
+    </article>)}</div> : <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">No unresolved explicit errors for this environment.</p>}
+    {resolved.length ? <details><summary className="cursor-pointer text-xs font-medium text-stone-600">Resolved history ({resolved.length})</summary><div className="mt-3 space-y-2">{resolved.map((group) => <div key={group.fingerprint} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3"><div><p className="text-xs font-medium text-stone-700">{group.title}</p><p className="mt-1 text-[11px] text-stone-400">Resolved {group.resolvedAt ? new Date(group.resolvedAt).toLocaleString() : "previously"}{group.resolvedBy ? ` by ${group.resolvedBy}` : ""}</p></div><button type="button" disabled={update.isPending} onClick={() => update.mutate({ fingerprint: group.fingerprint, status: "open" })} className="text-xs font-medium text-stone-600">Reopen</button></div>)}</div></details> : null}
+    {update.isError ? <p role="alert" className="text-xs text-red-600">Could not update the incident. Try again.</p> : null}
+  </Panel>;
+}
+
 function SetupChip({ label, complete, detail }: { label: string; complete: boolean; detail: string }) {
   return <div className={`rounded-lg border p-3 ${complete ? "border-green-200 bg-green-50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center gap-1.5 text-xs font-medium text-stone-800">{complete ? <CheckCircle2 size={13} className="text-green-700" /> : <CircleDashed size={13} className="text-stone-400" />}{label}</div><p className="mt-1 truncate text-[11px] text-stone-500">{detail}</p></div>;
 }
@@ -824,7 +799,7 @@ function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
 });`;
   return <div className="mt-3 space-y-2">
     <div className="flex items-center justify-between gap-2">
-      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">Registration also counts as activity for that day.</p></div>
+      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">This counts the new account only. Send <code>user.active</code> wherever your product defines meaningful activity.</p></div>
       <button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button>
     </div>
     <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
@@ -841,7 +816,7 @@ function DailyUserStats({ source }: { source: NoxCueSource }) {
     ? keys.flatMap((key) => latest.metrics[key] ? [{ key, ...latest.metrics[key] }] : [])
     : [];
   return <Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily user stats</h3><p className="mt-1 text-xs text-stone-500">The latest standardized snapshot retained by NoxCue.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily user stats</h3><p className="mt-1 text-xs text-stone-500">Completed-day metrics. Custom activity totals are daily; per-user values use registered users to date.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
     {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(catalog.get(metric.key)?.unit, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{catalog.get(metric.key)?.label ?? metric.key}</div></div>)}</div> : lastUserEventAt(source) ? <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">Events are arriving. The first completed-day snapshot will appear after {source.digestTimeLocal} {source.timezone}.</p> : <p className="text-xs text-stone-400">Waiting for the first user event.</p>}
   </Panel>;
 }

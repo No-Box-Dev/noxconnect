@@ -33,8 +33,9 @@ describe("public NoxCue dashboard sections", () => {
           }],
         }],
         errors: [{
-          title: "ResizeObserver loop completed", errorCode: "RESIZE_LOOP", component: "playnist-web",
+          fingerprint: "resize-loop", title: "ResizeObserver loop completed", errorCode: "RESIZE_LOOP", component: "playnist-web",
           firstSeenAt: "2026-09-03T09:00:00Z", lastSeenAt: "2026-09-03T10:00:00Z", occurrenceCount: 2,
+          status: "open", acknowledgedAt: null, acknowledgedBy: null, resolvedAt: null, resolvedBy: null,
           occurrences: [{
             id: "event-2", message: "ResizeObserver loop completed with undelivered notifications.",
             occurredAt: "2026-09-03T10:00:00Z", receivedAt: "2026-09-03T10:00:01Z",
