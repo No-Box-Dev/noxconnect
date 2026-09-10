@@ -217,6 +217,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         </> : <p className="text-sm text-stone-500">Create your first source to get a server ingest key.</p>}
       </form>
 
+      {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <SetupProgress
         key={selected.id}
         source={selected}
@@ -226,7 +227,6 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         onCheck={() => void checkForEvents()}
       /> : null}
       {!creating && selected ? <EndpointHealthPanel source={selected} /> : null}
-      {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <CustomMetricRegistry source={selected} /> : null}
       {!creating && selected ? <CustomFeatureRegistry source={selected} /> : null}
       {!creating && selected ? <AuthHealthPanel source={selected} /> : null}
@@ -599,33 +599,87 @@ function KeySection({ source }: { source: NoxCueSource }) {
   };
   return <><Panel>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Connect the app</h3></div><p className="mt-1 text-xs text-stone-500">Use a publishable key in browser or mobile code for auth health. Keep a secret key on the server for user statistics.</p></div><div className="flex gap-2"><button type="button" onClick={() => create("publishable")} disabled={createKey.isPending || !source.allowedOrigins.length} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50"><ShieldCheck size={13} /> Create publishable key</button><button type="button" onClick={() => create("secret")} disabled={createKey.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{createKey.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} Create secret key</button></div></div>
-    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">{newKey.kind === "publishable" ? "Publishable key" : "Secret key"} created—copy it now</p><p className="mt-1 text-xs text-amber-800">{newKey.kind === "publishable" ? "Use this key in browser or mobile code. Requests are restricted to the exact origins above." : "Store this value as NOXCUE_INGEST_KEY in your server environment."}</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey.value}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey.value).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{newKey.kind === "publishable" ? <BrowserExample ingestKey={newKey.value} environment={source.environment} /> : <RequestExample environment={source.environment} />}</div> : null}
+    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">{newKey.kind === "publishable" ? "Publishable key" : "Secret key"} created—copy it now</p><p className="mt-1 text-xs text-amber-800">{newKey.kind === "publishable" ? "Save this as PUBLIC_NOXCUE_KEY. Requests are restricted to the exact origins above." : "Save this as NOXCUE_SERVER_KEY in your server environment. Never put it in browser code."}</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey.value}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey.value).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div></div> : null}
+    <Quickstart />
     <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name} <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase text-stone-500">{key.kind}</span></div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `last request ${new Date(key.lastUsedAt).toLocaleString()}` : "waiting for first request"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active keys yet.</p> : null}</div>
     {!source.allowedOrigins.length ? <p className="text-xs text-amber-700">Save at least one browser origin before creating a publishable key.</p> : null}
     {createKey.isError ? <p className="text-xs text-red-600">{createKey.error instanceof Error ? createKey.error.message : "Could not create the key."}</p> : null}
   </Panel><ConfirmDialog {...dialogProps} /></>;
 }
 
-function BrowserExample({ ingestKey, environment }: { ingestKey: string; environment: NoxCueEnvironment }) {
-  const [copied, setCopied] = useState(false);
-  const command = `const noxcue = createNoxCue({
-  ingestKey: "${ingestKey}",
-  environment: "${environment}",
-  release: __APP_VERSION__,
+type QuickstartFramework = "browser" | "next" | "cloudflare" | "express";
+
+const QUICKSTARTS: Record<QuickstartFramework, { label: string; note: string; code: string }> = {
+  browser: {
+    label: "Browser",
+    note: "Unhandled errors are automatic. Wrap only the user journeys whose outcome matters.",
+    code: `import { createNoxCue } from "@noxcue/sdk/browser";
+
+const noxcue = createNoxCue({
+  key: import.meta.env.PUBLIC_NOXCUE_KEY,
 });
 
-// One wrapper around the auth call. The original result is unchanged.
-const result = await noxcue.auth.signup(() => auth.signUp(input));
+await noxcue.auth.signup(() => auth.signUp(input));`,
+  },
+  next: {
+    label: "Next.js / Fetch",
+    note: "Thrown errors and 5xx responses are reported without changing the response.",
+    code: `import { createNoxCue, withNoxCue } from "@noxcue/sdk/server";
 
-// Registered custom features use the same one-line wrapper.
-await noxcue.observe("custom.journal.publish", () => publishJournal(input));
+const noxcue = createNoxCue({ key: process.env.NOXCUE_SERVER_KEY! });
 
-// Run once during setup, then click “Check now” in NoxConnect.
-await noxcue.test();`;
-  return <div className="mt-3 space-y-2">
-    <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold text-amber-900">Wrap each auth action</p><p className="mt-0.5 text-[11px] text-amber-800">Available: signup, login, passwordReset, emailVerification, oauth, mfa, sessionRefresh, logout.</p></div><button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => setCopied(true)); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button></div>
-    <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
-    <p className="text-[11px] leading-5 text-amber-800">NoxCue automatically adds time, source, environment, release, runtime, safe URL and redacted error evidence. It detects and suggests possible fixes; it never changes the app or retries the operation.</p>
+export const POST = withNoxCue(noxcue, async (request) => {
+  const user = await register(request);
+  noxcue.user.registered(user.id);
+  return Response.json(user);
+});`,
+  },
+  cloudflare: {
+    label: "Cloudflare Pages",
+    note: "The adapter reads the secret binding per request and keeps delivery alive with waitUntil.",
+    code: `import { createNoxCue, withNoxCuePages } from "@noxcue/sdk/server";
+
+export const onRequest = withNoxCuePages(
+  ({ env }) => createNoxCue({ key: env.NOXCUE_SERVER_KEY }),
+  async (context) => handleRequest(context),
+);`,
+  },
+  express: {
+    label: "Express",
+    note: "The terminal middleware reports the error, then forwards the exact same error.",
+    code: `import { createNoxCue, noxCueExpressErrorHandler } from "@noxcue/sdk/server";
+
+const noxcue = createNoxCue({ key: process.env.NOXCUE_SERVER_KEY! });
+
+app.use(noxCueExpressErrorHandler(noxcue));
+
+// After a successful signup:
+noxcue.user.registered(user.id);`,
+  },
+};
+
+function Quickstart() {
+  const [framework, setFramework] = useState<QuickstartFramework>("next");
+  const [copied, setCopied] = useState(false);
+  const selected = QUICKSTARTS[framework];
+  const copy = (value: string) => {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div><p className="text-sm font-semibold text-stone-900">Five-minute quickstart</p><p className="mt-1 text-xs text-stone-600">Install once, add the source key, then copy the wrapper for your stack.</p></div>
+      <label className="text-xs font-medium text-stone-700">Framework
+        <select value={framework} onChange={(event) => { setFramework(event.target.value as QuickstartFramework); setCopied(false); }} className="ml-2 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs">
+          {(Object.entries(QUICKSTARTS) as Array<[QuickstartFramework, (typeof QUICKSTARTS)[QuickstartFramework]]>).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}
+        </select>
+      </label>
+    </div>
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2"><code className="text-xs text-stone-700">npm install @noxcue/sdk</code><button type="button" onClick={() => copy("npm install @noxcue/sdk")} className="text-stone-500" aria-label="Copy install command"><Clipboard size={13} /></button></div>
+    <div className="relative"><pre className="overflow-x-auto rounded-lg bg-stone-950 p-3 pr-20 text-xs leading-5 text-stone-100">{selected.code}</pre><button type="button" onClick={() => copy(selected.code)} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md border border-stone-700 bg-stone-900 px-2 py-1.5 text-[11px] text-stone-200">{copied ? <Check size={11} /> : <Clipboard size={11} />}{copied ? "Copied" : "Copy"}</button></div>
+    <p className="text-xs leading-5 text-stone-600">{selected.note} Project and environment come from the scoped key. NoxCue adds timestamps, release, source, safe URL, and redacted error evidence.</p>
   </div>;
 }
 
@@ -806,30 +860,6 @@ function SetupChip({ label, complete, detail }: { label: string; complete: boole
 function HealthBadge({ status }: { status: "waiting" | "healthy" | "issue" }) {
   const styles = status === "healthy" ? "bg-green-100 text-green-700" : status === "issue" ? "bg-red-100 text-red-700" : "bg-stone-200 text-stone-600";
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}>{status === "issue" ? "Issue" : status === "healthy" ? "Healthy" : "Waiting"}</span>;
-}
-
-function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
-  const [copied, setCopied] = useState(false);
-  const command = `await fetch("https://app.noxhere.com/api/v1/cues/public/v1/events", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-Nox-Ingest-Key": process.env.NOXCUE_INGEST_KEY,
-  },
-  body: JSON.stringify({
-    type: "user.registered",
-    environment: "${environment}",
-    userId: user.id,
-  }),
-});`;
-  return <div className="mt-3 space-y-2">
-    <div className="flex items-center justify-between gap-2">
-      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">Registration also counts as activity for that day.</p></div>
-      <button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button>
-    </div>
-    <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
-    <details className="text-xs text-amber-900"><summary className="cursor-pointer font-medium">Returning users</summary><p className="mt-1 leading-5 text-amber-800">Send the same request with <code>type: "user.active"</code> after a meaningful authenticated action. NoxCue deduplicates each user per local day.</p></details>
-  </div>;
 }
 
 function DailyUserStats({ source }: { source: NoxCueSource }) {
