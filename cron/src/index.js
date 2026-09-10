@@ -25,6 +25,8 @@ import { runNoxSpotDailyDigests } from "./noxspot-digests.js";
 import { runNoxFeedDailySummaries } from "./noxfeed-daily-summaries.js";
 import { createOrUpdateNoxCueGitHubIssue, recoverNoxCueGithubIncidents } from "../../functions/lib/noxcue-github.js";
 import { runOperationalAlerts } from "./operational-alerts.js";
+import { recordHeartbeatAttempt, recordHeartbeatFailure, recordHeartbeatSuccess } from "../../functions/lib/service-heartbeats.js";
+import { isTenantConfigurationFailure, reportNoxCueRuntimeFailure } from "./noxcue-runtime.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -37,15 +39,13 @@ const MAX_DELIVERIES = 5;
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runTick(env, event.scheduledTime));
+    ctx.waitUntil(runScheduledTick(env, event.scheduledTime));
     // Daily event-table archival/retention — gated to the 03:00 UTC ticks so it
     // runs roughly once a day rather than every 30 min. Idempotent, so the two
     // 03:xx ticks just drain any backlog left by the per-run cap.
     if (new Date(event.scheduledTime).getUTCHours() === 3) {
       ctx.waitUntil(
-        archiveOldEvents(env, event.scheduledTime).catch((err) =>
-          console.error("[noxconnect-cron] event archival failed:", err?.message ?? err),
-        ),
+        runArchive(env, event.scheduledTime),
       );
     }
   },
@@ -53,29 +53,42 @@ export default {
   // Durable background work, produced by functions/api/webhook.js. Replaces the
   // webhook's old context.waitUntil calls — these now get retries + a DLQ.
   async queue(batch, env) {
-    for (const msg of batch.messages) {
-      try {
-        await handleTask(env, msg.body);
-        msg.ack();
-      } catch (err) {
-        console.error(`[noxconnect-cron] task ${msg.body?.type} failed (attempt ${msg.attempts}):`, err?.message ?? err);
-        if (msg.attempts >= MAX_DELIVERIES) {
-          // Out of retries — record to the admin-visible op_failures table and
-          // ack so it doesn't loop forever (the DLQ is the backstop in config).
-          await recordFailure(env.DB, {
-            ownerId: msg.body?.ownerId ?? null,
-            op: `task:${msg.body?.type ?? "unknown"}`,
-            deliveryId: msg.body?.deliveryId ?? null,
-            error: err,
-          });
-          if (msg.body?.type === TASK.DELIVER_SLACK && msg.body?.outboxId) {
-            await markOutboxFailed(env.DB, msg.body.outboxId, err);
-          }
+    await recordHeartbeatAttempt(env.DB, "queue.consumer", env.CF_VERSION_METADATA?.id);
+    try {
+      for (const msg of batch.messages) {
+        try {
+          await handleTask(env, msg.body);
           msg.ack();
-        } else {
-          msg.retry();
+        } catch (err) {
+          console.error(`[noxconnect-cron] task ${msg.body?.type} failed (attempt ${msg.attempts}):`, err?.message ?? err);
+          if (msg.attempts >= MAX_DELIVERIES) {
+            // Out of retries — record to the admin-visible op_failures table and
+            // ack so it doesn't loop forever (the DLQ is the backstop in config).
+            await recordFailure(env.DB, {
+              ownerId: msg.body?.ownerId ?? null,
+              op: `task:${msg.body?.type ?? "unknown"}`,
+              deliveryId: msg.body?.deliveryId ?? null,
+              error: err,
+            });
+            if (msg.body?.type === TASK.DELIVER_SLACK && msg.body?.outboxId) {
+              await markOutboxFailed(env.DB, msg.body.outboxId, err);
+            }
+            await reportNoxCueRuntimeFailure(env, err, {
+              operation: `queue.${msg.body?.type ?? "unknown"}`,
+              title: `NoxConnect background task exhausted its retries`,
+              message: "A durable background task failed on every delivery attempt.",
+            });
+            msg.ack();
+          } else {
+            msg.retry();
+          }
         }
       }
+      await recordHeartbeatSuccess(env.DB, "queue.consumer", env.CF_VERSION_METADATA?.id);
+    } catch (err) {
+      await recordHeartbeatFailure(env.DB, "queue.consumer", err, env.CF_VERSION_METADATA?.id);
+      await reportNoxCueRuntimeFailure(env, err, { operation: "queue.consumer" });
+      throw err;
     }
   },
 
@@ -101,6 +114,35 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
+async function runScheduledTick(env, nowMs) {
+  await recordHeartbeatAttempt(env.DB, "scheduled.cron", env.CF_VERSION_METADATA?.id);
+  try {
+    await runTick(env, nowMs);
+    await recordHeartbeatSuccess(env.DB, "scheduled.cron", env.CF_VERSION_METADATA?.id);
+  } catch (err) {
+    await recordHeartbeatFailure(env.DB, "scheduled.cron", err, env.CF_VERSION_METADATA?.id);
+    await reportNoxCueRuntimeFailure(env, err, { operation: "scheduled.cron" });
+    throw err;
+  }
+}
+
+async function runArchive(env, nowMs) {
+  await recordHeartbeatAttempt(env.DB, "scheduled.archive", env.CF_VERSION_METADATA?.id);
+  try {
+    await archiveOldEvents(env, nowMs);
+    await recordHeartbeatSuccess(env.DB, "scheduled.archive", env.CF_VERSION_METADATA?.id);
+  } catch (err) {
+    console.error("[noxconnect-cron] event archival failed:", err?.message ?? err);
+    await recordHeartbeatFailure(env.DB, "scheduled.archive", err, env.CF_VERSION_METADATA?.id);
+    await reportNoxCueRuntimeFailure(env, err, { operation: "scheduled.archive" });
+  }
+}
+
+async function reportScheduledComponentFailure(env, operation, error) {
+  await recordHeartbeatFailure(env.DB, "scheduled.cron", error, env.CF_VERSION_METADATA?.id);
+  await reportNoxCueRuntimeFailure(env, error, { operation });
+}
 
 // Dispatch a queued task to the same helpers the webhook used to call inline.
 async function handleTask(env, body) {
@@ -136,6 +178,7 @@ async function runTick(env, nowMs = Date.now()) {
     await recoverNoxCueGithubIncidents(env);
   } catch (err) {
     console.error("[noxconnect-cron] NoxCue GitHub issue recovery failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "noxcue.github-recovery", err);
   }
   await runSlackHealthSweep(env);
   try {
@@ -145,6 +188,7 @@ async function runTick(env, nowMs = Date.now()) {
       event: "operational_alert_sweep_failed",
       error: err instanceof Error ? err.message : String(err),
     }));
+    await reportScheduledComponentFailure(env, "operational-alerts.sweep", err);
   }
   await healOrgInstallationLinks(db);
 
@@ -152,18 +196,21 @@ async function runTick(env, nowMs = Date.now()) {
     await runNoxCueDigests(env, nowMs);
   } catch (err) {
     console.error("[noxconnect-cron] NoxCue digest sweep failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "noxcue.digest-sweep", err);
   }
 
   try {
     await runNoxSpotDailyDigests(env, nowMs);
   } catch (err) {
     console.error("[noxconnect-cron] NoxSpot daily digest sweep failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "noxspot.digest-sweep", err);
   }
 
   try {
     await runNoxFeedDailySummaries(env, nowMs);
   } catch (err) {
     console.error("[noxconnect-cron] NoxFeed daily summary sweep failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "noxfeed.summary-sweep", err);
   }
 
   // Process at most one explicitly-requested source-of-truth audit per tick.
@@ -173,12 +220,14 @@ async function runTick(env, nowMs = Date.now()) {
     await runNextStatsAudit(env);
   } catch (err) {
     console.error("[noxconnect-cron] stats audit failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "stats.audit", err);
   }
 
   try {
     await runDatabaseRecoveryStep(env);
   } catch (err) {
     console.error("[noxconnect-cron] database recovery step failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "database.recovery", err);
   }
 
   const orgs = await db
@@ -200,6 +249,9 @@ async function runTick(env, nowMs = Date.now()) {
         `[noxconnect-cron] org=${org.github_login} reconcile failed:`,
         err?.message ?? err,
       );
+      if (!isTenantConfigurationFailure(err)) {
+        await reportScheduledComponentFailure(env, "github.reconcile", err);
+      }
     }
   }
 }

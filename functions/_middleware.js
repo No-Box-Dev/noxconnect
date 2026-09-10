@@ -136,6 +136,13 @@ async function verifyOrgAdmin(token, orgLogin, userLogin) {
 export async function onRequest(context) {
   const url = new URL(context.request.url);
 
+  // Public probes have no user data and are intentionally reachable by NoxCue.
+  // The readiness handler owns its incident lifecycle, so these paths are also
+  // excluded from the generic API 5xx reporter.
+  if (url.pathname === "/api/health/live" || url.pathname === "/api/health/ready") {
+    return nextApiResponse(context, url);
+  }
+
   // Public ingestion is authenticated by the NoxCue source key inside the
   // bound product Worker, not by a GitHub user bearer token.
   if (url.pathname === "/api/cues/public/v1/events" || url.pathname === "/api/v1/cues/public/events") {
