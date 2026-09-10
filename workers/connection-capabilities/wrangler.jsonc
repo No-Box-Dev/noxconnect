@@ -12,6 +12,8 @@
     "traces": { "enabled": true, "head_sampling_rate": 0.05 }
   },
   "vars": {
+    "GITHUB_APP_ID": "3652510",
+    "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
     "NOXHERE_OAUTH_CALLBACK_URL": "https://app.noxhere.com/api/auth/callback"
   },
   "d1_databases": [
