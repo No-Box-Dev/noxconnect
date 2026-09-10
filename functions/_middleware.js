@@ -1,4 +1,5 @@
 import { normalizeLegacyError } from "./lib/api-v1";
+import { appForApiPath, isAppEnabled, serviceDisabledResponse } from "./lib/apps.js";
 import {
   apiTokenProjectResource,
   projectScopedApiTokenPathSupported,
@@ -85,6 +86,10 @@ export async function onRequest(context) {
         403,
       );
     }
+    const requestedProjectId = context.request.headers.get("X-Project-ID")?.trim();
+    if (requestedProjectId && requestedProjectId !== auth.projectId) {
+      return apiError(url, "resource_not_found", "The requested resource was not found", 404);
+    }
     const resource = await apiTokenProjectResource(
       context.env.DB,
       url.pathname,
@@ -94,6 +99,20 @@ export async function onRequest(context) {
     if (resource && resource.projectId !== auth.projectId) {
       return apiError(url, "resource_not_found", "The requested resource was not found", 404);
     }
+  }
+
+  // Service switches are an authorization boundary, independent of the
+  // credential type. Keep shared NoxConnect routes available so an admin can
+  // enable a service again, but stop disabled product code before it runs.
+  const appId = appForApiPath(url.pathname);
+  if (appId && !(await isAppEnabled(context.env.DB, org.id, appId))) {
+    const response = serviceDisabledResponse(appId);
+    if (!url.pathname.startsWith("/api/v1/")) return response;
+    const body = await response.json();
+    return apiError(url, body.code ?? "service_not_enabled", body.error, response.status, {
+      service: body.service,
+      remediation: body.remediation,
+    });
   }
 
   let providerToken = null;

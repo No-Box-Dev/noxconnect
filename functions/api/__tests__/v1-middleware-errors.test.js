@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { onRequest } from "../../_middleware.js";
 
 describe("v1 middleware errors", () => {
-  async function signedRequest(pathname) {
+  async function signedRequest(pathname, authOverrides = {}, requestHeaders = {}) {
     const secret = "test-internal-secret";
     const now = Math.floor(Date.now() / 1000);
     const assertion = {
@@ -11,7 +11,7 @@ describe("v1 middleware errors", () => {
       auth: {
         credentialType: "session", credentialId: "session-hash", principalId: "github:42",
         userLogin: "octocat", userId: 42, orgId: 7, orgLogin: "acme", isAdmin: true,
-        projectId: null, scopes: [], connectionId: null,
+        projectId: null, scopes: [], connectionId: null, ...authOverrides,
       },
     };
     const payload = Buffer.from(JSON.stringify(assertion)).toString("base64url");
@@ -24,6 +24,7 @@ describe("v1 middleware errors", () => {
       request: new Request(`https://app.noxhere.com${pathname}`, { headers: {
         "X-NoxHere-Internal-Assertion": payload,
         "X-NoxHere-Internal-Signature": signature,
+        ...requestHeaders,
       } }),
       secret,
     };
@@ -88,6 +89,60 @@ describe("v1 middleware errors", () => {
     });
     expect(await response.json()).toEqual({
       error: "NoxConnect accepts authenticated requests only from NoxHere",
+    });
+  });
+
+  it("rejects a cross-project selector on a project-scoped token", async () => {
+    const signed = await signedRequest("/api/v1/feed", {
+      credentialType: "api_token",
+      credentialId: "project-token",
+      projectId: "project-a",
+      scopes: ["noxfeed:read"],
+    }, { "X-Project-ID": "project-b" });
+    const response = await onRequest({
+      request: signed.request,
+      env: {
+        NOXHERE_INTERNAL_SECRET: signed.secret,
+        DB: { prepare: () => ({ bind: () => ({ first: async () => ({ id: 7, github_login: "acme", suspended_at: null }) }) }) },
+      },
+      data: {},
+      next() { throw new Error("handler should not run"); },
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: { code: "resource_not_found", message: "The requested resource was not found" },
+    });
+  });
+
+  it("blocks a disabled product before its handler runs", async () => {
+    const signed = await signedRequest("/api/v1/spots/sites");
+    const response = await onRequest({
+      request: signed.request,
+      env: {
+        NOXHERE_INTERNAL_SECRET: signed.secret,
+        DB: {
+          prepare(sql) {
+            return { bind: () => ({ first: async () => sql.includes("FROM orgs")
+              ? { id: 7, github_login: "acme", suspended_at: null }
+              : { data: JSON.stringify({ apps: { noxspot: false } }) } }) };
+          },
+        },
+      },
+      data: {},
+      next() { throw new Error("handler should not run"); },
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: {
+        code: "service_not_enabled",
+        message: "NoxSpot is not enabled. Enable it in NoxConnect before trying again.",
+        details: {
+          service: "noxspot",
+          remediation: { action: "enable_service", href: "/api/v1/services/noxspot/config" },
+        },
+      },
     });
   });
 

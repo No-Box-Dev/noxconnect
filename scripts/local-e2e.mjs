@@ -18,14 +18,29 @@ const capabilityDir = join(root, "workers/connection-capabilities");
 const wrangler = join(root, "node_modules/.bin/wrangler");
 const keepState = process.argv.includes("--keep-state");
 const allowAuthSkip = process.argv.includes("--allow-auth-skip");
+const portOffset = Number.parseInt(process.env.NOXCONNECT_E2E_PORT_OFFSET || "0", 10);
+if (!Number.isInteger(portOffset) || portOffset < 0 || portOffset > 50_000) {
+  throw new Error("NOXCONNECT_E2E_PORT_OFFSET must be an integer from 0 through 50000");
+}
+const port = (defaultPort) => defaultPort + portOffset;
 const org = process.env.NOXCONNECT_E2E_ORG || "No-Box-Dev";
 const repo = process.env.NOXCONNECT_E2E_REPO || "noxconnect";
 const projectId = `proj_${org}_${repo}`.toLowerCase();
 const otherProjectId = `${projectId}_other`;
 const otherRepo = `${repo}-other`;
-const base = "http://127.0.0.1:8788";
+const base = `http://127.0.0.1:${port(8788)}`;
 const internalSecret = randomBytes(32).toString("base64url");
 const stateRoot = mkdtempSync(join(tmpdir(), "noxconnect-local-e2e-"));
+const runId = randomBytes(5).toString("hex");
+const serviceNames = {
+  capabilities: `noxconnect-capabilities-e2e-${runId}`,
+  cue: `noxcue-e2e-${runId}`,
+  spot: `noxspot-e2e-${runId}`,
+  feed: `noxfeed-e2e-${runId}`,
+  ticket: `noxticket-e2e-${runId}`,
+  cron: `noxconnect-orchestrator-e2e-${runId}`,
+  rpc: `noxconnect-rpc-e2e-${runId}`,
+};
 const persistence = join(stateRoot, "state");
 const logsDir = join(stateRoot, "logs");
 const rpcDir = join(stateRoot, "rpc-smoke");
@@ -195,14 +210,14 @@ async function stopChildren() {
 function makeRpcSmokeWorker() {
   mkdirSync(rpcDir, { recursive: true });
   writeFileSync(join(rpcDir, "wrangler.jsonc"), JSON.stringify({
-    name: "noxconnect-local-rpc-smoke",
+    name: serviceNames.rpc,
     main: "index.js",
     compatibility_date: "2026-09-09",
     services: [
-      { binding: "NOXSPOT", service: "noxspot-api" },
-      { binding: "NOXCUE", service: "noxcue" },
-      { binding: "NOXFEED", service: "noxfeed-response" },
-      { binding: "NOXTICKET", service: "noxticket" },
+      { binding: "NOXSPOT", service: serviceNames.spot },
+      { binding: "NOXCUE", service: serviceNames.cue },
+      { binding: "NOXFEED", service: serviceNames.feed },
+      { binding: "NOXTICKET", service: serviceNames.ticket },
     ],
   }, null, 2), { mode: 0o600 });
   writeFileSync(join(rpcDir, "index.js"), `export default {
@@ -242,44 +257,44 @@ async function main() {
   ]);
 
   const commonDev = ["--local", "--persist-to", persistence, "--log-level", "warn", "--show-interactive-dev-session=false"];
-  start("capabilities", capabilityDir, ["dev", "--port", "8796", "--inspector-port", "9236", ...commonDev]);
-  await waitFor("capabilities", "http://127.0.0.1:8796/", { expected: 404 });
-  start("noxcue", noxCueDir, ["dev", "--port", "8792", "--inspector-port", "9232", ...commonDev]);
-  await waitFor("noxcue", "http://127.0.0.1:8792/health");
-  start("noxspot", noxSpotDir, ["dev", "--port", "8790", "--inspector-port", "9229", ...commonDev]);
-  await waitFor("noxspot", "http://127.0.0.1:8790/health");
-  start("noxfeed", noxFeedDir, ["dev", "--port", "8791", "--inspector-port", "9230", ...commonDev]);
-  await waitFor("noxfeed", "http://127.0.0.1:8791/health");
-  start("noxticket", noxTicketDir, ["dev", "--port", "8795", "--inspector-port", "9235", ...commonDev]);
-  await waitFor("noxticket", "http://127.0.0.1:8795/health");
+  start("capabilities", capabilityDir, ["dev", "--name", serviceNames.capabilities, "--port", String(port(8796)), "--inspector-port", String(port(9236)), ...commonDev]);
+  await waitFor("capabilities", `http://127.0.0.1:${port(8796)}/`, { expected: 404 });
+  start("noxcue", noxCueDir, ["dev", "--name", serviceNames.cue, "--port", String(port(8792)), "--inspector-port", String(port(9232)), ...commonDev]);
+  await waitFor("noxcue", `http://127.0.0.1:${port(8792)}/health`);
+  start("noxspot", noxSpotDir, ["dev", "--name", serviceNames.spot, "--port", String(port(8790)), "--inspector-port", String(port(9229)), ...commonDev]);
+  await waitFor("noxspot", `http://127.0.0.1:${port(8790)}/health`);
+  start("noxfeed", noxFeedDir, ["dev", "--name", serviceNames.feed, "--port", String(port(8791)), "--inspector-port", String(port(9230)), ...commonDev]);
+  await waitFor("noxfeed", `http://127.0.0.1:${port(8791)}/health`);
+  start("noxticket", noxTicketDir, ["dev", "--name", serviceNames.ticket, "--port", String(port(8795)), "--inspector-port", String(port(9235)), ...commonDev]);
+  await waitFor("noxticket", `http://127.0.0.1:${port(8795)}/health`);
 
-  start("cron", root, ["dev", "-c", "cron/wrangler.toml", "--port", "8794", "--inspector-port", "9234", ...commonDev]);
+  start("cron", root, ["dev", "-c", "cron/wrangler.toml", "--name", serviceNames.cron, "--port", String(port(8794)), "--inspector-port", String(port(9234)), ...commonDev]);
   makeRpcSmokeWorker();
-  start("rpc", rpcDir, ["dev", "-c", "wrangler.jsonc", "--port", "8793", "--inspector-port", "9233", ...commonDev]);
+  start("rpc", rpcDir, ["dev", "-c", "wrangler.jsonc", "--port", String(port(8793)), "--inspector-port", String(port(9233)), ...commonDev]);
 
   const encryptionKey = randomBytes(32).toString("hex");
   const webhookSecret = randomBytes(32).toString("hex");
   start("noxconnect", root, [
-    "pages", "dev", "dist", "--port", "8788", "--inspector-port", "9231",
+    "pages", "dev", "dist", "--port", String(port(8788)), "--inspector-port", String(port(9231)),
     "--persist-to", persistence, "--log-level", "warn", "--show-interactive-dev-session=false",
     "--binding", `ENCRYPTION_KEY=${encryptionKey}`,
     "--binding", `GITHUB_WEBHOOK_SECRET=${webhookSecret}`,
     "--binding", `NOXHERE_INTERNAL_SECRET=${internalSecret}`,
-    "--service", "NOXSPOT_RESPONSE=noxspot-api",
-    "--service", "NOXCUE_RESPONSE=noxcue",
-    "--service", "NOXCUE_INGEST=noxcue",
-    "--service", "NOXFEED_RESPONSE=noxfeed-response",
-    "--service", "NOXTICKET_SERVICE=noxticket",
+    "--service", `NOXSPOT_RESPONSE=${serviceNames.spot}`,
+    "--service", `NOXCUE_RESPONSE=${serviceNames.cue}`,
+    "--service", `NOXCUE_INGEST=${serviceNames.cue}`,
+    "--service", `NOXFEED_RESPONSE=${serviceNames.feed}`,
+    "--service", `NOXTICKET_SERVICE=${serviceNames.ticket}`,
   ]);
   await waitFor("noxconnect", `${base}/developers`);
-  await waitFor("rpc", "http://127.0.0.1:8793/");
-  await waitFor("cron", "http://127.0.0.1:8794/", { expected: 404 });
+  await waitFor("rpc", `http://127.0.0.1:${port(8793)}/`);
+  await waitFor("cron", `http://127.0.0.1:${port(8794)}/`, { expected: 404 });
 
   const docs = await request("developer documentation HTML", "/developers");
   if (!String(docs.body).includes("NoxConnect API")) throw new Error("Developer documentation is missing its title");
   await request("OpenAPI contract", "/openapi.json");
   await request("developer documentation JavaScript", "/developers.js");
-  const rpc = await request("private RPC contracts for all product services", "http://127.0.0.1:8793/");
+  const rpc = await request("private RPC contracts for all product services", `http://127.0.0.1:${port(8793)}/`);
   for (const service of ["spot", "cue", "feed", "ticket"]) {
     if (rpc.body?.[service]?.contract !== "nox.service-manifest" || rpc.body[service].version !== 1) throw new Error(`Invalid ${service} RPC contract`);
   }
@@ -350,7 +365,7 @@ async function main() {
   if (disabledV1Service.body?.error?.code !== "service_not_enabled" || disabledV1Service.body.error.message !== "NoxFeed is not enabled. Enable it in NoxConnect before trying again.") {
     throw new Error("Disabled v1 service response did not use the standard error contract");
   }
-  await request("disabled NoxFeed blocks its canonical issue API", "/api/v1/issues", signedOptions(projectAuth), 403);
+  await request("disabled NoxFeed blocks its canonical issue API", "/api/v1/issues", signedOptions(projectAuth), 409);
   await request("restore NoxSpot after the service gate check", "/api/v1/services/noxconnect/config", signedOptions(sessionAuth, {
     method: "PATCH",
     headers: { "If-Match": disabledServiceConfig.response.headers.get("etag") },
@@ -471,9 +486,9 @@ async function main() {
     method: "POST", body: JSON.stringify({ name: "Local E2E", projectId, widgetMode: "development", autoErrorLogging: true }),
   }), 201);
   const siteId = site.body.site.id;
-  const publicConfig = await request("read NoxSpot public widget config", `http://127.0.0.1:8790/api/spots/public/v1/sites/${siteId}/config`);
+  const publicConfig = await request("read NoxSpot public widget config", `http://127.0.0.1:${port(8790)}/api/spots/public/v1/sites/${siteId}/config`);
   if (publicConfig.body?.siteId !== siteId) throw new Error("NoxSpot config did not use the shared D1 state");
-  const report = await request("queue a real NoxSpot public report", "http://127.0.0.1:8790/api/spots/public/v1/reports", {
+  const report = await request("queue a real NoxSpot public report", `http://127.0.0.1:${port(8790)}/api/spots/public/v1/reports`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ siteId, title: "Local E2E feedback", description: "Disposable local queue smoke test" }),
   });

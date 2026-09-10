@@ -10,6 +10,7 @@ import {
   type CaptureInput,
   type IssueInput,
 } from "./response";
+import { NOXSPOT_SERVICE_MANIFEST } from "./service-manifest";
 import { readBoundedJson, RequestBodyTooLargeError } from "./request-json";
 import {
   buildCaptureTask,
@@ -370,6 +371,10 @@ function message(error: unknown): string {
 export { RateLimiter };
 
 export default class NoxSpotService extends WorkerEntrypoint<Env> {
+  describe() {
+    return NOXSPOT_SERVICE_MANIFEST;
+  }
+
   fetch(request: Request) {
     return app.fetch(request, this.env, this.ctx);
   }

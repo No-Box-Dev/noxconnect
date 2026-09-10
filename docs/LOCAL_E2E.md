@@ -42,6 +42,17 @@ NOXCONNECT_E2E_REPO=my-repository \
 npm run e2e:local
 ```
 
+If another local Worker already uses the default ports, shift the entire test
+topology by one offset without changing any checked-in Worker configuration:
+
+```bash
+NOXCONNECT_E2E_PORT_OFFSET=100 npm run e2e:local
+```
+
+Every Worker also receives a random per-run development name. This keeps local
+service bindings isolated from other Wrangler sessions using the production
+service names.
+
 Use `node scripts/local-e2e.mjs --allow-auth-skip` only when a public and
 service-binding smoke run is useful without GitHub CLI authentication. Use
 `--keep-state` to retain the fresh D1 state and per-Worker logs for diagnosis.
