@@ -33,12 +33,14 @@ import { reconcileOrg } from "../reconcile.js";
 import {
   syncRepos,
   syncMembers,
+  syncTeams,
   syncFeatures,
   syncPRs,
   syncIssues,
   removeRepo,
   removeMember,
 } from "../../../functions/lib/github-sync.js";
+import { reconcileRepoEvents } from "../../../functions/lib/event-reconcile.js";
 
 // ---- D1 stub: small dispatch table mapping SQL pattern → handler.
 // Tests mutate `state` and `match` to control behaviour.
@@ -109,6 +111,11 @@ const env = {};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  syncTeams.mockResolvedValue(undefined);
+  syncFeatures.mockResolvedValue(undefined);
+  syncPRs.mockResolvedValue(undefined);
+  syncIssues.mockResolvedValue(undefined);
+  reconcileRepoEvents.mockResolvedValue(undefined);
 });
 
 describe("reconcileOrg", () => {
@@ -205,5 +212,23 @@ describe("reconcileOrg", () => {
     );
     expect(update).toBeDefined();
     expect(update.binds[1]).toBe("rate limit");
+  });
+
+  it("continues NoxFeed reconciliation when optional NoxTicket sync fails", async () => {
+    syncMembers.mockResolvedValue([]);
+    syncRepos.mockResolvedValue(["app"]);
+    syncFeatures.mockRejectedValue(new Error("ticket repository missing"));
+    const db = makeDb({ lastEventAt: new Date().toISOString() });
+
+    await expect(reconcileOrg(env, db, 1, "acme", 99)).resolves.toBeUndefined();
+
+    expect(syncPRs).toHaveBeenCalledWith(db, "install-token", 1, "acme", "app", null, env);
+    expect(syncIssues).toHaveBeenCalledWith(db, "install-token", 1, "acme", "app", null);
+    expect(reconcileRepoEvents).toHaveBeenCalledWith(env, db, expect.objectContaining({
+      orgId: 1,
+      orgLogin: "acme",
+      repo: "app",
+    }));
+    expect(db._calls.runs.some((run) => run.kind === "update" && run.sql.includes("error = ?"))).toBe(false);
   });
 });
