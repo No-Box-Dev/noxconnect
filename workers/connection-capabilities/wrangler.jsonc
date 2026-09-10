@@ -4,6 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-10",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
   "observability": {
     "enabled": true,
     "logs": { "head_sampling_rate": 1 },
@@ -19,5 +21,25 @@
     "producers": [
       { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks" }
     ]
+  },
+  "env": {
+    "staging": {
+      "name": "noxconnect-capabilities-staging",
+      "vars": {
+        "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/api/auth/callback"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "noxconnect-staging",
+          "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+        }
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks-staging" }
+        ]
+      }
+    }
   }
 }

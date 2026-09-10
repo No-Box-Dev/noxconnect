@@ -19,6 +19,7 @@ dist-ssr
 # Wrangler
 .wrangler
 .dev.vars
+workers/api-gateway/.generated/
 
 # Local Claude Code settings + runtime artifacts (per-machine)
 .claude/

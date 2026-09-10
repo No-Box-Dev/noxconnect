@@ -1,0 +1,39 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "noxconnect-staging",
+  "main": ".generated/index.js",
+  "compatibility_date": "2026-09-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
+  },
+  "vars": {
+    "PLATFORM_ADMIN_GITHUB_IDS": "196446605"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "noxconnect-staging",
+      "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks-staging" }
+    ]
+  },
+  "r2_buckets": [
+    { "binding": "SPEC_ATTACHMENTS", "bucket_name": "noxconnect-spec-attachments-staging" },
+    { "binding": "NOXSPOT_ASSETS", "bucket_name": "noxspot-assets-staging" }
+  ]
+}

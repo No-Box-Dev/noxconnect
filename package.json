@@ -15,6 +15,8 @@
     "health:boundaries": "node scripts/check-product-boundaries.mjs",
     "e2e:local": "npm run build && node scripts/local-e2e.mjs",
     "build": "tsc -b && vite build",
+    "build:api-gateway": "wrangler pages functions build functions --outdir workers/api-gateway/.generated --fallback-service ASSETS",
+    "deploy:api-gateway:staging": "npm run build:api-gateway && wrangler deploy --config workers/api-gateway/wrangler.jsonc",
     "openapi:standardize": "node scripts/standardize-openapi.mjs",
     "openapi:check": "node scripts/standardize-openapi.mjs --check",
     "typecheck:functions": "tsc -p tsconfig.functions.json",
