@@ -63,7 +63,7 @@ app.use("*", async (context, next) => {
 app.use("*", cors({
   origin: "*",
   allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
+  allowHeaders: ["Content-Type", "Idempotency-Key"],
   maxAge: 86_400,
 }));
 
@@ -121,6 +121,8 @@ async function submitReport(context: AppContext) {
   const validation = validateReportInput(body);
   if (!validation.ok) return context.json({ error: validation.error }, validation.status as 400);
   const params = validation.params;
+  const idempotencyKey = context.req.header("Idempotency-Key");
+  if (idempotencyKey && idempotencyKey !== params.attemptId) return jsonError(context, "Idempotency key does not match attempt ID", 400);
   if (await checkRateLimit(context.env, `report:site:${params.siteId}`, REPORT_SITE_LIMIT, RATE_LIMIT_WINDOW_MS)) {
     return jsonError(context, "Too many reports for this site. Please try again later.", 429);
   }
@@ -132,8 +134,8 @@ async function submitReport(context: AppContext) {
   params.environment = environmentForOrigin(config, origin)?.name ?? null;
   const effectiveConfig = publicWidgetConfig(site, origin);
 
-  const captureId = crypto.randomUUID();
-  const target = screenshotTarget(params.siteId, params.screenshot, context.env.PUBLIC_ASSET_BASE_URL);
+  const captureId = params.attemptId || crypto.randomUUID();
+  const target = screenshotTarget(params.siteId, captureId, params.screenshot, context.env.PUBLIC_ASSET_BASE_URL);
   let screenshotStored = false;
   try {
     if (target && params.screenshot) {
@@ -148,7 +150,10 @@ async function submitReport(context: AppContext) {
     }));
     await context.env.TASK_QUEUE.send(task);
   } catch (error) {
-    if (screenshotStored && target) {
+    // A client retry reuses the same object key. If queueing this retry fails,
+    // the first attempt may already reference that object, so never delete it.
+    // Generated one-shot IDs remain safe to clean up immediately.
+    if (screenshotStored && target && !params.attemptId) {
       try { await context.env.ASSETS.delete(target.key); }
       catch (cleanupError) {
         console.error(JSON.stringify({ event: "noxspot.screenshot.cleanup_failed", key: target.key, error: message(cleanupError) }));
@@ -207,6 +212,7 @@ async function submitErrors(context: AppContext) {
     const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
     const captureId = crypto.randomUUID();
     const params: ReportParams = {
+      attemptId: null,
       siteId: site.id,
       title: `[Auto] ${errorMessage.slice(0, MAX_ERROR_TITLE_LENGTH)}`,
       description: errorMessage,
@@ -315,21 +321,6 @@ app.get("/api/spots/public/v1/screenshots/:siteId/:objectId", (context) => {
   return serveSiteScreenshot(context, siteId, `screenshots/${siteId}/${context.req.param("objectId")}`);
 });
 
-async function serveStandaloneWidget(context: AppContext, version: string, cacheControl: string) {
-  const response = await serveObject(context, `widget/${version}/noxspot.min.js`);
-  response.headers.set("Cache-Control", cacheControl);
-  response.headers.set("Content-Type", "application/javascript");
-  return response;
-}
-
-app.get("/api/spots/public/v1/assets/widget.js", (context) => serveStandaloneWidget(context, context.env.WIDGET_VERSION, "public, max-age=300, stale-while-revalidate=86400"));
-app.get("/v1/widget.js", (context) => serveStandaloneWidget(context, context.env.WIDGET_VERSION, "public, max-age=300, stale-while-revalidate=86400"));
-app.get("/:version/widget.js", (context) => {
-  const match = context.req.param("version").match(/^v(\d+\.\d+\.\d+)$/);
-  if (!match) return context.notFound();
-  return serveStandaloneWidget(context, match[1], "public, max-age=31536000, immutable");
-});
-
 app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   const siteId = context.req.param("siteId").replace(/\.js$/, "");
   const [site, loader] = await Promise.all([
@@ -338,7 +329,7 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   ]);
   if (!site || site.noxspot_enabled === 0) return new Response("/* NoxSpot: site not found */", { status: 404, headers: { "Content-Type": "application/javascript" } });
   if (!loader) return new Response("/* NoxSpot: loader unavailable */", { status: 503, headers: { "Content-Type": "application/javascript" } });
-  const config = { ...legacyWidgetConfig(site), coreUrl: `${context.env.PUBLIC_API_BASE_URL.replace(/\/$/, "")}/r2/noxspot-core.min.js` };
+  const config = legacyWidgetConfig(site);
   return new Response(`var __NoxSpotSiteConfig=${JSON.stringify(config)};\n${await loader.text()}`, {
     headers: { "Content-Type": "application/javascript", "Cache-Control": "public, max-age=0, must-revalidate", "Access-Control-Allow-Origin": "*" },
   });

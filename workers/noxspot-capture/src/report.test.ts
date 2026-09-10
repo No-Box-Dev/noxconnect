@@ -34,8 +34,14 @@ describe("capture validation", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects unsafe or oversized attempt IDs", () => {
+    expect(validateReportInput({ siteId: "site-1", title: "Bug", attemptId: "../../shared" }).ok).toBe(false);
+    expect(validateReportInput({ siteId: "site-1", title: "Bug", attemptId: "x".repeat(101) }).ok).toBe(false);
+  });
+
   it("creates a versioned task with connection routing and idempotency", () => {
     const params: ReportParams = {
+      attemptId: "capture-1",
       siteId: site.id,
       title: "Broken button",
       description: null,
@@ -59,9 +65,9 @@ describe("capture validation", () => {
     });
   });
 
-  it("creates unguessable screenshot keys under the site prefix", () => {
-    const target = screenshotTarget(site.id, "data:image/png;base64,AA==", "https://cdn.example.com");
-    expect(target?.key).toMatch(/^screenshots\/site-1\/\d+-[0-9a-f-]{36}\.png$/);
+  it("creates deterministic screenshot keys under the site prefix", () => {
+    const target = screenshotTarget(site.id, "capture-1", "data:image/png;base64,AA==", "https://cdn.example.com");
+    expect(target?.key).toBe("screenshots/site-1/capture-1.png");
     expect(target?.url).toContain(target?.key);
   });
 });
