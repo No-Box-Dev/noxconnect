@@ -262,6 +262,21 @@ export function useNoxCueMetrics(sourceId: string) {
   });
 }
 
+export function useUpdateNoxCueError(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fingerprint, status }: {
+      fingerprint: string;
+      status: "open" | "acknowledged" | "resolved";
+    }) => apiPut<{ status: "open" | "acknowledged" | "resolved"; updatedAt: string }>(
+      `/api/v1/cues/errors/${encodeURIComponent(sourceId)}/${encodeURIComponent(fingerprint)}`,
+      { status },
+    ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["noxcue-metrics", selectedOrg, sourceId] }),
+  });
+}
+
 const projectMetricsKey = (org: string | null | undefined, projectId: string | null) =>
   ["noxcue-project-metrics", org, projectId];
 

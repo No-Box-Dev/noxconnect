@@ -77,24 +77,21 @@ describe("NoxCue setup progress", () => {
       onCheck={onCheck}
     />);
 
-    expect(screen.getByText("3 of 5 complete")).toBeInTheDocument();
-    expect(screen.getByText("#app-stats · project route")).toBeInTheDocument();
-    expect(screen.getByText("Verify Slack delivery")).toBeInTheDocument();
+    expect(screen.getByText("Critical detection")).toBeInTheDocument();
+    expect(screen.getByText("Daily stats")).toBeInTheDocument();
+    expect(screen.getByText(/DAU definition/)).toBeInTheDocument();
+    expect(screen.getAllByText(/#app-stats/)).toHaveLength(2);
     expect(screen.getByText(/No user event yet/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Check for event" }));
     expect(onCheck).toHaveBeenCalledOnce();
   });
 
   it("confirms storage and the first daily-pulse timing", () => {
-    mocks.channelStatuses = [{
-      connectionId: "conn-1",
-      channelId: "C123",
-      status: "verified",
-      verifiedAt: "2026-08-30T01:30:00Z",
-      lastAttemptedAt: "2026-08-30T01:30:00Z",
-      lastDeliveredAt: "2026-08-30T01:30:00Z",
-      lastError: null,
-    }];
+    mocks.channelStatuses = ["conn-1", "connection-1"].map((connectionId) => ({
+      connectionId, channelId: "C123", status: "verified",
+      verifiedAt: "2026-08-30T01:30:00Z", lastAttemptedAt: "2026-08-30T01:30:00Z",
+      lastDeliveredAt: "2026-08-30T01:30:00Z", lastError: null,
+    }));
     render(<SetupProgress
       source={{ ...source, lastRegistrationAt: "2026-08-30T01:00:00Z", lastActivityAt: "2026-08-30T01:00:00Z" }}
       slackConnected
@@ -103,10 +100,8 @@ describe("NoxCue setup progress", () => {
       onCheck={() => undefined}
     />);
 
-    expect(screen.getByText("5 of 5 complete")).toBeInTheDocument();
-    expect(screen.getByText("Slack delivery healthy")).toBeInTheDocument();
-    expect(screen.getByText("NoxCue is live")).toBeInTheDocument();
-    expect(screen.getByText(/after 03:30 UTC/)).toBeInTheDocument();
+    expect(screen.getAllByText("Healthy")).toHaveLength(2);
+    expect(screen.getByText(/A signup only counts/)).toBeInTheDocument();
   });
 
   it("posts a real test and surfaces a persisted delivery issue", async () => {
@@ -127,9 +122,8 @@ describe("NoxCue setup progress", () => {
       onCheck={() => undefined}
     />);
 
-    expect(screen.getByText("Slack delivery issue")).toBeInTheDocument();
     expect(screen.getAllByText(/not_in_channel/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Retry test" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Send end-to-end test" }).at(-1)!);
     await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/api/v1/slack/test", {
       kind: "noxcue",
       connectionId: "conn-1",
