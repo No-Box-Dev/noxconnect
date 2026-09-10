@@ -117,9 +117,14 @@ export default {
 
 async function runScheduledTick(env, nowMs) {
   await recordHeartbeatAttempt(env.DB, "scheduled.cron", env.CF_VERSION_METADATA?.id);
+  // This heartbeat measures delivery of the cron trigger itself. A complete
+  // reconciliation can legitimately span much of the 30-minute interval, so
+  // waiting for all GitHub work would make a live scheduler look unavailable.
+  // Individual component failures below still move this heartbeat to `issue`,
+  // and an uncaught top-level failure does the same.
+  await recordHeartbeatSuccess(env.DB, "scheduled.cron", env.CF_VERSION_METADATA?.id);
   try {
     await runTick(env, nowMs);
-    await recordHeartbeatSuccess(env.DB, "scheduled.cron", env.CF_VERSION_METADATA?.id);
   } catch (err) {
     await recordHeartbeatFailure(env.DB, "scheduled.cron", err, env.CF_VERSION_METADATA?.id);
     await reportNoxCueRuntimeFailure(env, err, { operation: "scheduled.cron" });
