@@ -2,16 +2,8 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useUpdateNoxSpotSite } from "@/hooks/useNoxSpot";
 import type { NoxSpotBlock, NoxSpotEnvironment, NoxSpotSite } from "@/lib/types";
+import { DEFAULT_NOXSPOT_BLOCKS } from "../../../../shared/noxspot-defaults";
 
-const DEFAULT_BLOCKS: NoxSpotBlock[] = [
-  { id: "default-title", type: "title", required: true },
-  { id: "default-description", type: "description", required: true },
-  { id: "default-reporter", type: "reporter", required: true },
-  { id: "default-contact-email", type: "contact_email", required: false },
-  { id: "default-element-picker", type: "element_picker", required: false },
-  { id: "default-metadata", type: "metadata", required: false },
-  { id: "default-console-logs", type: "console_logs", required: false },
-];
 
 const BLOCK_TYPES: Array<{ value: NoxSpotBlock["type"]; label: string }> = [
   { value: "title", label: "Title" },
@@ -26,11 +18,15 @@ const BLOCK_TYPES: Array<{ value: NoxSpotBlock["type"]; label: string }> = [
   { value: "console_logs", label: "Console logs" },
 ];
 
+const REQUIRED_FIELD_TYPES = new Set<NoxSpotBlock["type"]>([
+  "description", "reporter", "contact_email", "custom_text", "custom_textarea", "custom_select",
+]);
+
 function copyEnvironments(value: NoxSpotEnvironment[]): NoxSpotEnvironment[] {
   return value.map((environment) => ({ ...environment }));
 }
 
-function copyBlocks(value: NoxSpotBlock[]): NoxSpotBlock[] {
+function copyBlocks(value: readonly NoxSpotBlock[]): NoxSpotBlock[] {
   return value.map((block) => ({ ...block, options: block.options ? [...block.options] : undefined, environments: block.environments ? [...block.environments] : [] }));
 }
 
@@ -145,7 +141,7 @@ function NoxSpotWidgetConfigurationEditor({ site }: { site: NoxSpotSite }) {
             </div>
             <div className="flex gap-2">
               {blocks.length === 0 ? (
-                <button type="button" onClick={() => setBlocks(copyBlocks(DEFAULT_BLOCKS))} className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50">Customize defaults</button>
+                <button type="button" onClick={() => setBlocks(copyBlocks(DEFAULT_NOXSPOT_BLOCKS))} className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50">Customize defaults</button>
               ) : null}
               <button type="button" onClick={() => setBlocks((current) => [...current, { id: newBlockId(), type: "custom_text", label: "Question", required: false, environments: [] }])} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"><Plus size={12} /> Add block</button>
             </div>
@@ -165,7 +161,9 @@ function NoxSpotWidgetConfigurationEditor({ site }: { site: NoxSpotSite }) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex items-center gap-2 text-xs text-stone-600"><input type="checkbox" checked={block.required === true} onChange={(event) => setBlocks((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, required: event.target.checked } : item))} /> Required</label>
+                {REQUIRED_FIELD_TYPES.has(block.type) ? (
+                  <label className="inline-flex items-center gap-2 text-xs text-stone-600"><input type="checkbox" checked={block.required === true} onChange={(event) => setBlocks((current) => current.map((item, currentIndex) => currentIndex === index ? { ...item, required: event.target.checked } : item))} /> Required</label>
+                ) : null}
                 {environments.map((environment) => (
                   <label key={environment.name} className="inline-flex items-center gap-1 text-xs text-stone-500">
                     <input type="checkbox" checked={(block.environments ?? []).includes(environment.name)} onChange={(event) => setBlocks((current) => current.map((item, currentIndex) => {

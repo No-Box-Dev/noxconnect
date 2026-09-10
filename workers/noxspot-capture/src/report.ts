@@ -9,6 +9,7 @@ const MAX_ELEMENTS_BYTES = 40_000;
 const MAX_BLOCK_VALUES_BYTES = 32_000;
 
 export interface ReportParams {
+  attemptId: string | null;
   siteId: string;
   title: string;
   description: string | null;
@@ -71,12 +72,15 @@ function plainObject(value: unknown): value is Record<string, unknown> {
 
 export function validateReportInput(body: unknown): ValidationError | ValidationSuccess {
   if (!plainObject(body)) return { ok: false, error: "Invalid JSON object", status: 400 };
-  const { siteId, title, description, reporter, reporterEmail, environment, screenshot, metadata, elements, context, type, rating, blockValues } = body;
+  const { attemptId, siteId, title, description, reporter, reporterEmail, environment, screenshot, metadata, elements, context, type, rating, blockValues } = body;
 
   if (typeof siteId !== "string" || !siteId || typeof title !== "string" || !title) {
     return { ok: false, error: "Missing required fields: siteId, title", status: 400 };
   }
   if (siteId.length > 120 || title.length > 256) return { ok: false, error: "Site ID or title is too long", status: 400 };
+  if (attemptId != null && (typeof attemptId !== "string" || !/^[A-Za-z0-9:_-]{1,100}$/.test(attemptId))) {
+    return { ok: false, error: "Invalid attempt ID", status: 400 };
+  }
   if (description != null && typeof description !== "string") return { ok: false, error: "Invalid description", status: 400 };
   if (typeof description === "string" && description.length > 10_000) return { ok: false, error: "Description too long", status: 400 };
   if (screenshot != null && typeof screenshot !== "string") return { ok: false, error: "Invalid screenshot", status: 400 };
@@ -116,6 +120,7 @@ export function validateReportInput(body: unknown): ValidationError | Validation
   return {
     ok: true,
     params: {
+      attemptId: typeof attemptId === "string" ? attemptId : null,
       siteId,
       title,
       description: typeof description === "string" ? description : null,
@@ -139,13 +144,13 @@ interface ScreenshotTarget {
   contentType: string;
 }
 
-export function screenshotTarget(siteId: string, screenshot: string | null, assetBaseUrl: string): ScreenshotTarget | null {
+export function screenshotTarget(siteId: string, captureId: string, screenshot: string | null, assetBaseUrl: string): ScreenshotTarget | null {
   if (!screenshot) return null;
   const match = screenshot.match(/^data:image\/(png|jpeg|webp);base64,/);
   if (!match) return null;
   const type = match[1] === "jpeg" ? "jpeg" : match[1];
   const extension = type === "jpeg" ? "jpg" : type;
-  const key = `screenshots/${siteId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const key = `screenshots/${siteId}/${captureId}.${extension}`;
   return { key, url: `${assetBaseUrl.replace(/\/$/, "")}/${key}`, contentType: `image/${type}` };
 }
 

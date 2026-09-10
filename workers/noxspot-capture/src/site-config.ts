@@ -1,3 +1,5 @@
+import { DEFAULT_NOXSPOT_BLOCKS } from "../../../shared/noxspot-defaults";
+
 export type WidgetMode = "development" | "release";
 
 export interface WidgetEnvironment {
@@ -118,7 +120,10 @@ export function publicWidgetConfig(site: CaptureSite, origin: string | null) {
   const stored = parseWidgetConfig(site.widget_config);
   const matched = environmentForOrigin(stored, origin);
   const environmentName = matched?.name ?? null;
-  const blocks = (Array.isArray(stored.blocks) ? stored.blocks : []).filter((block) =>
+  const configuredBlocks: readonly WidgetBlock[] = Array.isArray(stored.blocks) && stored.blocks.length
+    ? stored.blocks
+    : DEFAULT_NOXSPOT_BLOCKS;
+  const blocks = configuredBlocks.filter((block) =>
     !Array.isArray(block.environments) || block.environments.length === 0 ||
     (environmentName !== null && block.environments.includes(environmentName)),
   );
@@ -148,6 +153,6 @@ export function legacyWidgetConfig(site: CaptureSite) {
     widgetMode: stored.widgetMode === "release" ? "release" : "development",
     autoErrorLogging: stored.autoErrorLogging === true,
     environments: Array.isArray(stored.environments) ? stored.environments : [],
-    blocks: Array.isArray(stored.blocks) ? stored.blocks : [],
+    blocks: Array.isArray(stored.blocks) && stored.blocks.length ? stored.blocks : DEFAULT_NOXSPOT_BLOCKS,
   };
 }

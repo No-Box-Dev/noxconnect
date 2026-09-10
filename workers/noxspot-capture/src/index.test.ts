@@ -189,20 +189,24 @@ describe("public capture Worker", () => {
     expect(response.status).toBe(413);
   });
 
-  it("serves the immutable widget through the versioned asset route", async () => {
-    await env.ASSETS.put("widget/1.0.0/noxspot.min.js", "window.NoxSpot={};", { httpMetadata: { contentType: "application/javascript" } });
-    const response = await SELF.fetch("https://capture.test/v1.0.0/widget.js");
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toContain("immutable");
-    expect(await response.text()).toContain("NoxSpot");
+  it("rejects mismatched idempotency headers before delivery", async () => {
+    const response = await SELF.fetch("https://capture.test/report", {
+      method: "POST",
+      headers: {
+        Origin: "https://app.example.com",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "attempt-other",
+      },
+      body: JSON.stringify({ siteId: "site-1", title: "Broken button", attemptId: "attempt-1" }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Idempotency key does not match attempt ID" });
   });
 
-  it("serves immutable historical widget versions without changing the major alias", async () => {
-    await env.ASSETS.put("widget/2.3.4/noxspot.min.js", "window.NoxSpotVersion='2.3.4';", { httpMetadata: { contentType: "application/javascript" } });
-    const response = await SELF.fetch("https://capture.test/v2.3.4/widget.js");
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toContain("immutable");
-    expect(await response.text()).toContain("2.3.4");
+  it("does not expose retired generic widget routes", async () => {
+    expect((await SELF.fetch("https://capture.test/v1/widget.js")).status).toBe(404);
+    expect((await SELF.fetch("https://capture.test/v1.0.0/widget.js")).status).toBe(404);
+    expect((await SELF.fetch("https://capture.test/api/spots/public/v1/assets/widget.js")).status).toBe(404);
   });
 
   it("enforces rate limits in a sharded Durable Object", async () => {
