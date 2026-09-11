@@ -284,6 +284,14 @@ async function loadGitHubIdentity(
     throw new Error("github_identity_invalid");
   }
   const organizations: IdentityExchangeResult["organizations"] = [];
+  let personalWorkspace = await db.prepare("SELECT id FROM orgs WHERE github_login = ? COLLATE NOCASE")
+    .bind(user.login).first<{ id: number }>();
+  if (!personalWorkspace) {
+    personalWorkspace = await db.prepare("INSERT INTO orgs (github_login) VALUES (?) RETURNING id")
+      .bind(user.login).first<{ id: number }>();
+  }
+  if (!personalWorkspace) throw new Error("organization_resolution_failed");
+  organizations.push({ id: personalWorkspace.id, login: user.login, role: "admin" });
   for (const membership of memberships) {
     const login = membership.organization?.login;
     if (!login || membership.state !== "active") continue;
