@@ -1,14 +1,20 @@
-const STAGING_LABEL = /(?:^|[-_.])(staging|stage|sandbox|acceptance|test|cert)(?:$|[-_.])/i;
+const TEST_LABEL = /(?:^|[-_.])(staging|stage|sandbox|acceptance|test|cert)(?:$|[-_.])/i;
 
 export const WRITE_CONFIRMATION = "write-to-isolated-nox-staging";
 
-export function stagingHostname(hostname, service) {
+export function acceptanceHostname(hostname, service) {
   const host = hostname.toLowerCase();
   if (service === "noxhere") {
-    return host === "staging.noxhere.com"
+    return host === "app.noxhere.com"
+      || host === "staging.noxhere.com"
       || /^noxhere-staging\.[a-z0-9-]+\.workers\.dev$/.test(host);
   }
-  return /^noxspot-api-staging\.[a-z0-9-]+\.workers\.dev$/.test(host);
+  return host === "api.noxspot.dev"
+    || /^noxspot-api-staging\.[a-z0-9-]+\.workers\.dev$/.test(host);
+}
+
+export function hasTestLabel(value) {
+  return TEST_LABEL.test(String(value ?? ""));
 }
 
 export function validateSafety(config, { writes = false } = {}) {
@@ -20,17 +26,19 @@ export function validateSafety(config, { writes = false } = {}) {
   try { spot = new URL(config.noxspotUrl); } catch { errors.push("NOX_ACCEPTANCE_NOXSPOT_URL must be a valid URL"); }
   try { origin = new URL(config.noxspotOrigin); } catch { errors.push("NOX_ACCEPTANCE_NOXSPOT_ORIGIN must be a valid URL"); }
 
-  if (base && (base.protocol !== "https:" || !stagingHostname(base.hostname, "noxhere"))) {
-    errors.push("NOX_ACCEPTANCE_BASE_URL must be the dedicated NoxHere staging host");
+  if (base && (base.protocol !== "https:" || !acceptanceHostname(base.hostname, "noxhere"))) {
+    errors.push("NOX_ACCEPTANCE_BASE_URL must be an allowlisted NoxHere host");
   }
-  if (spot && (spot.protocol !== "https:" || !stagingHostname(spot.hostname, "noxspot"))) {
-    errors.push("NOX_ACCEPTANCE_NOXSPOT_URL must be the dedicated NoxSpot staging Worker");
+  if (spot && (spot.protocol !== "https:" || !acceptanceHostname(spot.hostname, "noxspot"))) {
+    errors.push("NOX_ACCEPTANCE_NOXSPOT_URL must be an allowlisted NoxSpot host");
   }
-  if (origin && (origin.protocol !== "https:" || !STAGING_LABEL.test(origin.hostname))) {
+  if (origin && (origin.protocol !== "https:" || !TEST_LABEL.test(origin.hostname))) {
     errors.push("NOX_ACCEPTANCE_NOXSPOT_ORIGIN must contain an explicit staging/sandbox/test label");
   }
-  if (!STAGING_LABEL.test(config.org)) errors.push("NOX_ACCEPTANCE_ORG must be an explicitly named staging/sandbox/test organization");
-  if (!STAGING_LABEL.test(config.repo)) errors.push("NOX_ACCEPTANCE_REPO must be an explicitly named staging/sandbox/test repository");
+  if (!config.org?.trim()) errors.push("NOX_ACCEPTANCE_ORG is required");
+  if (!TEST_LABEL.test(config.repo)) errors.push("NOX_ACCEPTANCE_REPO must be an explicitly named staging/sandbox/test repository");
+  if (!config.slackConnectionId?.trim()) errors.push("NOX_ACCEPTANCE_SLACK_CONNECTION_ID is required");
+  if (!/^[CG][A-Z0-9]{5,20}$/.test(config.slackChannelId ?? "")) errors.push("NOX_ACCEPTANCE_SLACK_CHANNEL_ID must be a Slack channel ID");
   if (!config.projectId) errors.push("NOX_ACCEPTANCE_PROJECT_ID is required");
   if (!config.accessToken?.startsWith("nox_at_")) errors.push("NOX_ACCEPTANCE_ACCESS_TOKEN must be a short-lived NoxHere native access token");
   if (!config.noxcueSourceId) errors.push("NOX_ACCEPTANCE_NOXCUE_SOURCE_ID is required");

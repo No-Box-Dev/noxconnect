@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { findCueEvent, findIssue, findRelease, stagingHostname, validateSafety, WRITE_CONFIRMATION } from "./staging-acceptance-lib.mjs";
+import { acceptanceHostname, findCueEvent, findIssue, findRelease, hasTestLabel, validateSafety, WRITE_CONFIRMATION } from "./staging-acceptance-lib.mjs";
 
 const safe = {
   baseUrl: "https://noxhere-staging.jasper-414.workers.dev",
   noxspotUrl: "https://noxspot-api-staging.jasper-414.workers.dev",
   noxspotOrigin: "https://widget-test.example.com",
-  org: "nox-staging-cert",
-  repo: "staging-cert",
+  org: "No-Box-Dev",
+  repo: "test",
+  slackConnectionId: "connection-1",
+  slackChannelId: "C123456",
   projectId: "project-1",
   accessToken: "nox_at_redacted",
   noxcueSourceId: "source-1",
@@ -16,9 +18,11 @@ const safe = {
 };
 
 describe("staging acceptance safety", () => {
-  it("accepts only dedicated staging hosts and scopes", () => {
+  it("accepts shared provider apps with a test-labelled repository", () => {
     expect(validateSafety(safe, { writes: true })).toEqual([]);
-    expect(stagingHostname("staging.noxhere.com", "noxhere")).toBe(true);
+    expect(acceptanceHostname("app.noxhere.com", "noxhere")).toBe(true);
+    expect(acceptanceHostname("api.noxspot.dev", "noxspot")).toBe(true);
+    expect(hasTestLabel("nox-acceptance")).toBe(true);
   });
 
   it("refuses production provider writes", () => {
@@ -31,7 +35,18 @@ describe("staging acceptance safety", () => {
       repo: "noxconnect",
       confirm: "yes",
     }, { writes: true });
-    expect(errors).toHaveLength(6);
+    expect(errors).toHaveLength(3);
+    expect(errors).toContain("NOX_ACCEPTANCE_REPO must be an explicitly named staging/sandbox/test repository");
+  });
+
+  it("requires an organization without requiring a second staging organization", () => {
+    expect(validateSafety({ ...safe, org: "" })).toContain("NOX_ACCEPTANCE_ORG is required");
+    expect(validateSafety({ ...safe, org: "No-Box-Dev" })).toEqual([]);
+  });
+
+  it("requires an explicit Slack connection and channel", () => {
+    expect(validateSafety({ ...safe, slackConnectionId: "" })).toContain("NOX_ACCEPTANCE_SLACK_CONNECTION_ID is required");
+    expect(validateSafety({ ...safe, slackChannelId: "general" })).toContain("NOX_ACCEPTANCE_SLACK_CHANNEL_ID must be a Slack channel ID");
   });
 
   it("requires an explicit write confirmation", () => {

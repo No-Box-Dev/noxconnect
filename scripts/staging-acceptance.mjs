@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { findCueEvent, findIssue, findRelease, marker, validateSafety } from "./staging-acceptance-lib.mjs";
+import { findCueEvent, findIssue, findRelease, hasTestLabel, marker, validateSafety } from "./staging-acceptance-lib.mjs";
 
 const preflightOnly = process.argv.includes("--preflight");
 const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomUUID().slice(0, 8)}`;
@@ -17,6 +17,8 @@ const config = {
   org: process.env.NOX_ACCEPTANCE_ORG ?? "",
   projectId: process.env.NOX_ACCEPTANCE_PROJECT_ID ?? "",
   repo: process.env.NOX_ACCEPTANCE_REPO ?? "",
+  slackConnectionId: process.env.NOX_ACCEPTANCE_SLACK_CONNECTION_ID ?? "",
+  slackChannelId: process.env.NOX_ACCEPTANCE_SLACK_CHANNEL_ID ?? "",
   accessToken: process.env.NOX_ACCEPTANCE_ACCESS_TOKEN ?? "",
   noxspotUrl: process.env.NOX_ACCEPTANCE_NOXSPOT_URL ?? "",
   noxspotOrigin: process.env.NOX_ACCEPTANCE_NOXSPOT_ORIGIN ?? "",
@@ -125,7 +127,20 @@ async function preflight() {
   if (repo?.owner?.login?.toLowerCase() !== config.org.toLowerCase() || repo?.name !== config.repo) {
     fail("GitHub staging repository identity does not match the allowlist");
   }
-  pass("GitHub staging repository is reachable", repo.full_name);
+  if (!repo.private || repo.archived) {
+    fail("GitHub acceptance repository must be private and active");
+  }
+  pass("GitHub acceptance repository is reachable", repo.full_name);
+
+  const slack = (await request(
+    "Slack acceptance channel discovery",
+    `/api/v1/slack/channels?connectionId=${encodeURIComponent(config.slackConnectionId)}`,
+  )).body;
+  const channel = slack?.channels?.find((item) => item.id === config.slackChannelId);
+  if (slack?.connectionId !== config.slackConnectionId || !channel || !hasTestLabel(channel.name)) {
+    fail("Slack acceptance destination must be an explicitly test-labelled channel on the selected connection");
+  }
+  pass("Slack acceptance destination is isolated", `#${channel.name}`);
 
   const spotConfigResponse = await fetch(new URL(`/api/spots/public/v1/sites/${encodeURIComponent(config.noxspotSiteId)}/config`, noxspotUrl), {
     headers: { Origin: config.noxspotOrigin, Accept: "application/json" },
@@ -134,12 +149,19 @@ async function preflight() {
   pass("NoxSpot staging site accepts the staging origin", String(spotConfigResponse.status));
   const spotSites = (await request("NoxSpot site discovery", "/api/v1/spots/sites")).body?.sites;
   const spotSite = spotSites?.find((item) => item.id === config.noxspotSiteId && item.projectId === config.projectId && item.repo === config.repo);
-  if (!spotSite || !spotSite.slackEffectiveChannelId) fail("NoxSpot staging site is not project-scoped or has no Slack destination");
+  if (!spotSite
+    || spotSite.slackConnectionId !== config.slackConnectionId
+    || spotSite.slackEffectiveChannelId !== config.slackChannelId) {
+    fail("NoxSpot staging site is not project-scoped to the acceptance Slack channel");
+  }
 
   const sources = (await request("NoxCue source discovery", "/api/v1/cues/sources")).body?.sources;
   const source = sources?.find((item) => item.id === config.noxcueSourceId && item.projectId === config.projectId);
   if (!source || !source.enabled || source.environment !== "staging") fail("NoxCue staging source is missing, disabled, or not scoped to staging");
-  if (!source.effectiveAlertSlackChannelId) fail("NoxCue staging source has no effective alert Slack destination");
+  if (source.effectiveAlertSlackChannelId !== config.slackChannelId
+    || source.effectiveAlertSlackConnectionId !== config.slackConnectionId) {
+    fail("NoxCue staging source is not routed to the acceptance Slack destination");
+  }
   pass("NoxCue staging source is enabled", config.noxcueSourceId);
   const incidentProjects = (await request("NoxCue GitHub incident policy", "/api/v1/cues/github-issues")).body?.projects;
   const incidentProject = incidentProjects?.find((item) => item.projectId === config.projectId && item.repo === config.repo);
@@ -150,10 +172,14 @@ async function preflight() {
 }
 
 async function slackAcceptance() {
-  for (const route of ["noxticket", "noxfeed_release_notes", "noxcue"]) {
-    await request(`Slack provider write for ${route}`, "/api/v1/integrations/slack/test", {
+  for (const kind of ["noxticket", "noxfeed_release_notes", "noxcue"]) {
+    await request(`Slack provider write for ${kind}`, "/api/v1/slack/test", {
       method: "POST",
-      body: JSON.stringify({ route }),
+      body: JSON.stringify({
+        connectionId: config.slackConnectionId,
+        channelId: config.slackChannelId,
+        kind,
+      }),
     });
   }
 }

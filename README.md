@@ -52,8 +52,8 @@ Hosted browser sign-in creates an opaque HttpOnly NoxHere session. Automation us
 | `npm run dev` | Vite dev server |
 | `npm run build` | Production build |
 | `npm run e2e:local` | Build and exercise the complete local multi-service stack |
-| `npm run e2e:staging:preflight` | Verify the isolated deployed topology without provider writes |
-| `npm run e2e:staging` | Run explicitly confirmed real provider writes against staging only |
+| `npm run e2e:provider:preflight` | Validate the explicit test repository, project, and Slack destination without writes |
+| `npm run e2e:provider` | Run explicitly confirmed provider writes against those test-only destinations |
 | `npm test` | Run the Vitest suite |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Frontend type-check |
