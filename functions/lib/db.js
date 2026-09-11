@@ -11,8 +11,8 @@ export function jsonResponse(data, status = 200) {
   });
 }
 
-export function errorResponse(message, status = 400) {
-  return jsonResponse({ error: message }, status);
+export function errorResponse(message, status = 400, code) {
+  return jsonResponse(code ? { error: message, code } : { error: message }, status);
 }
 
 export async function getSyncState(db, orgId, resource) {

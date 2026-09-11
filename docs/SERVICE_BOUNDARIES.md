@@ -15,7 +15,7 @@ GitHub credentials after the one-time upgrade from an older release.
 
 | Product | Owns | Shared NoxConnect plumbing it uses |
 | --- | --- | --- |
-| NoxFeed | Narration prompts, release-note policy, Posts/Release Notes Slack blocks, delivery-test content | GitHub event intake, org/project data, LLM provider invocation, channel selection, outbox and delivery |
+| NoxFeed | Complete post/release-note generation, managed model access, output validation, Posts/Release Notes Slack blocks, delivery-test content | GitHub event intake, org/project data, AI enable/disable policy, channel selection, outbox and delivery |
 | NoxSpot | Widget and capture runtime, issue rendering, feedback Slack blocks, delivery-test content | org/site administration, GitHub installation, destination selection, outbox and delivery |
 | NoxTicket | Feature/backlog behavior and ticket Slack content | GitHub issue transport, org/repository selection, destination selection, outbox and delivery |
 | NoxCue | Closed user-event validation, identity hashing, incident detection/repeat policy, and Slack digest presentation | source/key administration, event facts, project metric selection, daily aggregation, GitHub issue transport, destination selection, outbox and delivery |
@@ -24,7 +24,7 @@ GitHub credentials after the one-time upgrade from an older release.
 
 - NoxSpot exposes `noxspot.response` version 1 through the private `NOXSPOT_RESPONSE` service binding.
 - NoxCue exposes `noxcue.response` version 1 through the private `NOXCUE_RESPONSE` service binding.
-- NoxFeed exposes `noxfeed.response` version 1 through the private `NOXFEED_RESPONSE` service binding. Its Worker lives with the NoxFeed product under `service/`.
+- NoxFeed exposes `noxfeed.response` version 1 through the private `NOXFEED_RESPONSE` service binding. Its Worker lives with the NoxFeed product under `service/` and returns either validated generated content or a typed unavailable result; `generationInfo()` reports only provider, model, and secret availability so NoxConnect can publish component readiness without receiving provider credentials or raw responses.
 - NoxTicket currently has no independent service repository. Its response policy therefore lives under `functions/products/noxticket`, separated from `functions/lib` so extraction to a private binding is mechanical when that service is created.
 
 Every adapter validates the contract version, structure, and Slack payload size before shared plumbing stores it. Product services receive only the data needed to render their response; they do not receive Slack tokens, connection IDs, or delivery state.

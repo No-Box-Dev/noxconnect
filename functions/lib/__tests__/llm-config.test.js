@@ -4,6 +4,7 @@ import {
   AI_MODE_MANAGED,
   MANAGED_LLM,
   managedLlmConfig,
+  resolveAiMode,
   resolveLlmConfig,
 } from "../llm-config.js";
 
@@ -57,5 +58,21 @@ describe("resolveLlmConfig", () => {
     await expect(resolveLlmConfig({ DB: dbResult(new Error("down")), ANTHROPIC_API_KEY: "secret" }, 7))
       .resolves.toMatchObject({ errorCode: "routing_lookup_failed" });
     spy.mockRestore();
+  });
+});
+
+describe("resolveAiMode", () => {
+  it("enables product-owned generation without requiring a provider key in NoxConnect", async () => {
+    await expect(resolveAiMode({ DB: dbResult(null) }, 7)).resolves.toEqual({
+      status: "enabled",
+      mode: AI_MODE_MANAGED,
+    });
+  });
+
+  it("preserves the organization disable switch", async () => {
+    await expect(resolveAiMode({ DB: dbResult({ mode: "disabled" }) }, 7)).resolves.toEqual({
+      status: "disabled",
+      mode: AI_MODE_DISABLED,
+    });
   });
 });

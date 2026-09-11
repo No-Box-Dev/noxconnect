@@ -25,6 +25,7 @@ vi.mock("../noxfeed-response.js", () => ({
     system: override || (kind === "release_notes" ? RELEASE_NOTES_SYSTEM : kind === "pr_opened" ? PR_OPENED_SYSTEM : "NOXFEED_ACTOR_SYSTEM ".repeat(4)),
     user: `${input.actorName ? `You are ${input.actorName}.\n` : ""}Project: ${input.projectName}\n${JSON.stringify(input.event)}`,
   })),
+  generateNoxFeedContent: vi.fn(),
   getNoxFeedSlackResponse: vi.fn(async (env, kind, input) => ({ message: { text: input.summary, blocks: [kind, input] } })),
 }));
 vi.mock("../delivery-outbox.js", () => ({
@@ -40,7 +41,6 @@ import {
   narrateEvent,
   narrateReleaseNotes,
   narratePrOpened,
-  parseNarrativeOutput,
   NARRATABLE_TYPES,
   NARRATABLE_TYPES_OPENED,
 } from "../narrator.js";
@@ -49,7 +49,7 @@ import { recordFailure } from "../op-failures.js";
 import { resolveSlackChannels } from "../slack.js";
 import { markOutboxBlocked, queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveNoxFeedDestination } from "../noxfeed-routing.js";
-import { getNoxFeedSlackResponse } from "../noxfeed-response.js";
+import { generateNoxFeedContent, getNoxFeedSlackResponse } from "../noxfeed-response.js";
 
 // D1 stub: dispatch by SQL substring. Tests configure what each query returns
 // and inspect _calls.runs/binds for the INSERT side effect.
@@ -118,6 +118,8 @@ const ACTOR_ROW = { id: "actor-1", name: "Jane", tone: "Dry but warm" };
 
 beforeEach(() => {
   completeNarrative.mockReset();
+  generateNoxFeedContent.mockReset();
+  generateNoxFeedContent.mockImplementation(fakeProductGeneration);
   recordFailure.mockClear();
   resolveSlackChannels.mockReset();
   resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "" });
@@ -130,6 +132,79 @@ beforeEach(() => {
   resolveNoxFeedDestination.mockResolvedValue(null);
 });
 afterEach(() => vi.restoreAllMocks());
+
+async function fakeProductGeneration(_env, kind, input, override) {
+  const system = override || (kind === "release_notes" ? RELEASE_NOTES_SYSTEM : kind === "pr_opened" ? PR_OPENED_SYSTEM : "NOXFEED_ACTOR_SYSTEM ".repeat(4));
+  const user = `${input.actorName ? `You are ${input.actorName}.\n` : ""}Project: ${input.projectName}\n${JSON.stringify(input.event)}`;
+  const text = await completeNarrative(
+    {
+      provider: "anthropic",
+      baseUrl: "https://api.anthropic.com",
+      apiKey: "managed-key",
+      model: "claude-haiku-4-5-20251001",
+      source: "managed",
+    },
+    system,
+    user,
+    ...(kind === "release_notes" ? [{ maxTokens: 4096, tag: "release-notes" }] : []),
+  );
+  if (!text) {
+    return { status: "unavailable", model: "claude-haiku-4-5-20251001", errorCode: "provider_unavailable" };
+  }
+  if (kind === "release_notes") {
+    return {
+      status: "generated",
+      model: "claude-haiku-4-5-20251001",
+      output: { summary: fakeReleaseNote(text, input.event) },
+    };
+  }
+  const raw = String(text).trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { parsed = null; }
+  const summary = limitForTest(parsed?.social || raw, 800);
+  const technical = Array.isArray(parsed?.technical) && parsed.technical.length === 3
+    ? parsed.technical.map((line, index) => `${["What it does", "How it works", "What it touches"][index]}: ${String(line).replace(/^(what it does|how it works|what it touches)\s*:\s*/i, "")}`).join("\n")
+    : [
+        `What it does: ${input.event?.payload?.pr?.title || input.event?.summary}`,
+        "How it works: Updates the implementation described by the pull request",
+        `What it touches: ${input.projectName}`,
+      ].join("\n");
+  return {
+    status: "generated",
+    model: "claude-haiku-4-5-20251001",
+    output: { summary, technicalSummary: technical },
+  };
+}
+
+function limitForTest(value, max) {
+  const text = String(value).trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function fakeReleaseNote(value, event) {
+  const pr = event?.payload?.pr ?? {};
+  let text = String(value)
+    .replaceAll("[repo]", event?.repo ?? "")
+    .replaceAll("[title]", pr.title ?? "")
+    .replaceAll("[author]", pr.author ?? "")
+    .replaceAll("[merger]", pr.merged_by ?? pr.author ?? "")
+    .replaceAll("[head_ref]", pr.head_ref ?? "")
+    .replaceAll("[base_ref]", pr.base_ref ?? "");
+  const fields = [
+    ["Repository", event?.repo],
+    ["Pull Request", pr.number ? `#${pr.number}${pr.title ? ` - ${pr.title}` : ""}` : null],
+    ["Author", pr.author ? `${pr.author} | Merged by: ${pr.merged_by ?? pr.author}` : null],
+    ["Branch", pr.head_ref || pr.base_ref ? `${pr.head_ref ?? "?"} → ${pr.base_ref ?? "?"}` : null],
+    ["Environment", event?.environment],
+  ].filter(([, field]) => field);
+  const lines = text.trim().split(/\r?\n/);
+  for (const [label, field] of fields) {
+    const index = lines.findIndex((line) => new RegExp(`^${label}:`, "i").test(line));
+    if (index >= 0) lines[index] = `${label}: ${field}`;
+    else lines.splice(Math.min(1, lines.length), 0, `${label}: ${field}`);
+  }
+  return lines.join("\n");
+}
 
 describe("NARRATABLE_TYPES", () => {
   it("exports the narratable type list with pr:merged", () => {
@@ -300,9 +375,8 @@ describe("narrateEvent — fallback path", () => {
       op: "narrateEvent",
       deliveryId: "event-1",
     });
-    expect(args.error).toContain("managed");
-    expect(args.error).toContain("anthropic");
-    expect(args.error).toContain("claude-haiku-4-5-20251001");
+    expect(args.error).toContain("NoxFeed generation unavailable");
+    expect(args.error).toContain("provider_unavailable");
   });
 
   it("does NOT insert when LLM returns null AND row.summary is missing", async () => {
@@ -768,105 +842,6 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
   });
 });
 
-describe("parseNarrativeOutput", () => {
-  const context = {
-    projectName: "billing-service",
-    eventSummary: "PR #42: stop duplicate invoices",
-    payload: { pr: { title: "stop duplicate invoices", changed_files: 3 } },
-  };
-
-  it("returns social copy and an exact three-line simple-English technical summary", () => {
-    const result = parseNarrativeOutput(JSON.stringify({
-      social: "I stopped invoice retries from charging twice.",
-      technical: [
-        "What it does: Prevents duplicate invoice charges",
-        "How it works: Reuses the existing payment attempt during retries",
-        "What it touches: Invoice retry and payment handling",
-      ],
-    }), context);
-
-    expect(result.social).toBe("I stopped invoice retries from charging twice.");
-    expect(result.technicalSummary.split("\n")).toEqual([
-      "What it does: Prevents duplicate invoice charges",
-      "How it works: Reuses the existing payment attempt during retries",
-      "What it touches: Invoice retry and payment handling",
-    ]);
-  });
-
-  it("keeps plain social output and always supplies a deterministic technical fallback", () => {
-    const result = parseNarrativeOutput("I stopped duplicate invoice charges.", context);
-    expect(result.social).toBe("I stopped duplicate invoice charges.");
-    expect(result.technicalSummary.split("\n")).toHaveLength(3);
-    expect(result.technicalSummary).toContain("What it touches: billing-service across 3 changed files");
-  });
-
-  it("never exposes incomplete structured output as the social post", () => {
-    const result = parseNarrativeOutput('```json\n{"social":"I fixed it","technical":["What it does: incomplete', context);
-    expect(result.social).toBe("stop duplicate invoices");
-    expect(result.social).not.toContain("```json");
-    expect(result.technicalSummary.split("\n")).toHaveLength(3);
-  });
-
-  it("accepts valid JSON wrapped in provider commentary", () => {
-    const result = parseNarrativeOutput(`Here is the result:\n${JSON.stringify({
-      social: "I fixed it.",
-      technical: ["Stops duplicates", "Reuses attempts", "Billing retries"],
-    })}`, context);
-    expect(result.social).toBe("I fixed it.");
-    expect(result.technicalSummary).toBe([
-      "What it does: Stops duplicates",
-      "How it works: Reuses attempts",
-      "What it touches: Billing retries",
-    ].join("\n"));
-  });
-});
-
-describe("parseNarrativeOutput", () => {
-  const context = {
-    projectName: "billing-service",
-    eventSummary: "PR #42: stop duplicate invoices",
-    payload: { pr: { title: "stop duplicate invoices", changed_files: 3 } },
-  };
-
-  it("returns social copy and an exact three-line simple-English technical summary", () => {
-    const result = parseNarrativeOutput(JSON.stringify({
-      social: "I stopped invoice retries from charging twice.",
-      technical: [
-        "What it does: Prevents duplicate invoice charges",
-        "How it works: Reuses the existing payment attempt during retries",
-        "What it touches: Invoice retry and payment handling",
-      ],
-    }), context);
-
-    expect(result.social).toBe("I stopped invoice retries from charging twice.");
-    expect(result.technicalSummary.split("\n")).toEqual([
-      "What it does: Prevents duplicate invoice charges",
-      "How it works: Reuses the existing payment attempt during retries",
-      "What it touches: Invoice retry and payment handling",
-    ]);
-  });
-
-  it("keeps plain social output and always supplies a deterministic technical fallback", () => {
-    const result = parseNarrativeOutput("I stopped duplicate invoice charges.", context);
-    expect(result.social).toBe("I stopped duplicate invoice charges.");
-    expect(result.technicalSummary.split("\n")).toHaveLength(3);
-    expect(result.technicalSummary).toContain("What it touches: billing-service across 3 changed files");
-  });
-
-  it("accepts valid JSON wrapped in provider commentary", () => {
-    const result = parseNarrativeOutput(`Here is the result:\n${JSON.stringify({
-      social: "I fixed it.",
-      technical: ["Stops duplicates", "Reuses attempts", "Billing retries"],
-    })}`, context);
-    expect(result.social).toBe("I fixed it.");
-    expect(result.technicalSummary).toBe([
-      "What it does: Stops duplicates",
-      "How it works: Reuses attempts",
-      "What it touches: Billing retries",
-    ].join("\n"));
-  });
-});
-
 describe("narrateReleaseNotes — always calls the LLM", () => {
   // Release notes need the structured RELEASE_NOTES_SYSTEM format — the
   // opened-time chat voice we reuse for the Posts feed reads like a Post
@@ -887,7 +862,10 @@ describe("narrateReleaseNotes — always calls the LLM", () => {
     const [source, type, , , , , summary, payloadJson] = insert.binds;
     expect(source).toBe("release-notes");
     expect(type).toBe("release_notes");
-    expect(summary).toBe("Repository: noxconnect\nPull Request: #42 - do thing\n## Change Summary\nStructured note.");
+    expect(summary).toContain("Repository: noxconnect");
+    expect(summary).toContain("Pull Request: #42 - do thing");
+    expect(summary).toContain("## Change Summary");
+    expect(summary).toContain("Structured note.");
     expect(JSON.parse(payloadJson).model).not.toMatch(/^reused:/);
   });
 });

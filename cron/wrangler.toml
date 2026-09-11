@@ -1,4 +1,4 @@
-name = "unticket-cron"
+name = "noxconnect-orchestrator"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
@@ -63,6 +63,6 @@ bucket_name = "noxconnect-events-archive"
 
 # Secrets required on this worker before the first run:
 #   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY  (reconcile + bootstrap/sync tasks)
-#   ANTHROPIC_API_KEY + ENCRYPTION_KEY (managed narration and NoxSpot Slack tasks)
-# Set via: wrangler secret put <NAME> --name unticket-cron
-# (ANTHROPIC_API_KEY is also needed for reconcile's PR-merged narration.)
+#   ANTHROPIC_API_KEY + ENCRYPTION_KEY (daily summaries and NoxSpot Slack tasks)
+# Set via: wrangler secret put <NAME> --name noxconnect-orchestrator
+# NoxFeed event narration uses the secret on the noxfeed-response Worker.
