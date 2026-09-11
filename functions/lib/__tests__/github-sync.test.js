@@ -413,6 +413,35 @@ describe("syncRepos", () => {
     expect(db._calls.batches).toHaveLength(1);
   });
 
+  it("uses the installation repository endpoint for a personal account", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({
+        repositories: [{ name: "personal-repo", language: "Swift", pushed_at: "2026-09-10" }],
+      }),
+    });
+    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+
+    const result = await syncRepos(db, "tok", "personal-1", "jasper");
+
+    expect(result).toEqual(["personal-repo"]);
+    expect(fetch.mock.calls[0][0]).toContain("/installation/repositories");
+    expect(fetch.mock.calls[0][0]).not.toContain("/orgs/jasper/repos");
+  });
+
+  it("does not treat an invalid personal installation response as an empty repository list", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => null },
+      json: async () => ({}),
+    });
+    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+
+    await expect(syncRepos(db, "tok", "personal-1", "jasper")).rejects.toThrow(/invalid installation repository response/i);
+    expect(db._calls.batches).toHaveLength(0);
+  });
+
   it("throws clear error on 401 (token revoked)", async () => {
     fetch.mockResolvedValue({
       ok: false,
@@ -575,6 +604,18 @@ describe("syncMembers", () => {
     expect(result).toEqual(["alice"]);
     // The INSERT SQL hardcodes 'human' as the kind.
     expect(db._calls.batches[0][0].sql).toContain("'human'");
+  });
+
+  it("uses the owner as the sole member for a personal installation", async () => {
+    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+
+    const result = await syncMembers(db, "tok", "personal-1", "jasper");
+
+    expect(result).toEqual(["jasper"]);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(db._calls.runs.some((call) =>
+      call.sql.includes("INSERT INTO members") && call.binds[1] === "jasper"
+    )).toBe(true);
   });
 });
 

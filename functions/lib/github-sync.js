@@ -86,14 +86,60 @@ async function fetchAllPages(token, url, params = {}, emptyStatuses = []) {
   return all;
 }
 
+async function installationAccountType(db, orgId, accountLogin) {
+  const installation = await db
+    .prepare(
+      `SELECT account_type FROM installations
+       WHERE org_id = ? AND lower(account_login) = lower(?)
+       ORDER BY updated_at DESC LIMIT 1`,
+    )
+    .bind(orgId, accountLogin)
+    .first();
+  return String(installation?.account_type ?? "").toLowerCase();
+}
+
+async function fetchInstallationRepositories(token) {
+  const all = [];
+  let page = 1;
+  while (page <= MAX_PAGES) {
+    const params = new URLSearchParams({ per_page: "100", page: String(page) });
+    const res = await fetch(`https://api.github.com/installation/repositories?${params}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "NoxConnect",
+        Accept: "application/vnd.github+json",
+      },
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error("GitHub token expired or revoked");
+      if (res.status === 429 || (res.status === 403 && res.headers.get("X-RateLimit-Remaining") === "0")) {
+        throw new Error("GitHub API rate limit exceeded");
+      }
+      throw new Error(`GitHub API error: ${res.status} ${res.statusText} (/installation/repositories)`);
+    }
+    const data = await res.json();
+    if (!Array.isArray(data?.repositories)) {
+      throw new Error("GitHub API returned an invalid installation repository response");
+    }
+    const repositories = data.repositories;
+    all.push(...repositories);
+    if (repositories.length < 100) break;
+    page++;
+  }
+  return all;
+}
+
 // ---------- Sync repos ----------
 
 export async function syncRepos(db, token, orgId, orgLogin) {
-  const repos = await fetchAllPages(
-    token,
-    `https://api.github.com/orgs/${orgLogin}/repos`,
-    { sort: "pushed" }
-  );
+  const accountType = await installationAccountType(db, orgId, orgLogin);
+  const repos = accountType === "user"
+    ? await fetchInstallationRepositories(token)
+    : await fetchAllPages(
+        token,
+        `https://api.github.com/orgs/${orgLogin}/repos`,
+        { sort: "pushed" },
+      );
 
   // Capture which (org_id, name) pairs are NEW so we can apply the
   // newRepoDefault='exclude' policy below — D1 doesn't expose RETURNING and
@@ -503,6 +549,16 @@ export async function syncIssues(db, token, orgId, orgLogin, repo, since) {
 // ---------- Sync Members ----------
 
 export async function syncMembers(db, token, orgId, orgLogin) {
+  const accountType = await installationAccountType(db, orgId, orgLogin);
+  if (accountType === "user") {
+    await db.prepare(
+      `INSERT INTO members (org_id, login, avatar_url, kind)
+       VALUES (?, ?, NULL, 'human')
+       ON CONFLICT(org_id, login) DO NOTHING`,
+    ).bind(orgId, orgLogin).run();
+    await setSyncState(db, orgId, "members");
+    return [orgLogin];
+  }
   const members = await fetchAllPages(
     token,
     `https://api.github.com/orgs/${orgLogin}/members`

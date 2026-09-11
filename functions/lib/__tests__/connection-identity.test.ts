@@ -10,7 +10,7 @@ function database() {
         bind(...binds: unknown[]) { statement.binds = binds; return statement; },
         async first() {
           calls.push({ sql, binds: statement.binds });
-          if (sql.includes("SELECT id FROM orgs")) return { id: 7 };
+          if (sql.includes("SELECT id FROM orgs")) return { id: statement.binds[0] === "octocat" ? 8 : 7 };
           if (sql.includes("RETURNING id")) return { id: statement.binds[0] };
           return null;
         },
@@ -54,7 +54,10 @@ describe("GitHub OAuth identity connection", () => {
     expect(result).toMatchObject({
       version: 1,
       user: { id: 42, login: "octocat" },
-      organizations: [{ id: 7, login: "acme", role: "admin" }],
+      organizations: [
+        { id: 8, login: "octocat", role: "admin" },
+        { id: 7, login: "acme", role: "admin" },
+      ],
     });
     expect(result.connectionId).toMatch(/^noxic_/);
     expect(JSON.stringify(result)).not.toContain("github-access-secret");
@@ -63,6 +66,28 @@ describe("GitHub OAuth identity connection", () => {
     expect(insert?.binds).not.toContain("github-access-secret");
     expect(insert?.binds).not.toContain("github-refresh-secret");
     expect(String(insert?.binds[4])).toContain(":");
+  });
+
+  it("exposes the signed-in user's personal workspace without organization memberships", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("oauth/access_token")) return Response.json({ access_token: "github-access-secret" });
+      if (url.endsWith("/user")) return Response.json({ id: 42, login: "octocat" });
+      return Response.json([]);
+    }));
+
+    const result = await exchangeGitHubOAuthIdentity({
+      DB: database().db,
+      GITHUB_APP_CLIENT_ID: "client-id",
+      GITHUB_APP_CLIENT_SECRET: "client-secret",
+      ENCRYPTION_KEY: "11".repeat(32),
+      NOXHERE_OAUTH_CALLBACK_URL: "https://app.noxhere.com/auth/github/callback",
+    }, {
+      code: "one-time-code",
+      redirectUri: "https://app.noxhere.com/auth/github/callback",
+    });
+
+    expect(result.organizations).toEqual([{ id: 8, login: "octocat", role: "admin" }]);
   });
 
   it("rejects a caller-selected OAuth callback before contacting GitHub", async () => {
