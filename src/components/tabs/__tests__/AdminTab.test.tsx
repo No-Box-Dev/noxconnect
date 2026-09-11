@@ -66,7 +66,18 @@ vi.mock("@tanstack/react-query", () => {
           : queryKey?.[0] === "project-routing"
             ? { projects: [], repositories: [] }
           : queryKey?.[0] === "llm-settings"
-            ? { mode: "managed", managed: { provider: "anthropic", model: "claude-haiku-4-5-20251001", available: true } }
+            ? {
+                mode: "managed",
+                managed: {
+                  provider: "anthropic",
+                  model: "claude-haiku-4-5-20251001",
+                  available: true,
+                  services: {
+                    noxfeed: { provider: "anthropic", model: "claude-haiku-4-5-20251001", available: true },
+                    noxconnect: { provider: "anthropic", model: "claude-haiku-4-5-20251001", available: true },
+                  },
+                },
+              }
           : { failures: [] },
       isLoading: false,
       isError: false,

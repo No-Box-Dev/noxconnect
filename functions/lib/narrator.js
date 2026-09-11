@@ -8,18 +8,18 @@
 //   - narrateEvent looks up that pr_narrative row and REUSES its text
 //     (no LLM call) — Posts feed voice matches opened voice, so the reuse
 //     is free and coherent.
-//   - narrateReleaseNotes ALWAYS asks NoxFeed for its structured prompt.
+//   - narrateReleaseNotes ALWAYS asks NoxFeed to generate its structured note.
 //     Reuse was attempted here too, but the chat-style opened voice looked
 //     like a Post inside the Release-notes feed (missing the "Change
 //     Summary / Breaking Changes / Affected Areas" structure). One extra
 //     LLM call per merge is worth the format guarantee.
 //
-// All three share the organization's managed-AI setting. Runs at
+// NoxConnect applies the organization's AI enable/disable setting; NoxFeed
+// owns provider access, prompting, parsing, and output validation. Runs at
 // every trigger point: webhook, cron queue handler, reconcile loop —
 // see the trigger-point list in CLAUDE.md ("Narration" / "Live Activity events").
 
-import { completeNarrative, RELEASE_NOTES_MAX_TOKENS } from "./llm";
-import { resolveLlmConfig } from "./llm-config";
+import { resolveAiMode } from "./llm-config";
 import { recordFailure } from "./op-failures";
 import {
   resolveSlackChannels,
@@ -28,15 +28,8 @@ import {
 } from "./slack";
 import { markOutboxBlocked, queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
 import { isAppEnabledForOwner } from "./apps.js";
-import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "./noxfeed-response.js";
+import { generateNoxFeedContent, getNoxFeedSlackResponse } from "./noxfeed-response.js";
 import { resolveNoxFeedDestination } from "./noxfeed-routing.js";
-
-const MAX_OUTPUT_LENGTH = 800;
-const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
-// Release notes are inherently more verbose than chat posts (structured
-// sections + recommendations). Give them a bigger budget so multi-line
-// notes don't get truncated mid-sentence.
-const RELEASE_NOTES_MAX_OUTPUT_LENGTH = 2400;
 
 // Merge-time narration gate — narrateEvent + narrateReleaseNotes. Keep in
 // sync with POST_TRIGGER_TYPES in src/hooks/useNoxlink.ts (the client-side
@@ -110,7 +103,7 @@ export async function narrateEvent(env, eventId) {
     model = `reused:${reused.model}`;
     source = "narrator-reused";
   } else {
-    const prompt = await getNoxFeedPrompt(env, "actor", {
+    const input = {
       actorName: actor.name,
       actorTone: actor.tone,
       projectName: project.name,
@@ -120,23 +113,17 @@ export async function narrateEvent(env, eventId) {
         payload: triggerPayload,
         created_at: row.created_at,
       },
-    });
-    // Resolve the organization's managed/disabled setting.
-    const llmConfig = await resolveLlmConfig(env, orgId);
-    const text = llmConfig.status === "ready"
-      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
-      : null;
+    };
+    const aiMode = await resolveAiMode(env, orgId);
+    const generation = aiMode.status === "enabled"
+      ? await generateNoxFeedContent(env, "actor", input)
+      : unavailableGeneration(aiMode);
     source = "narrator";
 
-    if (text) {
-      const generated = parseNarrativeOutput(text, {
-        projectName: project.name,
-        eventSummary: row.summary,
-        payload: triggerPayload,
-      });
-      summary = limitText(generated.social, MAX_OUTPUT_LENGTH);
-      technicalSummary = limitText(generated.technicalSummary, MAX_TECHNICAL_OUTPUT_LENGTH);
-      model = llmConfig.model;
+    if (generation.status === "generated") {
+      summary = generation.output.summary;
+      technicalSummary = generation.output.technicalSummary;
+      model = generation.model;
     } else {
       // LLM unavailable (no key, timeout, HTTP error, model rejected the
       // request). Keep the feed populated with the raw summary so the trigger
@@ -150,14 +137,12 @@ export async function narrateEvent(env, eventId) {
         payload: triggerPayload,
       });
       model = "fallback";
-      if (llmConfig.status !== "disabled") {
+      if (aiMode.status !== "disabled") {
         await recordFailure(env.DB, {
           ownerId: row.owner_id,
           op: "narrateEvent",
           deliveryId: `event-${row.id}`,
-          error: llmConfig.status === "ready"
-            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
-            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+          error: `NoxFeed generation unavailable (${generation.errorCode})`,
         });
       }
     }
@@ -240,7 +225,7 @@ export async function narrateReleaseNotes(env, eventId) {
   ).bind(row.owner_id, row.repo, prNumber).first();
   if (existing) return;
 
-  // Release notes ALWAYS call the LLM with NoxFeed's structured prompt — no
+  // Release notes ALWAYS ask NoxFeed for a structured generation — no
   // reuse of the pr_narrative row. Reusing that row inside the
   // Release-notes feed produced chat-style entries that looked like Posts,
   // not release notes (see the header comment). The 1 extra LLM call per
@@ -268,36 +253,27 @@ export async function narrateReleaseNotes(env, eventId) {
       },
     };
 
-    const [llmConfig, systemOverride] = await Promise.all([
-      resolveLlmConfig(env, orgId),
+    const [aiMode, systemOverride] = await Promise.all([
+      resolveAiMode(env, orgId),
       resolveReleaseNotesPrompt(env.DB, orgId),
     ]);
-    const prompt = await getNoxFeedPrompt(env, "release_notes", promptInput, systemOverride);
-    const text = llmConfig.status === "ready"
-      ? await completeNarrative(llmConfig, prompt.system, prompt.user, {
-          maxTokens: RELEASE_NOTES_MAX_TOKENS,
-          tag: "release-notes",
-        })
-      : null;
+    const generation = aiMode.status === "enabled"
+      ? await generateNoxFeedContent(env, "release_notes", promptInput, systemOverride)
+      : unavailableGeneration(aiMode);
 
-    if (text) {
-      const trimmed = enforceReleaseMetadata(text.trim(), metadata);
-      summary = trimmed.length > RELEASE_NOTES_MAX_OUTPUT_LENGTH
-        ? trimmed.slice(0, RELEASE_NOTES_MAX_OUTPUT_LENGTH - 1).trimEnd() + "…"
-        : trimmed;
-      model = llmConfig.model;
+    if (generation.status === "generated") {
+      summary = generation.output.summary;
+      model = generation.model;
     } else {
       if (!row.summary) return;
       summary = row.summary;
       model = "fallback";
-      if (llmConfig.status !== "disabled") {
+      if (aiMode.status !== "disabled") {
         await recordFailure(env.DB, {
           ownerId: row.owner_id,
           op: "narrateReleaseNotes",
           deliveryId: `event-${row.id}`,
-          error: llmConfig.status === "ready"
-            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
-            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+          error: `NoxFeed generation unavailable (${generation.errorCode})`,
         });
       }
     }
@@ -398,7 +374,7 @@ export async function narratePrOpened(env, eventId) {
   ).bind(row.owner_id, row.repo, prNumber).first();
   if (existing) return;
 
-  const prompt = await getNoxFeedPrompt(env, "pr_opened", {
+  const input = {
     actorName: actor.name,
     actorTone: actor.tone,
     projectName: project.name,
@@ -408,26 +384,21 @@ export async function narratePrOpened(env, eventId) {
       payload: triggerPayload,
       created_at: row.created_at,
     },
-  });
+  };
 
   const orgId = await resolveOrgId(env.DB, row.owner_id);
-  const llmConfig = await resolveLlmConfig(env, orgId);
-  const text = llmConfig.status === "ready"
-    ? await completeNarrative(llmConfig, prompt.system, prompt.user)
-    : null;
+  const aiMode = await resolveAiMode(env, orgId);
+  const generation = aiMode.status === "enabled"
+    ? await generateNoxFeedContent(env, "pr_opened", input)
+    : unavailableGeneration(aiMode);
 
   let summary;
   let technicalSummary;
   let model;
-  if (text) {
-    const generated = parseNarrativeOutput(text, {
-      projectName: project.name,
-      eventSummary: row.summary,
-      payload: triggerPayload,
-    });
-    summary = limitText(generated.social, MAX_OUTPUT_LENGTH);
-    technicalSummary = limitText(generated.technicalSummary, MAX_TECHNICAL_OUTPUT_LENGTH);
-    model = llmConfig.model;
+  if (generation.status === "generated") {
+    summary = generation.output.summary;
+    technicalSummary = generation.output.technicalSummary;
+    model = generation.model;
   } else {
     if (!row.summary) return;
     summary = row.summary;
@@ -437,14 +408,12 @@ export async function narratePrOpened(env, eventId) {
       payload: triggerPayload,
     });
     model = "fallback";
-    if (llmConfig.status !== "disabled") {
+    if (aiMode.status !== "disabled") {
       await recordFailure(env.DB, {
         ownerId: row.owner_id,
         op: "narratePrOpened",
         deliveryId: `event-${row.id}`,
-        error: llmConfig.status === "ready"
-          ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
-          : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+        error: `NoxFeed generation unavailable (${generation.errorCode})`,
       });
     }
   }
@@ -499,61 +468,12 @@ async function findExistingPrNarrative(db, ownerId, repo, prNumber) {
   };
 }
 
-// Narrators ask for a JSON pair so social + technical copy cost one LLM call.
-// Plain text remains accepted for older/custom providers; the social text is
-// preserved and the technical view gets a deterministic three-line fallback.
-export function parseNarrativeOutput(text, context) {
-  const raw = String(text ?? "").trim();
-  let parsed = null;
-  const unfenced = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const candidates = [unfenced];
-  const firstBrace = unfenced.indexOf("{");
-  const lastBrace = unfenced.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    candidates.push(unfenced.slice(firstBrace, lastBrace + 1));
-  }
-  for (const candidate of candidates) {
-    try {
-      parsed = JSON.parse(candidate);
-      break;
-    } catch {
-      // Try the next candidate. Some providers preface otherwise-valid JSON.
-    }
-  }
-
-  const looksStructured = /^```(?:json)?\b/i.test(raw)
-    || raw.startsWith("{")
-    || /["']social["']\s*:/.test(raw);
-  const social = typeof parsed?.social === "string" && parsed.social.trim()
-    ? parsed.social.trim()
-    : looksStructured
-      ? buildFallbackSocial(context)
-      : raw;
-  const technicalSummary = normalizeTechnicalSummary(parsed?.technical)
-    || buildFallbackTechnicalSummary(context);
-  return { social, technicalSummary };
-}
-
-function buildFallbackSocial({ eventSummary, payload }) {
-  return cleanSentence(payload?.pr?.title || eventSummary || "Engineering update");
-}
-
-function normalizeTechnicalSummary(value) {
-  const lines = Array.isArray(value)
-    ? value
-    : typeof value === "string"
-      ? value.split(/\r?\n/)
-      : [];
-  const cleaned = lines
-    .map((line) => String(line).replace(/^[-*\d.)\s]+/, "").trim())
-    .filter(Boolean);
-  if (cleaned.length !== 3) return null;
-
-  const labels = ["What it does", "How it works", "What it touches"];
-  return cleaned.map((line, index) => {
-    const content = line.replace(/^(what it does|how it works|what it touches)\s*:\s*/i, "");
-    return `${labels[index]}: ${content}`;
-  }).join("\n");
+function unavailableGeneration(mode) {
+  return {
+    status: "unavailable",
+    model: "unavailable",
+    errorCode: mode.errorCode ?? mode.status,
+  };
 }
 
 function buildFallbackTechnicalSummary({ projectName, eventSummary, payload }) {
@@ -615,49 +535,6 @@ function releaseEnvironment(explicit, baseRef) {
   if (branch === "staging" || branch === "stage") return "Staging";
   if (["develop", "development", "dev"].includes(branch)) return "Development";
   return null;
-}
-
-function enforceReleaseMetadata(summary, metadata) {
-  const fields = [
-    ["Repository", metadata.repo],
-    ["Pull Request", metadata.number ? `#${metadata.number}${metadata.title ? ` - ${metadata.title}` : ""}` : null],
-    ["Author", metadata.pr.author ? `${metadata.pr.author} | Merged by: ${metadata.pr.merged_by ?? metadata.pr.author}` : null],
-    ["Branch", metadata.pr.head_ref || metadata.pr.base_ref ? `${metadata.pr.head_ref ?? "?"} → ${metadata.pr.base_ref ?? "?"}` : null],
-    ["Environment", metadata.environment],
-  ].filter(([, value]) => value);
-  const replacements = {
-    "[repo]": metadata.repo,
-    "[number]": metadata.number,
-    "[title]": metadata.title,
-    "[author]": metadata.pr.author,
-    "[merger]": metadata.pr.merged_by ?? metadata.pr.author,
-    "[head_ref]": metadata.pr.head_ref,
-    "[base_ref]": metadata.pr.base_ref,
-    "[environment]": metadata.environment,
-  };
-  let canonicalSummary = String(summary ?? "");
-  for (const [placeholder, value] of Object.entries(replacements)) {
-    if (value != null && value !== "") canonicalSummary = canonicalSummary.replaceAll(placeholder, String(value));
-  }
-  const lines = canonicalSummary.split(/\r?\n/);
-  for (const [label, value] of fields) {
-    const pattern = new RegExp(`^${label}:`, "i");
-    const index = lines.findIndex((line) => pattern.test(line.trim()));
-    const line = `${label}: ${value}`;
-    if (index >= 0) lines[index] = line;
-    else {
-      const sectionIndex = lines.findIndex((entry) => /^#{0,6}\s*Change Summary\s*$/i.test(entry.trim()));
-      lines.splice(sectionIndex >= 0 ? sectionIndex : Math.min(1, lines.length), 0, line);
-    }
-  }
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-function limitText(text, maxLength) {
-  const trimmed = String(text ?? "").trim();
-  return trimmed.length > maxLength
-    ? trimmed.slice(0, maxLength - 1).trimEnd() + "…"
-    : trimmed;
 }
 
 // Stage narration delivery in the shared outbox. The in-app feed remains the

@@ -99,13 +99,13 @@ npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name noxconnect
 The **cron Worker** needs its own copy of the secrets it uses:
 
 ```bash
-npx wrangler secret put GITHUB_APP_ID        --name unticket-cron
-npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name unticket-cron
-npx wrangler secret put ANTHROPIC_API_KEY     --name unticket-cron
-npx wrangler secret put ENCRYPTION_KEY       --name unticket-cron
+npx wrangler secret put GITHUB_APP_ID        --name noxconnect-orchestrator
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name noxconnect-orchestrator
+npx wrangler secret put ANTHROPIC_API_KEY     --name noxconnect-orchestrator
+npx wrangler secret put ENCRYPTION_KEY       --name noxconnect-orchestrator
 ```
 
-> **LLM provider:** `ANTHROPIC_API_KEY` powers the managed Claude Haiku service. Clients never supply API credentials. An organization can disable AI in Settings; without the managed key, AI fails closed to deterministic summaries.
+> **LLM providers:** `ANTHROPIC_API_KEY` on NoxConnect still powers shared NoxSpot and daily-summary tasks. NoxFeed event posts and release notes use the key configured directly on `noxfeed-response`; clients never supply API credentials. The AI settings API reads NoxFeed readiness through `NOXFEED_RESPONSE` and reports each service separately; managed mode is ready only when both deployments are configured. An organization can disable AI in Settings, and unavailable generation fails closed to deterministic summaries.
 
 ### Provision the NoxConnect Slack app
 
@@ -197,6 +197,14 @@ product Workers before deploying Pages or cron. The renderers receive only
 bounded product data and public references; GitHub credentials, Slack tokens,
 connection IDs, and delivery state never cross these bindings. NoxFeed's
 response Worker is built from the NoxFeed repository's `service/` directory.
+Set its provider secret before deploying the compatible Worker:
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY --name noxfeed-response
+```
+
+The secret does not cross the service binding. NoxConnect sends bounded event
+facts and receives only validated content or a typed unavailable result.
 
 The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.

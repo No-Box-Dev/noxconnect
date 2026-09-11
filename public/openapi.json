@@ -4251,7 +4251,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/AiSettings"
                 }
               }
             }
@@ -4321,7 +4321,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/AiSettings"
                 }
               }
             }
@@ -6284,6 +6284,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
@@ -8964,6 +8967,88 @@
           "occurredAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AiSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "managed"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "managed"
+            ]
+          },
+          "managed": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "model",
+              "available",
+              "services"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "available": {
+                "type": "boolean"
+              },
+              "services": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "noxfeed",
+                  "noxconnect"
+                ],
+                "properties": {
+                  "noxfeed": {
+                    "$ref": "#/components/schemas/ManagedAiServiceStatus"
+                  },
+                  "noxconnect": {
+                    "$ref": "#/components/schemas/ManagedAiServiceStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ManagedAiServiceStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "model",
+          "available"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "available": {
+            "type": "boolean"
           }
         }
       },

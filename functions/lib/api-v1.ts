@@ -64,7 +64,7 @@ export async function normalizeLegacyError(response: Response): Promise<Response
     return v1Response(body, response.status, response.headers);
   }
   const message = typeof body?.error === "string" ? body.error : "Request failed";
-  const code = {
+  const mappedCode = {
     400: "invalid_request",
     401: "unauthorized",
     403: "forbidden",
@@ -78,7 +78,12 @@ export async function normalizeLegacyError(response: Response): Promise<Response
     428: "precondition_required",
     429: "rate_limited",
   }[response.status] ?? "internal_error";
-  const details = body ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "error")) : undefined;
+  const code = typeof body?.code === "string" && /^[a-z][a-z0-9_]{1,63}$/.test(body.code)
+    ? body.code
+    : mappedCode;
+  const details = body
+    ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "error" && key !== "code"))
+    : undefined;
   return v1Error(
     code,
     message,

@@ -43,7 +43,7 @@ export function LlmSettingsSection() {
       </div>
 
       <p className="text-xs text-stone-400">
-        Nox securely provides Anthropic for NoxFeed narration and matching. Clients do not need an API account or key.
+        Nox securely provides managed AI for NoxFeed generation and NoxConnect matching. Clients do not need an API account or key.
       </p>
 
       {isLoading ? (
@@ -74,8 +74,16 @@ export function LlmSettingsSection() {
           <p className="text-xs text-stone-500">
             {data.mode === "disabled"
               ? "AI is disabled for this organization."
-              : `${data.managed.available ? "Ready" : "Unavailable"} · Anthropic · ${data.managed.model}`}
+              : `${data.managed.available ? "Ready" : "Unavailable"} · ${data.managed.provider} · ${data.managed.model}`}
           </p>
+          <div className="space-y-1 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+            <p>
+              NoxFeed generation · {data.managed.services.noxfeed.available ? "Ready" : "Unavailable"}
+            </p>
+            <p>
+              NoxConnect matching · {data.managed.services.noxconnect.available ? "Ready" : "Unavailable"}
+            </p>
+          </div>
           {error ? <p className="text-xs text-red-500">{error}</p> : null}
         </>
       ) : null}

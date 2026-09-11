@@ -4,7 +4,7 @@ import { resolveActorFromGithub } from "../../../lib/actors";
 import { narrateEvent, narrateReleaseNotes } from "../../../lib/narrator";
 import { recordFailure } from "../../../lib/op-failures";
 import { sleep, NARRATOR_PACING_MS } from "../../../lib/pacing";
-import { resolveLlmConfig } from "../../../lib/llm-config";
+import { getNoxFeedGenerationInfo } from "../../../lib/noxfeed-response.js";
 
 // POST /api/projects/:id/backfill-prs
 // Body: {
@@ -97,9 +97,17 @@ export async function onRequestPost(context) {
     // whatever's left. Newest-first so visible posts go first.
     let currentModel = null;
     if (rewriteOtherModels) {
-      const orgId = await resolveOrgId(db, orgLogin);
-      const llmConfig = await resolveLlmConfig(context.env, orgId);
-      currentModel = llmConfig.status === "ready" ? llmConfig.model : null;
+      try {
+        const info = await getNoxFeedGenerationInfo(context.env);
+        currentModel = info.model;
+      } catch (error) {
+        console.error("[noxconnect backfill] NoxFeed generation info unavailable:", error);
+        return errorResponse(
+          "NoxFeed generation service is unavailable",
+          503,
+          "dependency_unavailable",
+        );
+      }
     }
     const fallbackIds = (
       await findRenarrateTargets(db, orgLogin, project.id, currentModel)

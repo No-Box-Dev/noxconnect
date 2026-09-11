@@ -24,7 +24,7 @@ export function managedLlmConfig(env) {
   };
 }
 
-export async function resolveLlmConfig(env, orgId) {
+export async function resolveAiMode(env, orgId) {
   if (!env?.DB || !orgId) {
     return { status: "error", mode: AI_MODE_MANAGED, errorCode: "routing_context_missing" };
   }
@@ -40,7 +40,7 @@ export async function resolveLlmConfig(env, orgId) {
     if (row?.mode && row.mode !== AI_MODE_MANAGED) {
       return { status: "error", mode: AI_MODE_MANAGED, errorCode: "routing_mode_invalid" };
     }
-    return managedLlmConfig(env);
+    return { status: "enabled", mode: AI_MODE_MANAGED };
   } catch (error) {
     console.error(JSON.stringify({
       event: "ai_route_lookup_failed",
@@ -49,4 +49,9 @@ export async function resolveLlmConfig(env, orgId) {
     }));
     return { status: "error", mode: AI_MODE_MANAGED, errorCode: "routing_lookup_failed" };
   }
+}
+
+export async function resolveLlmConfig(env, orgId) {
+  const mode = await resolveAiMode(env, orgId);
+  return mode.status === "enabled" ? managedLlmConfig(env) : mode;
 }

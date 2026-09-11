@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../noxcue-response.js";
-import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "../noxfeed-response.js";
+import { generateNoxFeedContent, getNoxFeedGenerationInfo, getNoxFeedSlackResponse } from "../noxfeed-response.js";
 import { buildNoxTicketActivityResponse, buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 describe("product response boundaries", () => {
@@ -37,12 +37,23 @@ describe("product response boundaries", () => {
 
   it("validates NoxFeed prompts and Slack responses", async () => {
     const service = {
-      buildPrompt: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, prompt: { system: "system", user: "user" } })),
+      generate: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, generation: { status: "generated", model: "model-1", output: { summary: "Post", technicalSummary: "What it does: A\nHow it works: B\nWhat it touches: C" } } })),
+      generationInfo: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, model: "model-1", provider: "anthropic", available: true })),
       buildSlackResponse: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, message: { text: "Post", blocks: [{ type: "section" }] } })),
       buildTestResponse: vi.fn(),
     };
-    expect(await getNoxFeedPrompt({ NOXFEED_RESPONSE: service }, "actor", {})).toEqual({ system: "system", user: "user" });
+    expect((await generateNoxFeedContent({ NOXFEED_RESPONSE: service }, "actor", {})).output.summary).toBe("Post");
+    expect(await getNoxFeedGenerationInfo({ NOXFEED_RESPONSE: service })).toEqual({ model: "model-1", provider: "anthropic", available: true });
     expect((await getNoxFeedSlackResponse({ NOXFEED_RESPONSE: service }, "posts", {})).message.text).toBe("Post");
+  });
+
+  it("rejects generation readiness responses without explicit availability", async () => {
+    const service = {
+      generationInfo: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, model: "model-1", provider: "anthropic" })),
+    };
+    await expect(getNoxFeedGenerationInfo({ NOXFEED_RESPONSE: service })).rejects.toThrow(
+      "Invalid NoxFeed generation info",
+    );
   });
 
   it("keeps NoxTicket policy outside shared connector modules", () => {
