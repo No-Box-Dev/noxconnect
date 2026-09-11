@@ -17,12 +17,55 @@ import type {
   NoxCueSourceInput,
   NoxCueSourcesResponse,
   NoxCueUserMetricKey,
+  NoxCueAppleConnection,
+  NoxCueAppleConnectionInput,
 } from "@/lib/noxcue-api";
 
 const sourcesKey = (org: string | null | undefined) => ["noxcue-sources", org];
 const featuresKey = (org: string | null | undefined, sourceId: string) => ["noxcue-features", org, sourceId];
 const customMetricsKey = (org: string | null | undefined, sourceId: string) => ["noxcue-custom-metrics", org, sourceId];
 const githubIssuesKey = (org: string | null | undefined) => ["noxcue-github-issues", org];
+const appleConnectionKey = (org: string | null | undefined, sourceId: string) => ["noxcue-apple", org, sourceId];
+
+export function useNoxCueAppleConnection(sourceId: string, enabled = true) {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: appleConnectionKey(selectedOrg, sourceId),
+    queryFn: () => apiGet<NoxCueAppleConnection>(`/api/v1/cues/sources/${encodeURIComponent(sourceId)}/apple`),
+    enabled: Boolean(selectedOrg && sourceId && enabled),
+  });
+}
+
+export function useConnectNoxCueApple(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NoxCueAppleConnectionInput) => apiPut<NoxCueAppleConnection>(
+      `/api/v1/cues/sources/${encodeURIComponent(sourceId)}/apple`, input,
+    ),
+    onSuccess: (data) => client.setQueryData(appleConnectionKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useSyncNoxCueApple(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<{ processed: number; reportCount: number; lastSuccessfulPeriod: string | null }>(
+      `/api/v1/cues/sources/${encodeURIComponent(sourceId)}/apple/sync`, {},
+    ),
+    onSettled: () => client.invalidateQueries({ queryKey: appleConnectionKey(selectedOrg, sourceId) }),
+  });
+}
+
+export function useDisconnectNoxCueApple(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiDelete<{ ok: true }>(`/api/v1/cues/sources/${encodeURIComponent(sourceId)}/apple`),
+    onSuccess: () => client.setQueryData(appleConnectionKey(selectedOrg, sourceId), { connected: false }),
+  });
+}
 
 export function useNoxCueGithubIssueSettings() {
   const { selectedOrg } = useAuth();

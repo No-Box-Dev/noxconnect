@@ -107,6 +107,53 @@ describe("NoxCue digest history", () => {
     expect(summary.comparisons["custom.journals.added"]).toMatchObject({ yesterday: 4, average30d: 3 });
   });
 
+  it("merges stored Apple reports with event-derived user metrics", async () => {
+    const db = {
+      prepare(sql) {
+        return {
+          bind() { return this; },
+          async all() {
+            if (sql.includes("FROM cue_daily_metrics")) return { results: [
+              { period: "2026-08-29", metric_key: "apple.downloads.first_time", value: 12, origin: "reported" },
+              { period: "2026-08-29", metric_key: "apple.sessions", value: 90, origin: "reported" },
+            ] };
+            if (sql.includes("cue_custom_metrics")) return { results: [] };
+            return { results: [{
+              period: "2026-08-29", new_users: 3, total_users: 80,
+              daily_active: 10, weekly_active: 30, monthly_active: 50,
+            }] };
+          },
+        };
+      },
+    };
+    const { loadNoxCueDigestData } = await import("../noxcue-digest-data.js");
+    const summary = await loadNoxCueDigestData(db, "source-1", "2026-08-29");
+    expect(summary.metrics).toMatchObject({
+      "users.new": 3,
+      "apple.downloads.first_time": 12,
+      "apple.sessions": 90,
+    });
+    expect(summary.comparisons["apple.sessions"].history).toEqual([{ period: "2026-08-29", value: 90 }]);
+  });
+
+  it("does not overwrite imported Apple provenance when persisting derived metrics", async () => {
+    const statements = [];
+    const db = {
+      prepare(sql) {
+        return { sql, bind(...values) { this.values = values; return this; } };
+      },
+      async batch(items) { statements.push(...items); },
+    };
+    const { storeNoxCueDerivedMetrics } = await import("../noxcue-digest-data.js");
+    await storeNoxCueDerivedMetrics(db, 7, "source-1", "2026-08-29", {
+      "users.new": 3,
+      "apple.sessions": 90,
+    });
+    expect(statements).toHaveLength(1);
+    expect(statements[0].values).toContain("users.new");
+    expect(statements[0].values).not.toContain("apple.sessions");
+  });
+
   it("does not treat missing days as zero", () => {
     const summary = summarizeNoxCueDigestRows([
       { period: "2026-08-20", metric_key: "users.active.daily", value: 20, origin: "reported" },

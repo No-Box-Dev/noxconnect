@@ -1829,6 +1829,200 @@
         "x-change-safety": "destructive"
       }
     },
+    "/api/v1/cues/sources/{sourceId}/apple": {
+      "get": {
+        "operationId": "getNoxCueAppleAnalytics",
+        "summary": "Read an App Store Connect analytics connection",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sourceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connection status without private credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "member",
+        "x-change-safety": "safe_read"
+      },
+      "put": {
+        "operationId": "connectNoxCueAppleAnalytics",
+        "summary": "Connect App Store Connect analytics to a production source",
+        "description": "Validates the App Store Connect key and encrypts the private .p8 value before storage.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sourceId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Apple analytics connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "502": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "member",
+        "x-change-safety": "write_not_safe_to_retry"
+      },
+      "delete": {
+        "operationId": "disconnectNoxCueAppleAnalytics",
+        "summary": "Disconnect App Store Connect analytics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sourceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Apple analytics disconnected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "member",
+        "x-change-safety": "destructive"
+      }
+    },
+    "/api/v1/cues/sources/{sourceId}/apple/sync": {
+      "post": {
+        "operationId": "syncNoxCueAppleAnalytics",
+        "summary": "Import available App Store Connect analytics batches",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sourceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available Apple report batches processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "502": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "member",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
     "/api/v1/cues/sources/{sourceId}/keys": {
       "post": {
         "operationId": "createNoxCueKey",

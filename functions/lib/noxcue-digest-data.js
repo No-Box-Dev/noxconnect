@@ -157,14 +157,23 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
 }
 
 export async function loadNoxCueDigestData(db, sourceId, period) {
-  return await loadEventDerivedNoxCueDigestData(db, sourceId, period)
-    ?? { ...(await loadStoredNoxCueDigestData(db, sourceId, period)), metricLabels: {}, derivedFromEvents: false };
+  const [derived, stored] = await Promise.all([
+    loadEventDerivedNoxCueDigestData(db, sourceId, period),
+    loadStoredNoxCueDigestData(db, sourceId, period),
+  ]);
+  if (!derived) return { ...stored, metricLabels: {}, derivedFromEvents: false };
+  return {
+    ...derived,
+    metrics: { ...stored.metrics, ...derived.metrics },
+    comparisons: { ...stored.comparisons, ...derived.comparisons },
+    hasData: stored.hasData || derived.hasData,
+  };
 }
 
 export async function storeNoxCueDerivedMetrics(db, orgId, sourceId, period, metrics) {
   const now = new Date().toISOString();
   const statements = Object.entries(metrics)
-    .filter(([metricKey]) => !metricKey.startsWith("custom."))
+    .filter(([metricKey]) => !metricKey.startsWith("custom.") && !metricKey.startsWith("apple."))
     .map(([metricKey, value]) => db.prepare(
     `INSERT INTO cue_daily_metrics
        (org_id, source_id, period, metric_key, value, origin, formula_version, updated_at)

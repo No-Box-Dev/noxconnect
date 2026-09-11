@@ -259,6 +259,12 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
         { id: "list_cue_events", method: "GET", path: "/api/v1/cues/events", authentication: "admin", description: "List recent normalized events and delivery state." },
         { id: "get_cue_metrics", method: "GET", path: "/api/v1/cues/metrics", authentication: "admin", description: "Read daily customer-health metrics." },
       ] },
+      { id: "apple_analytics", name: "App Store Connect analytics", description: "Connect a production source to bounded App Store acquisition, usage, and crash reports.", access: "admin", operations: [
+        { id: "get_apple_analytics", method: "GET", path: "/api/v1/cues/sources/{sourceId}/apple", authentication: "admin", description: "Read Apple analytics connection and sync status without exposing credentials." },
+        { id: "connect_apple_analytics", method: "PUT", path: "/api/v1/cues/sources/{sourceId}/apple", authentication: "admin", description: "Validate and encrypt an App Store Connect API key." },
+        { id: "sync_apple_analytics", method: "POST", path: "/api/v1/cues/sources/{sourceId}/apple/sync", authentication: "admin", description: "Import currently available Apple analytics report batches." },
+        { id: "disconnect_apple_analytics", method: "DELETE", path: "/api/v1/cues/sources/{sourceId}/apple", authentication: "admin", description: "Remove the stored Apple credential and stop future imports." },
+      ] },
       { id: "github_incidents", name: "GitHub incidents", description: "Route qualifying NoxCue incidents into the GitHub repository linked to each project.", access: "admin", requires: ["github"], operations: [
         { id: "get_cue_github_incident_settings", method: "GET", path: "/api/v1/cues/github-issues", authentication: "admin", description: "List project repository mappings, incident policy, and open incident counts." },
         { id: "put_cue_github_incident_settings", method: "PUT", path: "/api/v1/cues/github-issues", authentication: "admin", description: "Set the environments, repeat policy, and enabled state for one project's GitHub incidents." },
@@ -275,7 +281,7 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     ],
     setupSections: [
       { id: "sources", name: "Sources", capabilityIds: ["sources", "ingest_keys"] },
-      { id: "health", name: "Health", capabilityIds: ["health_metrics", "cue_sharing"] },
+      { id: "health", name: "Health", capabilityIds: ["health_metrics", "apple_analytics", "cue_sharing"] },
       { id: "incidents", name: "GitHub incidents", capabilityIds: ["github_incidents"] },
       { id: "delivery", name: "Delivery", capabilityIds: ["cue_delivery"] },
     ],

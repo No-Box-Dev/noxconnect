@@ -123,6 +123,24 @@ export interface NoxCueSourcesResponse {
   sources: NoxCueSource[];
 }
 
+export interface NoxCueAppleConnection {
+  connected: boolean;
+  appId?: string;
+  keyId?: string;
+  status?: "waiting_for_reports" | "active" | "error";
+  lastSyncedAt?: string | null;
+  lastSuccessfulPeriod?: string | null;
+  lastError?: string | null;
+  createdAt?: string;
+}
+
+export interface NoxCueAppleConnectionInput {
+  appId: string;
+  issuerId: string;
+  keyId: string;
+  privateKey: string;
+}
+
 export interface NoxCueDashboardShare {
   id: string;
   projectId: string;

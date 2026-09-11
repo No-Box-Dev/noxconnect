@@ -27,6 +27,7 @@ import { createOrUpdateNoxCueGitHubIssue, recoverNoxCueGithubIncidents } from ".
 import { runOperationalAlerts } from "./operational-alerts.js";
 import { recordHeartbeatAttempt, recordHeartbeatFailure, recordHeartbeatSuccess } from "../../functions/lib/service-heartbeats.js";
 import { isTenantConfigurationFailure, reportNoxCueRuntimeFailure } from "./noxcue-runtime.js";
+import { syncDueAppleAnalytics } from "../../functions/lib/apple-analytics.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -196,6 +197,13 @@ async function runTick(env, nowMs = Date.now()) {
     await reportScheduledComponentFailure(env, "operational-alerts.sweep", err);
   }
   await healOrgInstallationLinks(db);
+
+  try {
+    await syncDueAppleAnalytics(env);
+  } catch (err) {
+    console.error("[noxconnect-cron] Apple analytics sweep failed:", err?.message ?? err);
+    await reportScheduledComponentFailure(env, "noxcue.apple-analytics", err);
+  }
 
   try {
     await runNoxCueDigests(env, nowMs);

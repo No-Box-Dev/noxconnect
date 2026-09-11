@@ -32,6 +32,7 @@ import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { apiPost } from "@/lib/api";
 import type { NoxCueCustomMetricsResponse, NoxCueEnvironment, NoxCueFeaturesResponse, NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
+import { NoxCueAppleSection } from "./NoxCueAppleSection";
 
 const EMPTY_SOURCE: NoxCueSourceInput = {
   name: "",
@@ -56,6 +57,16 @@ const USER_STAT_KEYS = [
   "users.active.weekly",
   "users.active.monthly",
   "users.stickiness.dau_mau",
+] as const;
+
+const APPLE_STAT_KEYS = [
+  "apple.downloads.total",
+  "apple.downloads.first_time",
+  "apple.downloads.redownloads",
+  "apple.installations",
+  "apple.deletions",
+  "apple.sessions",
+  "apple.crashes",
 ] as const;
 
 const ENVIRONMENTS: Array<{ value: NoxCueEnvironment; label: string }> = [
@@ -227,6 +238,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
       </form>
 
       {!creating && selected ? <EndpointHealthPanel source={selected} /> : null}
+      {!creating && selected ? <NoxCueAppleSection source={selected} /> : null}
       {!creating && selected ? <ErrorIncidentsPanel source={selected} /> : null}
       {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <CustomMetricRegistry source={selected} /> : null}
@@ -811,12 +823,12 @@ function DailyUserStats({ source }: { source: NoxCueSource }) {
   const health = useNoxCueMetrics(source.id);
   const latest = health.data?.days[0];
   const catalog = new Map(health.data?.catalog.map((metric) => [metric.key, metric]) ?? []);
-  const keys = [...USER_STAT_KEYS, ...(health.data?.catalog.filter((metric) => metric.domain === "activity").map((metric) => metric.key) ?? [])];
+  const keys = [...USER_STAT_KEYS, ...APPLE_STAT_KEYS, ...(health.data?.catalog.filter((metric) => metric.domain === "activity").map((metric) => metric.key) ?? [])];
   const visible = latest
     ? keys.flatMap((key) => latest.metrics[key] ? [{ key, ...latest.metrics[key] }] : [])
     : [];
   return <Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily user stats</h3><p className="mt-1 text-xs text-stone-500">Completed-day metrics. Custom activity totals are daily; per-user values use registered users to date.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily app stats</h3><p className="mt-1 text-xs text-stone-500">Completed-day product and App Store metrics. Apple usage and crash totals reflect opted-in devices.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
     {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(catalog.get(metric.key)?.unit, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{catalog.get(metric.key)?.label ?? metric.key}</div></div>)}</div> : lastUserEventAt(source) ? <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">Events are arriving. The first completed-day snapshot will appear after {source.digestTimeLocal} {source.timezone}.</p> : <p className="text-xs text-stone-400">Waiting for the first user event.</p>}
   </Panel>;
 }

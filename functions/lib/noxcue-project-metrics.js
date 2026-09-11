@@ -7,6 +7,16 @@ export const NOXCUE_USER_METRIC_KEYS = Object.freeze([
   "users.stickiness.dau_mau",
 ]);
 
+export const NOXCUE_APPLE_METRIC_KEYS = Object.freeze([
+  "apple.downloads.total",
+  "apple.downloads.first_time",
+  "apple.downloads.redownloads",
+  "apple.installations",
+  "apple.deletions",
+  "apple.sessions",
+  "apple.crashes",
+]);
+
 const NOXCUE_USER_METRIC_SET = new Set(NOXCUE_USER_METRIC_KEYS);
 const REGISTRATION_METRICS = new Set(["users.new", "users.total"]);
 
@@ -110,15 +120,15 @@ export async function loadEnabledNoxCueMetricKeys(db, orgId, projectId, sourceId
     const key = String(row.metric_key);
     return [key, `${key}.per_user`];
   });
-  if (!projectId) return new Set([...NOXCUE_USER_METRIC_KEYS, ...customKeys]);
+  if (!projectId) return new Set([...NOXCUE_USER_METRIC_KEYS, ...NOXCUE_APPLE_METRIC_KEYS, ...customKeys]);
   const result = await db.prepare(
     `SELECT metric_key, enabled FROM cue_project_metric_settings
       WHERE org_id = ? AND project_id = ?`,
   ).bind(orgId, projectId).all();
-  if ((result.results ?? []).length === 0) return new Set([...NOXCUE_USER_METRIC_KEYS, ...customKeys]);
+  if ((result.results ?? []).length === 0) return new Set([...NOXCUE_USER_METRIC_KEYS, ...NOXCUE_APPLE_METRIC_KEYS, ...customKeys]);
   return new Set([...(result.results ?? [])
     .filter((row) => Number(row.enabled) === 1 && isNoxCueUserMetricKey(row.metric_key))
-    .map((row) => String(row.metric_key)), ...customKeys]);
+    .map((row) => String(row.metric_key)), ...NOXCUE_APPLE_METRIC_KEYS, ...customKeys]);
 }
 
 export function selectNoxCueDigestMetrics(digest, enabledKeys) {
