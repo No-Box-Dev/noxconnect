@@ -89,3 +89,55 @@ bucket_name = "noxconnect-events-archive"
 #   NOXCUE_INGEST_KEY (NoxConnect-scoped background failure reporting)
 # Set via: wrangler secret put <NAME> --name noxconnect-orchestrator
 # (ANTHROPIC_API_KEY is also needed for reconcile's PR-merged narration.)
+
+# Staging is deliberately isolated: separate data, queue, archive, provider
+# credentials, and product-service deployments. A five-minute schedule keeps
+# recovery and readiness behavior representative without touching production.
+[env.staging]
+name = "noxconnect-orchestrator-staging"
+workers_dev = true
+
+[env.staging.version_metadata]
+binding = "CF_VERSION_METADATA"
+
+[env.staging.triggers]
+crons = ["*/5 * * * *"]
+
+[env.staging.vars]
+SLACK_ACCEPT_LEGACY_INSTALLS = "false"
+NOXCONNECT_PUBLIC_URL = "https://noxhere-staging.jasper-414.workers.dev"
+
+[[env.staging.services]]
+binding = "NOXSPOT_RESPONSE"
+service = "noxspot-api-staging"
+
+[[env.staging.services]]
+binding = "NOXCUE_RESPONSE"
+service = "noxcue-staging"
+
+[[env.staging.services]]
+binding = "NOXCUE_INGEST"
+service = "noxcue-staging"
+
+[[env.staging.services]]
+binding = "NOXFEED_RESPONSE"
+service = "noxfeed-response-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "noxconnect-staging"
+database_id = "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+
+[[env.staging.queues.consumers]]
+queue = "noxconnect-tasks-staging"
+max_batch_size = 10
+max_retries = 4
+dead_letter_queue = "noxconnect-tasks-staging-dlq"
+
+[[env.staging.queues.producers]]
+binding = "TASK_QUEUE"
+queue = "noxconnect-tasks-staging"
+
+[[env.staging.r2_buckets]]
+binding = "EVENTS_ARCHIVE"
+bucket_name = "noxconnect-events-archive-staging"

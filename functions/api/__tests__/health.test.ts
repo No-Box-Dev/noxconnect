@@ -19,7 +19,9 @@ function context(options: { heartbeat?: { status: string; last_succeeded_at: str
   return {
     env: {
       DB: { prepare },
+      NOXTICKET_SERVICE: service(options.serviceOk ?? true),
       NOXSPOT_RESPONSE: service(options.serviceOk ?? true),
+      NOXCUE_RESPONSE: service(options.serviceOk ?? true),
       NOXFEED_RESPONSE: service(options.serviceOk ?? true),
     },
   } as never;
@@ -35,7 +37,7 @@ describe("NoxConnect health", () => {
   it("is ready when storage, cron, queue and product services are healthy", async () => {
     const response = await ready(context());
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: "ok", checks: { database: true, scheduledWorker: true, deliveryQueue: true, noxspot: true, noxfeed: true } });
+    expect(await response.json()).toMatchObject({ status: "ok", checks: { database: true, scheduledWorker: true, deliveryQueue: true, noxticket: true, noxspot: true, noxcue: true, noxfeed: true } });
   });
 
   it("is not ready before a real scheduled heartbeat exists", async () => {
@@ -63,6 +65,6 @@ describe("NoxConnect health", () => {
   it("is not ready when a required product service is unavailable", async () => {
     const response = await ready(context({ serviceOk: false }));
     expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({ checks: { noxspot: false, noxfeed: false } });
+    expect(await response.json()).toMatchObject({ checks: { noxticket: false, noxspot: false, noxcue: false, noxfeed: false } });
   });
 });

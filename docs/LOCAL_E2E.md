@@ -95,3 +95,5 @@ Consequently, it proves that provider-bound tasks are accepted by the local
 Queue, but it does not create a real GitHub issue, send a Slack message, or run
 paid AI narration. Those final deliveries need separately provisioned sandbox
 accounts and secrets; they must not be tested by borrowing production secrets.
+The executable provider gate and isolated topology are documented in
+[`STAGING_ACCEPTANCE.md`](./STAGING_ACCEPTANCE.md).

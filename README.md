@@ -16,7 +16,7 @@ The retired `app.unticket.ai` host is a redirect-only deployment maintained in
 - **NoxSpot** — feedback widgets, sites, reports, and screenshots
 - **NoxCue** — closed user lifecycle events, governed feature health, immediate critical-error alerts, and project-configurable daily reports
 
-**Hosted (free):** [app.noxhere.com](https://app.noxhere.com) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md) · **Local E2E:** see [docs/LOCAL_E2E.md](./docs/LOCAL_E2E.md)
+**Hosted (free):** [app.noxhere.com](https://app.noxhere.com) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md) · **Local E2E:** see [docs/LOCAL_E2E.md](./docs/LOCAL_E2E.md) · **Staging provider gate:** see [docs/STAGING_ACCEPTANCE.md](./docs/STAGING_ACCEPTANCE.md)
 
 > **License:** NoxConnect is **source-available** under the [PolyForm Noncommercial License 1.0.0](./LICENSE) — free for any non-commercial use, modify and self-host freely, but **commercial use is not permitted**. It is not an OSI "open source" license. See [LICENSE](./LICENSE).
 
@@ -52,6 +52,8 @@ Hosted browser sign-in creates an opaque HttpOnly NoxHere session. Automation us
 | `npm run dev` | Vite dev server |
 | `npm run build` | Production build |
 | `npm run e2e:local` | Build and exercise the complete local multi-service stack |
+| `npm run e2e:staging:preflight` | Verify the isolated deployed topology without provider writes |
+| `npm run e2e:staging` | Run explicitly confirmed real provider writes against staging only |
 | `npm test` | Run the Vitest suite |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Frontend type-check |

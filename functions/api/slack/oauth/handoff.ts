@@ -9,7 +9,7 @@ import { validate } from "../../../lib/validate";
 
 interface Ctx {
   request: Request;
-  env: { SLACK_CLIENT_ID?: string; SLACK_CLIENT_SECRET?: string };
+  env: { SLACK_CLIENT_ID?: string; SLACK_CLIENT_SECRET?: string; SLACK_OAUTH_REDIRECT_URI?: string };
 }
 
 // GET /api/slack/oauth/handoff?state=...&team=T...
@@ -37,7 +37,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     clientId,
     requestUrl.origin,
     state,
-    resolveSlackOAuthRedirectUri(),
+    resolveSlackOAuthRedirectUri(context.env),
     team,
   );
   return new Response(null, {

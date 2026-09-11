@@ -11,6 +11,7 @@ import {
   buildOAuthAuthorizeUrl,
   isSlackTeamId,
   SLACK_OAUTH_REDIRECT_URI,
+  SLACK_OAUTH_STAGING_REDIRECT_URI,
   resolveSlackOAuthRedirectUri,
   SLACK_BOT_SCOPES,
   exchangeOAuthCode,
@@ -168,6 +169,15 @@ describe("buildOAuthAuthorizeUrl", () => {
   it("ignores the retired NoxSpot callback override", () => {
     expect(resolveSlackOAuthRedirectUri({
       SLACK_OAUTH_REDIRECT_URI: "https://api.noxspot.dev/slack/callback",
+    })).toBe(SLACK_OAUTH_REDIRECT_URI);
+  });
+
+  it("uses only the exact allowlisted staging callback", () => {
+    expect(resolveSlackOAuthRedirectUri({
+      SLACK_OAUTH_REDIRECT_URI: SLACK_OAUTH_STAGING_REDIRECT_URI,
+    })).toBe(SLACK_OAUTH_STAGING_REDIRECT_URI);
+    expect(resolveSlackOAuthRedirectUri({
+      SLACK_OAUTH_REDIRECT_URI: `${SLACK_OAUTH_STAGING_REDIRECT_URI}.attacker.example`,
     })).toBe(SLACK_OAUTH_REDIRECT_URI);
   });
 

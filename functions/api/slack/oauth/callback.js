@@ -67,7 +67,7 @@ export async function onRequestGet(context) {
       clientId,
       clientSecret,
       code,
-      redirectUri: resolveSlackOAuthRedirectUri(),
+      redirectUri: resolveSlackOAuthRedirectUri(context.env),
     });
   } catch (err) {
     console.error("[noxconnect slack oauth] exchange failed:", err?.message ?? err);

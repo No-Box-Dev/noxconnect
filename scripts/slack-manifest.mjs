@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { slackManifestForEnvironment } from "./slack-manifest-env.mjs";
 
 const SLACK_API = "https://slack.com/api";
 const MANIFEST_URL = new URL("../slack-app-manifest.json", import.meta.url);
@@ -47,7 +48,9 @@ async function main() {
     return;
   }
 
-  const manifest = JSON.parse(await readFile(MANIFEST_URL, "utf8"));
+  const sourceManifest = JSON.parse(await readFile(MANIFEST_URL, "utf8"));
+  const manifestEnvironment = process.env.SLACK_MANIFEST_ENV?.trim() || "production";
+  const manifest = slackManifestForEnvironment(sourceManifest, manifestEnvironment);
   const body = { manifest: JSON.stringify(manifest) };
   let method = `apps.manifest.${command}`;
 
@@ -65,7 +68,7 @@ async function main() {
   if (!data) return;
 
   if (command === "create") {
-    console.log(`Created NoxConnect Slack app ${data.app_id}.`);
+    console.log(`Created ${manifest.display_information.name} Slack app ${data.app_id}.`);
     console.log(`SLACK_APP_ID=${data.app_id}`);
     console.log(`SLACK_CLIENT_ID=${data.credentials?.client_id ?? "<open Slack Basic Information>"}`);
     console.log(`SLACK_CLIENT_SECRET=${data.credentials?.client_secret ?? "<open Slack Basic Information>"}`);
