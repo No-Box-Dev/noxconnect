@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../lib/db";
 import { AI_MODE_DISABLED, AI_MODE_MANAGED, MANAGED_LLM } from "../lib/llm-config";
+import { getNoxFeedGenerationInfo } from "../lib/noxfeed-response.js";
 import { validate } from "../lib/validate";
 
 interface Ctx {
-  env: { DB: D1Database; ANTHROPIC_API_KEY?: string };
+  env: { DB: D1Database; ANTHROPIC_API_KEY?: string; NOXFEED_RESPONSE?: unknown };
   data: { orgId: number; orgLogin: string; userLogin?: string; isAdmin: boolean };
   request: Request;
 }
@@ -18,14 +19,42 @@ function access(context: Ctx) {
   return { orgId };
 }
 
-function payload(context: Ctx, mode: string | null | undefined) {
+type ManagedServiceStatus = {
+  provider: string;
+  model: string;
+  available: boolean;
+};
+
+async function managedStatus(context: Ctx) {
+  let noxfeed: ManagedServiceStatus = {
+    provider: MANAGED_LLM.provider,
+    model: MANAGED_LLM.model,
+    available: false,
+  };
+  try {
+    noxfeed = await getNoxFeedGenerationInfo(context.env);
+  } catch (error) {
+    console.error("[noxconnect llm-settings] NoxFeed generation info unavailable:", error);
+  }
+
+  const noxconnect: ManagedServiceStatus = {
+    provider: MANAGED_LLM.provider,
+    model: MANAGED_LLM.model,
+    available: Boolean(context.env.ANTHROPIC_API_KEY),
+  };
+
+  return {
+    provider: noxfeed.provider,
+    model: noxfeed.model,
+    available: noxfeed.available && noxconnect.available,
+    services: { noxfeed, noxconnect },
+  };
+}
+
+function payload(mode: string | null | undefined, managed: Awaited<ReturnType<typeof managedStatus>>) {
   return {
     mode: mode ?? AI_MODE_MANAGED,
-    managed: {
-      provider: MANAGED_LLM.provider,
-      model: MANAGED_LLM.model,
-      available: Boolean(context.env.ANTHROPIC_API_KEY),
-    },
+    managed,
   };
 }
 
@@ -36,7 +65,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const row = await context.env.DB.prepare("SELECT mode FROM ai_settings WHERE org_id = ?")
     .bind(auth.orgId)
     .first<{ mode: string }>();
-  return jsonResponse(payload(context, row?.mode));
+  return jsonResponse(payload(row?.mode, await managedStatus(context)));
 }
 
 export async function onRequestPut(context: Ctx): Promise<Response> {
@@ -53,9 +82,10 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   const parsed = validate(Body, body);
   if (!parsed.ok) return parsed.response;
   const { mode } = parsed.data;
+  const managed = await managedStatus(context);
 
-  if (mode === AI_MODE_MANAGED && !context.env.ANTHROPIC_API_KEY) {
-    return errorResponse("Managed AI is unavailable", 503);
+  if (mode === AI_MODE_MANAGED && !managed.available) {
+    return errorResponse("Managed AI is unavailable", 503, "dependency_unavailable");
   }
 
   await context.env.DB.batch([
@@ -70,5 +100,5 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     ).bind(auth.orgId, context.data.userLogin || context.data.orgLogin || "unknown", mode),
   ]);
 
-  return jsonResponse(payload(context, mode));
+  return jsonResponse(payload(mode, managed));
 }

@@ -85,10 +85,11 @@ bucket_name = "noxconnect-events-archive"
 #   GITHUB_APP_PRIVATE_KEY (reconcile + bootstrap/sync tasks; App ID is a public var)
 #   ENCRYPTION_KEY (Slack connection tokens and user-provided AI keys)
 # Optional feature secrets:
-#   ANTHROPIC_API_KEY (managed narration)
+#   ANTHROPIC_API_KEY (NoxConnect-owned NoxCue/NoxSpot generation)
 #   NOXCUE_INGEST_KEY (NoxConnect-scoped background failure reporting)
 # Set via: wrangler secret put <NAME> --name noxconnect-orchestrator
-# (ANTHROPIC_API_KEY is also needed for reconcile's PR-merged narration.)
+# NoxFeed event and release-note generation uses the secret held by the
+# noxfeed-response Worker rather than this orchestrator.
 
 # Staging is deliberately isolated: separate data, queue, archive, provider
 # credentials, and product-service deployments. A five-minute schedule keeps

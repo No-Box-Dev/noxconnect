@@ -46,6 +46,21 @@ describe("API v1 response contract", () => {
     });
   });
 
+  it("preserves an explicit stable dependency error code", async () => {
+    const response = await normalizeLegacyError(new Response(JSON.stringify({
+      error: "NoxFeed generation service is unavailable",
+      code: "dependency_unavailable",
+    }), { status: 503, headers: { "Content-Type": "application/json" } }));
+
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: {
+        code: "dependency_unavailable",
+        message: "NoxFeed generation service is unavailable",
+      },
+    });
+  });
+
   it("preserves response metadata while normalizing legacy errors", async () => {
     const response = await normalizeLegacyError(new Response(JSON.stringify({ error: "Try later" }), {
       status: 429,
