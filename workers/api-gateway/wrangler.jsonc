@@ -52,8 +52,7 @@
       "name": "noxconnect-staging",
       "vars": {
         "PLATFORM_ADMIN_GITHUB_IDS": "196446605",
-        "SLACK_ACCEPT_LEGACY_INSTALLS": "false",
-        "SLACK_OAUTH_REDIRECT_URI": "https://noxhere-staging.jasper-414.workers.dev/api/slack/oauth/callback"
+        "SLACK_ACCEPT_LEGACY_INSTALLS": "false"
       },
       "services": [
         { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api-staging" },

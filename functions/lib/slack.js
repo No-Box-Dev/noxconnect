@@ -499,16 +499,11 @@ const REDIRECT_PATH = "/api/slack/oauth/callback";
 // code exchange must use this exact allowlisted URI as well; Slack rejects a
 // callback when the authorize and exchange redirect URIs differ.
 export const SLACK_OAUTH_REDIRECT_URI = "https://app.noxhere.com/api/slack/oauth/callback";
-export const SLACK_OAUTH_STAGING_REDIRECT_URI = "https://noxhere-staging.jasper-414.workers.dev/api/slack/oauth/callback";
 
-// NoxConnect has two explicit OAuth owners: production and the isolated
-// acceptance environment. Ignore every other configured value so an old
-// NoxSpot/Blindspot URL or an attacker-controlled host can never become an
-// OAuth callback.
-export function resolveSlackOAuthRedirectUri(env = {}) {
-  if (env.SLACK_OAUTH_REDIRECT_URI === SLACK_OAUTH_STAGING_REDIRECT_URI) {
-    return SLACK_OAUTH_STAGING_REDIRECT_URI;
-  }
+// NoxConnect has one OAuth owner and one callback. Ignore the retired
+// SLACK_OAUTH_REDIRECT_URI deployment variable so an old NoxSpot/Blindspot
+// compatibility value can never drift from the versioned Slack manifest.
+export function resolveSlackOAuthRedirectUri() {
   return SLACK_OAUTH_REDIRECT_URI;
 }
 // `links:read` + `links:write` power the link-shared unfurl handler at
