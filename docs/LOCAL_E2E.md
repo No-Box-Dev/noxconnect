@@ -93,5 +93,8 @@ separate lifecycle tests for browser/native sessions, CSRF, and API tokens.
 The local suite does not use production GitHub App, Slack, or AI credentials.
 Consequently, it proves that provider-bound tasks are accepted by the local
 Queue, but it does not create a real GitHub issue, send a Slack message, or run
-paid AI narration. Those final deliveries need separately provisioned sandbox
-accounts and secrets; they must not be tested by borrowing production secrets.
+paid AI narration. The final gate reuses the existing provider app identities
+but constrains every write to a private test repository and dedicated test
+Slack routes; it never targets a product repository or normal channel. The
+executable provider gate and isolated topology are documented in
+[`STAGING_ACCEPTANCE.md`](./STAGING_ACCEPTANCE.md).

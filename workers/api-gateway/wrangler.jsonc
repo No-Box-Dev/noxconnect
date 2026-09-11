@@ -51,9 +51,16 @@
     "staging": {
       "name": "noxconnect-staging",
       "vars": {
-        "PLATFORM_ADMIN_GITHUB_IDS": "196446605"
+        "PLATFORM_ADMIN_GITHUB_IDS": "196446605",
+        "SLACK_ACCEPT_LEGACY_INSTALLS": "false"
       },
-      "services": [],
+      "services": [
+        { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api-staging" },
+        { "binding": "NOXTICKET_SERVICE", "service": "noxticket-staging" },
+        { "binding": "NOXCUE_RESPONSE", "service": "noxcue-staging" },
+        { "binding": "NOXCUE_INGEST", "service": "noxcue-staging" },
+        { "binding": "NOXFEED_RESPONSE", "service": "noxfeed-response-staging" }
+      ],
       "d1_databases": [
         {
           "binding": "DB",

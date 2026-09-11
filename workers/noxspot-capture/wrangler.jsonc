@@ -63,5 +63,39 @@
       "tag": "v1",
       "new_classes": ["RateLimiter"]
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "noxspot-api-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "PUBLIC_API_BASE_URL": "https://noxspot-api-staging.jasper-414.workers.dev",
+        "PUBLIC_ASSET_BASE_URL": "https://noxspot-api-staging.jasper-414.workers.dev"
+      },
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "noxconnect-staging",
+          "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+        }
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "TASK_QUEUE", "queue": "noxconnect-tasks-staging" }
+        ]
+      },
+      "r2_buckets": [
+        { "binding": "ASSETS", "bucket_name": "noxspot-assets-staging" }
+      ],
+      "services": [
+        { "binding": "NOXCUE_INGEST", "service": "noxcue-staging" }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+        ]
+      }
+    }
+  }
 }

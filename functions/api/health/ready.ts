@@ -1,6 +1,8 @@
 interface Env {
   DB: D1Database;
+  NOXTICKET_SERVICE?: Fetcher;
   NOXSPOT_RESPONSE?: Fetcher;
+  NOXCUE_RESPONSE?: Fetcher;
   NOXFEED_RESPONSE?: Fetcher;
 }
 
@@ -30,7 +32,9 @@ export async function onRequestGet(context: Context): Promise<Response> {
     database: false,
     scheduledWorker: false,
     deliveryQueue: false,
+    noxticket: false,
     noxspot: false,
+    noxcue: false,
     noxfeed: false,
   };
 
@@ -54,8 +58,10 @@ export async function onRequestGet(context: Context): Promise<Response> {
     // Public health responses expose component state, never internal errors.
   }
 
-  [checks.noxspot, checks.noxfeed] = await Promise.all([
+  [checks.noxticket, checks.noxspot, checks.noxcue, checks.noxfeed] = await Promise.all([
+    probeService(context.env.NOXTICKET_SERVICE, "https://noxticket.internal/health"),
     probeService(context.env.NOXSPOT_RESPONSE, "https://noxspot.internal/health"),
+    probeService(context.env.NOXCUE_RESPONSE, "https://noxcue.internal/health"),
     probeService(context.env.NOXFEED_RESPONSE, "https://noxfeed.internal/health"),
   ]);
 
