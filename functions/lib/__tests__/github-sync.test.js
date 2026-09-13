@@ -421,11 +421,14 @@ describe("syncRepos", () => {
         repositories: [{ name: "personal-repo", language: "Swift", pushed_at: "2026-09-10" }],
       }),
     });
-    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+    const db = makeDb({ "SELECT installation.account_type": { account_type: "User" } });
 
     const result = await syncRepos(db, "tok", "personal-1", "jasper");
 
     expect(result).toEqual(["personal-repo"]);
+    expect(db._calls.firsts[0]).toMatchObject({ binds: ["personal-1", "jasper"] });
+    expect(db._calls.firsts[0].sql).toContain("JOIN orgs org ON org.installation_id = installation.installation_id");
+    expect(db._calls.firsts[0].sql).not.toContain("installation.org_id");
     expect(fetch.mock.calls[0][0]).toContain("/installation/repositories");
     expect(fetch.mock.calls[0][0]).not.toContain("/orgs/jasper/repos");
   });
@@ -436,7 +439,7 @@ describe("syncRepos", () => {
       headers: { get: () => null },
       json: async () => ({}),
     });
-    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+    const db = makeDb({ "SELECT installation.account_type": { account_type: "User" } });
 
     await expect(syncRepos(db, "tok", "personal-1", "jasper")).rejects.toThrow(/invalid installation repository response/i);
     expect(db._calls.batches).toHaveLength(0);
@@ -607,7 +610,7 @@ describe("syncMembers", () => {
   });
 
   it("uses the owner as the sole member for a personal installation", async () => {
-    const db = makeDb({ "SELECT account_type FROM installations": { account_type: "User" } });
+    const db = makeDb({ "SELECT installation.account_type": { account_type: "User" } });
 
     const result = await syncMembers(db, "tok", "personal-1", "jasper");
 

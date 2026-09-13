@@ -89,9 +89,11 @@ async function fetchAllPages(token, url, params = {}, emptyStatuses = []) {
 async function installationAccountType(db, orgId, accountLogin) {
   const installation = await db
     .prepare(
-      `SELECT account_type FROM installations
-       WHERE org_id = ? AND lower(account_login) = lower(?)
-       ORDER BY updated_at DESC LIMIT 1`,
+      `SELECT installation.account_type
+       FROM installations installation
+       JOIN orgs org ON org.installation_id = installation.installation_id
+       WHERE org.id = ? AND lower(installation.account_login) = lower(?)
+       ORDER BY installation.updated_at DESC LIMIT 1`,
     )
     .bind(orgId, accountLogin)
     .first();
