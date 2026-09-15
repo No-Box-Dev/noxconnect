@@ -44,10 +44,10 @@ export async function reconcileRepoEvents(env, db, args) {
   const projectId = projectIdFor(orgLogin, repo);
   await db
     .prepare(
-      `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
+      `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, org_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
     )
-    .bind(projectId, repo, orgLogin, repo, orgLogin)
+    .bind(projectId, repo, orgLogin, repo, orgLogin, orgId)
     .run();
 
   const sinceLiteral = `-${lookbackHours} hours`;

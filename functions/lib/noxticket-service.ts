@@ -1,5 +1,6 @@
 export interface NoxTicketScope {
   orgId: number;
+  projectId?: string | null;
   userLogin: string;
   isAdmin?: boolean;
 }

@@ -222,8 +222,8 @@ async function applyNewRepoPolicy(db, orgLogin, newRepoNames) {
   if (policy !== "exclude") return;
 
   const stmt = db.prepare(
-    `INSERT INTO projects (id, name, org, repo, owner_id, archived, archived_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    `INSERT INTO projects (id, name, org, repo, owner_id, org_id, archived, archived_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, (SELECT id FROM orgs WHERE github_login = ? COLLATE NOCASE), 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
      ON CONFLICT(id) DO UPDATE SET
        archived = 1,
        archived_at = COALESCE(projects.archived_at, excluded.archived_at),
@@ -232,7 +232,7 @@ async function applyNewRepoPolicy(db, orgLogin, newRepoNames) {
   await db.batch(
     newRepoNames.map((name) => {
       const projectId = `proj_${orgLogin}_${name}`.toLowerCase();
-      return stmt.bind(projectId, name, orgLogin, name, orgLogin);
+      return stmt.bind(projectId, name, orgLogin, name, orgLogin, orgLogin);
     }),
   );
 }

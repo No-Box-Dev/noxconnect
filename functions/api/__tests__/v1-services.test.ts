@@ -174,7 +174,7 @@ describe("Nox service capabilities API", () => {
         contract: "nox.service-manifest",
         version: 1,
         service: { ...definition, focus: "Service-owned feed focus" },
-        configuration: { schemaVersion: 1, mode: "service", writable: true, writableFields: ["projectScope", "releaseNotesPrompt"] },
+        configuration: { schemaVersion: 1, mode: "service", writable: true, writableFields: ["releaseNotesPrompt"] },
       })),
     };
     const response = await listServices(ctx as never);

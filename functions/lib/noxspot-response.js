@@ -25,15 +25,12 @@ export async function getNoxSpotTestResponse(env, orgLogin) {
   return validateSlackResponse(await service.buildTestResponse(orgLogin));
 }
 
-/** @param {string | null} portalUrl */
-export async function getNoxSpotDailyDigestResponse(env, siteName, period, filed, solved, totals, portalUrl = null) {
+export async function getNoxSpotDailyDigestResponse(env, siteName, period, filed, solved, totals) {
   const service = env?.NOXSPOT_RESPONSE;
   if (!service || typeof service.buildDailyDigestResponse !== "function") {
     throw new Error("NoxSpot daily digest response service binding is unavailable");
   }
-  const response = portalUrl
-    ? await service.buildDailyDigestResponse(siteName, period, filed, solved, totals, portalUrl)
-    : await service.buildDailyDigestResponse(siteName, period, filed, solved, totals);
+  const response = await service.buildDailyDigestResponse(siteName, period, filed, solved, totals);
   return validateSlackResponse(
     response,
   );

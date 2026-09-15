@@ -13,14 +13,14 @@ const UpdateSchema = z.object({
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; projectId?: string | null; isAdmin: boolean };
   params: { id: string; featureKey: string };
   request: Request;
 }
 
 async function featureContext(context: Ctx) {
-  const { orgId, orgLogin } = getCtx(context) as Ctx["data"];
-  const scope = await findCueFeatureScope(getNoxDb(context.env), orgId, orgLogin, context.params.id);
+  const { orgId, orgLogin, projectId } = getCtx(context) as Ctx["data"];
+  const scope = await findCueFeatureScope(getNoxDb(context.env), orgId, orgLogin, context.params.id, projectId);
   return { orgId, scope, key: context.params.featureKey };
 }
 

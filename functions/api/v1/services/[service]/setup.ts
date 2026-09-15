@@ -22,6 +22,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   return v1Response({
     apiVersion: API_VERSION,
     organization: result.body!.organization,
+    project: result.body!.project,
     canConfigure: result.body!.canConfigure,
     service: service.id,
     state: service.setup.state,

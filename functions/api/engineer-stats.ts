@@ -31,7 +31,7 @@ interface Env {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string };
+  data: { orgId: number; orgLogin: string; projectId?: string | null };
 }
 
 type CountRow = { login: string | null; c: number };
@@ -39,11 +39,14 @@ type CountRow = { login: string | null; c: number };
 export async function onRequestGet(context: Ctx): Promise<Response> {
   // getCtx returns context.data, populated by functions/_middleware.js after it
   // authenticates the request and resolves the org. db.js is untyped JS, hence the cast.
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, orgLogin, projectId } = getCtx(context) as Ctx["data"];
 
-  const activeRepos: string[] = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos: string[] = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
 
   const db = context.env.DB;
+  const projectFilter = projectId ? " AND project_id = ?" : "";
+  const eventProjectFilter = projectId ? " AND e.project_id = ?" : "";
+  const projectBinds = projectId ? [projectId] : [];
   const repoIn = activeRepos.length > 0
     ? `repo IN (${activeRepos.map(() => "?").join(",")})`
     : "0";
@@ -96,7 +99,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                COALESCE(CAST(json_extract(payload_json, '$.pr.number') AS INTEGER), id) AS pr_num,
                COALESCE(json_extract(payload_json, '$.review.submitted_at'), id) AS ts
              FROM events e
-             WHERE e.org = ? AND e.type = 'github:pr:review:approved'
+             WHERE e.org = ?${eventProjectFilter} AND e.type = 'github:pr:review:approved'
                AND EXISTS (
                  SELECT 1 FROM repo_tracking_periods period
                  WHERE period.org_id = ? AND period.repo = e.repo
@@ -110,11 +113,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
            )
            GROUP BY login`,
         )
-        .bind(orgLogin, orgId),
+        .bind(orgLogin, ...projectBinds, orgId),
       db
         .prepare(
           `SELECT p.merged_by AS login, COUNT(*) AS c FROM pull_requests p
-           WHERE p.org_id = ? AND p.merged_at IS NOT NULL
+           WHERE p.org_id = ?${projectFilter} AND p.merged_at IS NOT NULL
              AND p.merged_by IS NOT NULL AND p.merged_by != p.author
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
@@ -124,7 +127,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY merged_by`,
         )
-        .bind(orgId),
+        .bind(orgId, ...projectBinds),
       db
         .prepare(
           `SELECT json_extract(value, '$.login') AS login, COUNT(*) AS c
@@ -136,7 +139,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       db
         .prepare(
           `SELECT p.author AS login, COUNT(*) AS c FROM pull_requests p
-           WHERE p.org_id = ? AND p.author IS NOT NULL
+           WHERE p.org_id = ?${projectFilter} AND p.author IS NOT NULL
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
                WHERE period.org_id = p.org_id AND period.repo = p.repo
@@ -145,11 +148,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY author`,
         )
-        .bind(orgId),
+        .bind(orgId, ...projectBinds),
       db
         .prepare(
           `SELECT p.author AS login, COUNT(*) AS c FROM pull_requests p
-           WHERE p.org_id = ? AND p.author IS NOT NULL AND p.created_at >= ?
+           WHERE p.org_id = ?${projectFilter} AND p.author IS NOT NULL AND p.created_at >= ?
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
                WHERE period.org_id = p.org_id AND period.repo = p.repo
@@ -158,12 +161,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY author`,
         )
-        .bind(orgId, fourWeeksAgo),
+        .bind(orgId, ...projectBinds, fourWeeksAgo),
       db
         .prepare(
           `SELECT commit_row.author AS login, COUNT(*) AS c
            FROM github_commits commit_row
-           WHERE commit_row.org_id = ? AND commit_row.author IS NOT NULL
+           WHERE commit_row.org_id = ?${projectFilter} AND commit_row.author IS NOT NULL
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
                WHERE period.org_id = commit_row.org_id AND period.repo = commit_row.repo
@@ -172,12 +175,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY commit_row.author`,
         )
-        .bind(orgId),
+        .bind(orgId, ...projectBinds),
       db
         .prepare(
           `SELECT commit_row.author AS login, COUNT(*) AS c
            FROM github_commits commit_row
-           WHERE commit_row.org_id = ? AND commit_row.author IS NOT NULL
+           WHERE commit_row.org_id = ?${projectFilter} AND commit_row.author IS NOT NULL
              AND commit_row.authored_at >= ?
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
@@ -187,11 +190,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY commit_row.author`,
         )
-        .bind(orgId, fourWeeksAgo),
+        .bind(orgId, ...projectBinds, fourWeeksAgo),
       db
         .prepare(
           `SELECT i.closed_by AS login, COUNT(*) AS c FROM issues i
-           WHERE i.org_id = ? AND i.state = 'closed' AND i.closed_by IS NOT NULL
+           WHERE i.org_id = ?${projectFilter} AND i.state = 'closed' AND i.closed_by IS NOT NULL
              AND EXISTS (
                SELECT 1 FROM repo_tracking_periods period
                WHERE period.org_id = i.org_id AND period.repo = i.repo
@@ -200,7 +203,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              )
            GROUP BY closed_by`,
         )
-        .bind(orgId),
+        .bind(orgId, ...projectBinds),
       db
         .prepare(
           `WITH active(repo) AS (SELECT value FROM json_each(?))

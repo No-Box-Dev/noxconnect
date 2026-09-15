@@ -27,7 +27,7 @@ describe("GET /api/integrations/status", () => {
         SLACK_CLIENT_SECRET: "secret",
         SLACK_SIGNING_SECRET: "signing-secret",
       },
-      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true },
     };
 
     const response = await onRequestGet(context as never);
@@ -47,5 +47,27 @@ describe("GET /api/integrations/status", () => {
     expect(body.slack).toMatchObject({ connected: false, configured: true });
     expect(JSON.stringify(body)).not.toContain("private");
     expect(JSON.stringify(body)).not.toContain("secret");
+  });
+
+  it("supports native onboarding before a project is selected", async () => {
+    const prepare = vi.fn((sql: string) => statementFor(sql));
+    const context = {
+      env: {
+        DB: { prepare },
+        GITHUB_APP_ID: "1",
+        GITHUB_APP_PRIVATE_KEY: "private",
+      },
+      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+    };
+
+    const response = await onRequestGet(context as never);
+    expect(response.status).toBe(200);
+    const body = await response.json() as { github: { connected: boolean } };
+    expect(body.github.connected).toBe(true);
+
+    const deliveryQuery = prepare.mock.calls
+      .map(([sql]) => sql)
+      .find((sql) => sql.includes("FROM delivery_outbox"));
+    expect(deliveryQuery).not.toContain("project_id = ?");
   });
 });

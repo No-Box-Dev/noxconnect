@@ -29,6 +29,7 @@
     "test:legacy-bridge": "vitest run --config workers/legacy-bridge/vitest.config.ts",
     "openapi:standardize": "node scripts/standardize-openapi.mjs",
     "openapi:check": "node scripts/standardize-openapi.mjs --check",
+    "docs:check": "npm run openapi:check && vitest run functions/api/__tests__/developer-docs.test.js functions/api/__tests__/openapi-capabilities.test.ts functions/api/__tests__/openapi-routes.test.js",
     "typecheck:functions": "tsc -p tsconfig.functions.json",
     "lint": "eslint .",
     "preview": "vite preview",

@@ -87,19 +87,21 @@ PATCH returns a coded response with the correct child-resource links.
 
 ### 5. Access and tenant isolation
 
-Browser GitHub OAuth now ends in a random, hashed-at-rest NoxConnect session
-cookie; the GitHub token remains encrypted server-side. Browser mutations use a
+Browser GitHub OAuth and email magic links now end in a random, hashed-at-rest
+NoxHere session cookie; provider tokens remain encrypted in NoxConnect. Browser mutations use a
 separate CSRF cookie/header proof. Native GitHub device approval is brokered by
-NoxConnect: the native app stores only a 15-minute `nox_at_…` access token and a
+NoxHere: the native app stores only a 15-minute `nox_at_…` access token and a
 rotating 30-day `nox_rt_…` refresh token, while provider credentials stay encrypted
 server-side. Updated NoxFeed clients exchange an existing install's legacy provider credential
 once and replace it in Keychain. Automation tokens are organization- and one-project-bound,
 expire within 365 days, are shown once, and store only a SHA-256 hash. Service
-read/write and project scopes are enforced before handlers run, token lifecycle actions are
+read/write scopes and the token's fixed project are enforced before handlers run. Browser and
+native requests may omit project context for organization-wide results or provide it to narrow
+the request. Token lifecycle actions are
 audited, and API tokens cannot mint other API tokens. New-organization admin
 bootstrap requires a verified active GitHub organization owner.
 
-Raw GitHub access tokens are not accepted as NoxConnect API bearer credentials.
+Raw GitHub access tokens are not accepted as NoxHere API bearer credentials.
 The narrowly scoped native migration exchange remains only for already-installed
 NoxFeed clients and is not a general authentication mode. Unknown bearer formats
 fail with `unsupported_credential` before any provider request is made.

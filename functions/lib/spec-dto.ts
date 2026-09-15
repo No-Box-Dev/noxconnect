@@ -7,6 +7,7 @@ import { sanitizeSpecLinks, type SpecLink } from "./spec-links";
 export interface SpecRow {
   id: number;
   org_id: number;
+  project_id: string;
   feature_number: number | null;
   is_primary: number;
   title: string;
@@ -21,6 +22,7 @@ export interface SpecRow {
 
 export interface SpecDto {
   id: number;
+  projectId: string;
   /** Issue number of the Feature this spec belongs to, or null when unfiled. */
   featureNumber: number | null;
   /** The spec selected as this Feature's direct card link. */
@@ -45,6 +47,7 @@ export function specRowToDto(row: SpecRow): SpecDto {
   }
   return {
     id: row.id,
+    projectId: row.project_id,
     featureNumber: row.feature_number,
     isPrimary: row.is_primary === 1,
     title: row.title,

@@ -9,7 +9,6 @@ import { getNoxSpotDailyDigestResponse, getNoxSpotTestResponse } from "../../lib
 import { summarizeNoxSpotResolutions } from "../../lib/noxspot-digest-ai.js";
 import {
   completedDailyDigestPeriod,
-  externalProjectPortalUrl,
   loadNoxSpotDailyDigestData,
 } from "../../../cron/src/noxspot-digests.js";
 import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
@@ -96,9 +95,6 @@ export async function onRequestPost(context) {
         const site = await context.env.DB.prepare(
           `SELECT site.id, site.org_id, site.project_id, site.repo, site.name, site.widget_config,
                   site.slack_channel_id, site.slack_connection_id,
-                  (SELECT share.slug FROM external_project_shares share
-                    WHERE share.org_id = site.org_id AND share.project_id = site.project_id
-                      AND share.enabled = 1 LIMIT 1) AS external_share_slug,
                   org.github_login AS owner_id
              FROM spot_sites site
              JOIN orgs org ON org.id = site.org_id
@@ -107,7 +103,7 @@ export async function onRequestPost(context) {
         if (!site) return errorResponse("This NoxSpot site no longer exists. Refresh NoxConnect and try again.", 404);
         const period = completedDailyDigestPeriod(Date.now());
         const digest = await loadNoxSpotDailyDigestData(context.env.DB, site, period);
-        const solved = await summarizeNoxSpotResolutions(context.env, orgId, digest.solved);
+        const solved = await summarizeNoxSpotResolutions(context.env, orgId, context.data.projectId, digest.solved);
         payload = (await getNoxSpotDailyDigestResponse(
           context.env,
           `${site.name} — test`,
@@ -115,7 +111,6 @@ export async function onRequestPost(context) {
           digest.filed,
           solved,
           digest.totals,
-          externalProjectPortalUrl(site.external_share_slug, new URL(context.request.url).origin),
         )).message;
       } else {
         payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;

@@ -6,7 +6,7 @@ import { readSlackSettings, resolveSavedSlackChannel } from "../../../lib/slack-
 
 interface Ctx {
   env: { DB: D1Database };
-  data: { orgId: number; orgLogin?: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin?: string; isAdmin: boolean };
   request: Request;
 }
 
@@ -30,7 +30,7 @@ const RouteTest = z.object({
 // Body: { route, channelId? }. If channelId is omitted, test the saved route
 // with the organization fallback applied exactly as production delivery does.
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context);
+  const { orgId, projectId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   let raw: unknown;
@@ -44,7 +44,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   let channelId = typeof body.channelId === "string" ? body.channelId.trim() : "";
   if (!channelId) {
     try {
-      const slack = (await readSlackSettings(context.env.DB, orgId)).slack;
+      const slack = (await readSlackSettings(context.env.DB, orgId, projectId)).slack;
       channelId = body.route === "noxfeed_daily_summary"
         ? String(slack[route.field] || "").trim()
         : resolveSavedSlackChannel(slack, route.field);

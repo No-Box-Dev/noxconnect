@@ -49,6 +49,7 @@ export function shouldNotRetry(error: unknown): boolean {
 function forceLogout() {
   localStorage.removeItem("ut_token"); // remove credentials left by pre-session releases
   localStorage.removeItem("ut_org");
+  localStorage.removeItem("ut_project");
   // Dispatch event so AuthProvider can react without circular imports
   window.dispatchEvent(new CustomEvent("ut:force-logout"));
 }
@@ -60,8 +61,26 @@ function cookie(name: string): string | null {
   return part ? decodeURIComponent(part.slice(prefix.length)) : null;
 }
 
-function buildRequestInit(options?: RequestInit): RequestInit {
+function projectIdForRequest(path: string, options?: RequestInit): string | null {
+  if (!path.startsWith("/api/") || path.startsWith("/api/public/") || path.startsWith("/api/auth/")) return null;
+  const url = new URL(path, "http://noxconnect.local");
+  const pathMatch = url.pathname.match(/^\/api\/(?:v1\/)?(?:projects|cues\/projects)\/([^/]+)/);
+  if (pathMatch) return decodeURIComponent(pathMatch[1]);
+  const queryProject = url.searchParams.get("project_id");
+  if (queryProject) return queryProject;
+  if (typeof options?.body === "string") {
+    try {
+      const body = JSON.parse(options.body) as { projectId?: unknown; project_id?: unknown };
+      const bodyProject = body.projectId ?? body.project_id;
+      if (typeof bodyProject === "string" && bodyProject) return bodyProject;
+    } catch { /* non-JSON request body */ }
+  }
+  return localStorage.getItem("ut_project");
+}
+
+function buildRequestInit(path: string, options?: RequestInit): RequestInit {
   const org = localStorage.getItem("ut_org");
+  const projectId = projectIdForRequest(path, options);
   // FormData bodies need the browser to set Content-Type itself so it can
   // include the `boundary=...` parameter. Setting a plain
   // `application/json` here would strip the boundary and the server would
@@ -76,6 +95,7 @@ function buildRequestInit(options?: RequestInit): RequestInit {
     credentials: "same-origin",
     headers: {
       "X-Org": org ?? "",
+      ...(projectId ? { "X-Project-ID": projectId } : {}),
       ...(csrf ? { "X-CSRF-Token": csrf } : {}),
       ...(devToken ? { Authorization: `Bearer ${devToken}` } : {}),
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
@@ -85,7 +105,7 @@ function buildRequestInit(options?: RequestInit): RequestInit {
 }
 
 export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
-  return fetch(path, buildRequestInit(options));
+  return fetch(path, buildRequestInit(path, options));
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

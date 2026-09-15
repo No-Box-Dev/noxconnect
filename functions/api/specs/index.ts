@@ -11,12 +11,12 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; userLogin: string };
+  data: { orgId: number; projectId?: string | null; userLogin: string };
   request: Request;
 }
 
 const SPEC_COLUMNS =
-  "id, org_id, feature_number, is_primary, title, description, " +
+  "id, org_id, project_id, feature_number, is_primary, title, description, " +
   "links_json, archived, archived_at, created_by, created_at, updated_at";
 
 const SpecLinkSchema = z.object({
@@ -39,7 +39,7 @@ const CreateSpecBody = z.object({
 //   (omitted)               — every spec in the org
 //   include=all             — include archived (default hides them)
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
 
   const url = new URL(context.request.url);
@@ -48,6 +48,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 
   const clauses: string[] = ["org_id = ?"];
   const binds: (string | number)[] = [orgId];
+  if (projectId) {
+    clauses.push("project_id = ?");
+    binds.push(projectId);
+  }
 
   if (featureParam === "unfiled") {
     clauses.push("feature_number IS NULL");
@@ -58,15 +62,15 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     binds.push(n);
   }
 
-  const delegated = await callNoxTicket(context.env, (service) => service.listSpecs(
-    { orgId, userLogin: context.data.userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.listSpecs(
+    { orgId, projectId, userLogin: context.data.userLogin },
     {
       includeArchived,
       ...(featureParam === "unfiled"
         ? { featureNumber: "unfiled" as const }
         : featureParam ? { featureNumber: Number.parseInt(featureParam, 10) } : {}),
     },
-  ));
+  )) : null;
   if (delegated) return delegated;
 
   if (!includeArchived) clauses.push("archived = 0");
@@ -86,7 +90,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // POST /api/specs — create a spec. Server verifies the target feature (if
 // any) exists in this org and sanitizes links before storage.
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, userLogin } = getCtx(context) as { orgId: number; userLogin: string };
+  const { orgId, projectId, userLogin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!userLogin) return errorResponse("Missing user context", 400);
 
@@ -96,20 +100,20 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   } catch {
     return errorResponse("Invalid JSON body", 400);
   }
-  const delegated = await callNoxTicket(context.env, (service) => service.createSpec(
-    { orgId, userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.createSpec(
+    { orgId, projectId, userLogin },
     rawBody,
-  ));
+  )) : null;
   if (delegated) return delegated;
   const parsed = validate(CreateSpecBody, rawBody);
   if (!parsed.ok) return parsed.response;
   const { title, description, featureNumber, links } = parsed.data;
 
   if (featureNumber != null) {
-    const feature = await context.env.DB.prepare(
-      "SELECT 1 FROM features WHERE org_id = ? AND number = ?",
-    )
-      .bind(orgId, featureNumber)
+    const feature = await context.env.DB.prepare(projectId
+      ? "SELECT 1 FROM features WHERE org_id = ? AND project_id = ? AND number = ?"
+      : "SELECT 1 FROM features WHERE org_id = ? AND number = ?")
+      .bind(...(projectId ? [orgId, projectId, featureNumber] : [orgId, featureNumber]))
       .first<{ 1: number }>();
     if (!feature) return errorResponse(`Unknown feature #${featureNumber}`, 400);
   }
@@ -118,11 +122,11 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const linksJson = JSON.stringify(cleanLinks);
 
   const row = await context.env.DB.prepare(
-    `INSERT INTO specs (org_id, feature_number, title, description, links_json, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO specs (org_id, project_id, feature_number, title, description, links_json, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      RETURNING ${SPEC_COLUMNS}`,
   )
-    .bind(orgId, featureNumber ?? null, title, description ?? "", linksJson, userLogin)
+    .bind(orgId, projectId ?? null, featureNumber ?? null, title, description ?? "", linksJson, userLogin)
     .first<SpecRow>();
 
   if (!row) return errorResponse("Failed to create spec", 500);

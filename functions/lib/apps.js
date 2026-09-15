@@ -20,28 +20,38 @@ export function parseAppSettings(rawSettings) {
   ]));
 }
 
-export async function getEnabledApps(db, orgId) {
+/** @param {string | null} [projectId] */
+export async function getEnabledApps(db, orgId, projectId = null) {
+  if (projectId) {
+    const projectRow = await db.prepare(
+      "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'",
+    ).bind(orgId, projectId).first();
+    if (projectRow) return parseAppSettings(projectRow.data);
+  }
   const row = await db.prepare(
     "SELECT data FROM config WHERE org_id = ? AND key = 'settings'",
   ).bind(orgId).first();
   return parseAppSettings(row?.data);
 }
 
-export async function isAppEnabled(db, orgId, appId) {
+/** @param {string | null} [projectId] */
+export async function isAppEnabled(db, orgId, appId, projectId = null) {
   if (!APP_SET.has(appId)) return true;
-  const apps = await getEnabledApps(db, orgId);
+  const apps = await getEnabledApps(db, orgId, projectId);
   return apps[appId] !== false;
 }
 
-export async function isAppEnabledForOwner(db, ownerId, appId) {
+/** @param {string | null} [projectId] */
+export async function isAppEnabledForOwner(db, ownerId, appId, projectId = null) {
   const org = await db.prepare(
     "SELECT id FROM orgs WHERE github_login = ? LIMIT 1",
   ).bind(ownerId).first();
-  return org?.id ? isAppEnabled(db, org.id, appId) : true;
+  return org?.id ? isAppEnabled(db, org.id, appId, projectId) : true;
 }
 
 export function appForApiPath(pathname) {
   pathname = compatibilityApiPath(pathname);
+  if (/^\/api\/config(?:\/|$)/.test(pathname)) return "noxconnect";
   if (/^\/api\/(?:features|specs|assign|issue-state)(?:\/|$)/.test(pathname)) {
     return "noxticket";
   }

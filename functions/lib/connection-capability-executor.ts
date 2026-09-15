@@ -193,6 +193,7 @@ async function executeSlack(
 
   const staged = await stageSlackDelivery(env.DB, {
     orgId: command.organizationId,
+    projectId: command.projectId,
     source: command.service,
     sourceId: command.idempotencyKey,
     siteId: null,
@@ -216,7 +217,7 @@ async function executeAi(
   env: CapabilityEnvironment,
   command: Extract<ConnectionCapabilityCommand, { capability: "ai.complete" }>,
 ): Promise<ConnectionCapabilityReceipt> {
-  const config = await resolveLlmConfig(env, command.organizationId);
+  const config = await resolveLlmConfig(env, command.organizationId, command.projectId);
   if (config.status !== "ready") throw new Error(`Managed AI is unavailable (${config.errorCode ?? config.status})`);
   const text = await complete(config, {
     system: command.input.system,

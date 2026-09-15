@@ -43,8 +43,8 @@ Content-Type: application/json
 ```
 
 NoxConnect owns service toggles and repository-discovery policy. NoxTicket owns
-its feature repository and workflow stages. NoxFeed owns project scope and its
-release-notes prompt. NoxSpot site settings and NoxCue source settings stay on
+its feature repository and workflow stages. NoxFeed owns its release-notes
+prompt. NoxSpot site settings and NoxCue source settings stay on
 their dedicated resource APIs, linked from each service config response. Slack
 workspace connections and delivery routes remain shared NoxConnect resources.
 
@@ -74,12 +74,15 @@ response, including authentication, organization, rate-limit, and service
 availability failures raised by middleware, uses this envelope. Existing
 unversioned `/api/*` product routes retain their legacy `{ "error": "..." }`
 responses for older deployed clients while first-party clients use `/api/v1`.
+Compatibility responses include `Deprecation: true` and an OpenAPI link. No
+`Sunset` date is set yet; removal will be scheduled only after usage confirms
+that supported clients have migrated.
 
 ## Authentication
 
 Use the credential class that matches the client:
 
-- The web app authenticates with an opaque HttpOnly NoxConnect session cookie.
+- The web app authenticates with an opaque HttpOnly NoxHere session cookie.
   Browser mutations also send the matching CSRF proof. JavaScript never reads
   the session or the encrypted GitHub provider token behind it.
 - First-party native apps use a short-lived `nox_at_…` bearer token and rotate it
@@ -98,6 +101,14 @@ Authorization: Bearer <nox_at_… or nox_sk_…>
 X-Org: <GitHub organization login>  # required for native; optional for nox_sk
 ```
 
+For browser and native organization requests, `X-Project-ID` is optional: omit
+it to work across the organization, or provide an active project ID to narrow
+the request. A project ID in the URL or `project_id` query parameter is also a
+selector, and multiple selectors must agree. Automation tokens are the
+exception: every `nox_sk_…` token is bound to one project, so any explicit
+selector may only repeat that project. Project-restricted guests must select one
+of their grants; organization-wide guests may omit the selector.
+
 The user must belong to the organization. Setup mutations require a Nox
 organization admin browser session. Never place GitHub credentials or Slack bot
 tokens in request bodies; Nox stores provider credentials server-side.
@@ -107,9 +118,9 @@ automation. It does not issue third-party OAuth client credentials. Create an
 automation token from an authenticated organization-admin browser session and
 pass it to an agent only through the user's approved secret manager or runtime
 environment. Never extract a browser cookie, ask a user to paste a credential
-into chat, or print or persist it in logs. Direct GitHub bearer authentication is
-a temporary compatibility path for existing local clients; it is not the
-supported hosted API integration model.
+into chat, or print or persist it in logs. Raw GitHub bearer tokens are rejected
+as `unsupported_credential`; they are not part of the hosted API authentication
+model.
 
 ## Resumable workflow
 

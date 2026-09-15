@@ -6,17 +6,17 @@ import { validate } from "../lib/validate";
 
 interface Ctx {
   env: { DB: D1Database; ANTHROPIC_API_KEY?: string; NOXFEED_RESPONSE?: unknown };
-  data: { orgId: number; orgLogin: string; userLogin?: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; userLogin?: string; isAdmin: boolean };
   request: Request;
 }
 
 const Body = z.object({ mode: z.enum([AI_MODE_MANAGED, AI_MODE_DISABLED]) }).strict();
 
 function access(context: Ctx) {
-  const { orgId, isAdmin } = getCtx(context) as { orgId: number; isAdmin: boolean };
+  const { orgId, projectId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return { response: errorResponse("Missing org context", 400) };
   if (!isAdmin) return { response: errorResponse("Admin required", 403) };
-  return { orgId };
+  return { orgId, projectId };
 }
 
 type ManagedServiceStatus = {
@@ -62,8 +62,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const auth = access(context);
   if (auth.response) return auth.response;
 
-  const row = await context.env.DB.prepare("SELECT mode FROM ai_settings WHERE org_id = ?")
-    .bind(auth.orgId)
+  const row = await context.env.DB.prepare(auth.projectId
+    ? "SELECT mode FROM project_ai_settings WHERE org_id = ? AND project_id = ?"
+    : "SELECT mode FROM ai_settings WHERE org_id = ?")
+    .bind(...(auth.projectId ? [auth.orgId, auth.projectId] : [auth.orgId]))
     .first<{ mode: string }>();
   return jsonResponse(payload(row?.mode, await managedStatus(context)));
 }
@@ -88,7 +90,18 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     return errorResponse("Managed AI is unavailable", 503, "dependency_unavailable");
   }
 
-  await context.env.DB.batch([
+  const actor = context.data.userLogin || context.data.orgLogin || "unknown";
+  await context.env.DB.batch(auth.projectId ? [
+    context.env.DB.prepare(
+      `INSERT INTO project_ai_settings (org_id, project_id, mode, updated_at)
+       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+       ON CONFLICT(org_id, project_id) DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at`,
+    ).bind(auth.orgId, auth.projectId, mode),
+    context.env.DB.prepare(
+      `INSERT INTO ai_settings_audit (org_id, project_id, actor_login, action, mode)
+       VALUES (?, ?, ?, 'mode_changed', ?)`,
+    ).bind(auth.orgId, auth.projectId, actor, mode),
+  ] : [
     context.env.DB.prepare(
       `INSERT INTO ai_settings (org_id, mode, updated_at)
        VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -97,7 +110,7 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     context.env.DB.prepare(
       `INSERT INTO ai_settings_audit (org_id, actor_login, action, mode)
        VALUES (?, ?, 'mode_changed', ?)`,
-    ).bind(auth.orgId, context.data.userLogin || context.data.orgLogin || "unknown", mode),
+    ).bind(auth.orgId, actor, mode),
   ]);
 
   return jsonResponse(payload(mode, managed));

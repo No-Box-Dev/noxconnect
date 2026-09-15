@@ -59,8 +59,8 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   }
 
   const project = await context.env.DB.prepare(
-    "SELECT id FROM projects WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0",
-  ).bind(context.params.id, orgLogin).first<{ id: string }>();
+    "SELECT id FROM projects WHERE id = ? AND org_id = ? AND COALESCE(archived, 0) = 0",
+  ).bind(context.params.id, orgId).first<{ id: string }>();
   if (!project) return errorResponse("Active project not found in this organization", 404);
 
   if (input.enabled && input.repositories.length > 0) {
@@ -82,6 +82,17 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   }
 
   const statements = [
+    context.env.DB.prepare(
+      `INSERT OR IGNORE INTO project_config (org_id, project_id, key, data, updated_at)
+       SELECT ?, ?, 'settings', COALESCE(config.data, '{}'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         FROM (SELECT 1) seed
+         LEFT JOIN config ON config.org_id = ? AND config.key = 'settings'`,
+    ).bind(orgId, project.id, orgId),
+    context.env.DB.prepare(
+      `INSERT OR IGNORE INTO project_ai_settings (org_id, project_id, mode, updated_at)
+       SELECT ?, ?, COALESCE(ai.mode, 'managed'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         FROM (SELECT 1) seed LEFT JOIN ai_settings ai ON ai.org_id = ?`,
+    ).bind(orgId, project.id, orgId),
     context.env.DB.prepare(
       `INSERT INTO project_routing_settings (org_id, project_id, enabled, updated_at)
        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))

@@ -19,10 +19,12 @@ export const MAX_BOARD_STAGES = 10;
 const STAGE_ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
-export async function resolveBoardStages(db, orgId) {
+export async function resolveBoardStages(db, orgId, projectId) {
   const row = await db
-    .prepare("SELECT data FROM config WHERE org_id = ? AND key = ?")
-    .bind(orgId, "settings")
+    .prepare(projectId
+      ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = ?"
+      : "SELECT data FROM config WHERE org_id = ? AND key = ?")
+    .bind(...(projectId ? [orgId, projectId, "settings"] : [orgId, "settings"]))
     .first();
   if (!row) return DEFAULT_BOARD_STAGES;
   try {

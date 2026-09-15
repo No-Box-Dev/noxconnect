@@ -88,7 +88,7 @@ function makeCtx({
   return {
     request: req,
     env: { DB: db },
-    data: { orgId, orgLogin },
+    data: { orgId, orgLogin, projectId: "project-1" },
     params: params ?? {},
     waitUntil,
   };
@@ -120,7 +120,7 @@ describe("GET /api/features", () => {
   it("filters by state from query param (default 'open')", async () => {
     const db = makeDb({ allResult: { results: [] } });
     await onRequestGet(makeCtx({ db, url: "http://x/api/features?state=closed" }));
-    expect(db._calls.all[0].binds).toEqual([1, "closed"]);
+    expect(db._calls.all[0].binds).toEqual([1, "project-1", "closed"]);
   });
 });
 
@@ -470,7 +470,7 @@ describe("DELETE /api/features/:number", () => {
     expect(closeStmt.binds[0]).not.toContain("status:");
     expect(detachStmt.sql).toContain("UPDATE specs");
     expect(detachStmt.sql).toContain("feature_number = NULL");
-    expect(detachStmt.binds).toEqual([1, 5]);
+    expect(detachStmt.binds).toEqual([1, "project-1", 5]);
     // Drive the GitHub call.
     await waitUntil.mock.calls[0][0];
     const ghCall = global.fetch.mock.calls[0];

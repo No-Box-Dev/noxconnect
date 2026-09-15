@@ -23,9 +23,6 @@
     {
       "nativeSession": [],
       "organization": []
-    },
-    {
-      "noxApiToken": []
     }
   ],
   "paths": {
@@ -286,7 +283,27 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "services:read"
       }
     },
     "/api/v1/services/{service}": {
@@ -294,6 +311,9 @@
         "operationId": "getNoxService",
         "summary": "Get capabilities and setup readiness for one Nox service",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/service"
           }
@@ -332,7 +352,18 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/services/{service}/setup": {
@@ -340,6 +371,9 @@
         "operationId": "getNoxServiceSetup",
         "summary": "Get setup state, sections, blockers, and capabilities for one service",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/service"
           }
@@ -378,7 +412,18 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/services/{service}/config": {
@@ -387,6 +432,9 @@
         "summary": "Get the settings owned by one service",
         "description": "Returns an ETag and matching revision. Provider credentials are never included.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/service"
           }
@@ -442,13 +490,17 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "patch": {
         "operationId": "patchNoxServiceConfig",
         "summary": "Partially update the settings owned by one service",
         "description": "Admin-only. Send the ETag from the latest GET as If-Match to prevent lost updates.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/service"
           },
@@ -517,13 +569,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/services/{service}/health": {
@@ -531,6 +585,9 @@
         "operationId": "getNoxServiceHealth",
         "summary": "Get service readiness and connection checks",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/service"
           }
@@ -569,7 +626,18 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/feed": {
@@ -582,7 +650,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/FeedPage"
                 }
               }
             }
@@ -604,6 +672,9 @@
           }
         },
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "mode",
             "in": "query",
@@ -666,7 +737,22 @@
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxfeed:read"
       }
     },
     "/api/v1/api-tokens": {
@@ -713,6 +799,12 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "x-change-safety": "safe_read"
       },
       "post": {
@@ -722,7 +814,8 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           }
         ],
         "responses": {
@@ -768,6 +861,12 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "x-change-safety": "write_not_safe_to_retry"
       }
     },
@@ -789,7 +888,8 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           }
         ],
         "responses": {
@@ -825,6 +925,12 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "x-change-safety": "destructive"
       }
     },
@@ -846,7 +952,8 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           }
         ],
         "responses": {
@@ -882,6 +989,12 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "x-change-safety": "write_not_safe_to_retry"
       }
     },
@@ -930,7 +1043,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/connections": {
@@ -978,7 +1097,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/connections/{provider}/start": {
@@ -987,6 +1112,9 @@
         "summary": "Start a provider connection",
         "description": "Returns a userAction URL for human OAuth approval.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/provider"
           }
@@ -1036,13 +1164,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/connections/{provider}/disconnect": {
@@ -1050,6 +1180,9 @@
         "operationId": "disconnectConnection",
         "summary": "Disconnect a provider",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/provider"
           }
@@ -1089,13 +1222,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/slack/channels": {
@@ -1143,7 +1278,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/slack/routing": {
@@ -1191,7 +1332,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       },
       "patch": {
         "operationId": "patchSlackRouting",
@@ -1241,13 +1388,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/slack/test": {
@@ -1299,13 +1453,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/projects": {
@@ -1353,7 +1514,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/projects/routing": {
@@ -1401,7 +1568,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/projects/{projectId}/routing": {
@@ -1409,6 +1582,9 @@
         "operationId": "updateProjectRouting",
         "summary": "Atomically update one project's repositories and named Slack destinations",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/projectId"
           }
@@ -1464,13 +1640,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/spots/sites": {
@@ -1508,7 +1686,27 @@
           "NoxSpot"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxspot:read"
       },
       "post": {
         "operationId": "createNoxSpotSite",
@@ -1554,7 +1752,28 @@
           "NoxSpot"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxspot:write"
       }
     },
     "/api/v1/spots/sites/{siteId}": {
@@ -1562,6 +1781,9 @@
         "operationId": "updateNoxSpotSite",
         "summary": "Update a NoxSpot site including its channel override",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/siteId"
           }
@@ -1607,12 +1829,31 @@
           "NoxSpot"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxspot:write"
       },
       "delete": {
         "operationId": "deleteNoxSpotSite",
         "summary": "Delete a NoxSpot site and its screenshots",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/siteId"
           }
@@ -1648,7 +1889,23 @@
           "NoxSpot"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxspot:write"
       }
     },
     "/api/v1/cues/sources": {
@@ -1686,7 +1943,27 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       },
       "post": {
         "operationId": "createNoxCueSource",
@@ -1732,7 +2009,28 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}": {
@@ -1740,6 +2038,9 @@
         "operationId": "updateNoxCueSource",
         "summary": "Update a NoxCue event source",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -1785,12 +2086,31 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       },
       "delete": {
         "operationId": "deleteNoxCueSource",
         "summary": "Delete a NoxCue source and revoke its keys",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -1826,7 +2146,23 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/keys": {
@@ -1835,6 +2171,9 @@
         "summary": "Create a one-time NoxCue browser or server ingest key",
         "description": "The key value is returned once. Do not log it.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -1899,7 +2238,23 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/keys/{keyId}": {
@@ -1907,6 +2262,9 @@
         "operationId": "revokeNoxCueKey",
         "summary": "Revoke a NoxCue ingest key",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           },
@@ -1945,7 +2303,23 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/features": {
@@ -1954,6 +2328,9 @@
         "summary": "List standard and registered custom features with health",
         "description": "Linked sources share their project's custom catalog. Unlinked sources have an isolated source catalog.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -1989,12 +2366,30 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       },
       "post": {
         "operationId": "createNoxCueCustomFeature",
         "summary": "Register a custom NoxCue feature before ingest",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -2040,7 +2435,23 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/features/{featureKey}": {
@@ -2048,6 +2459,9 @@
         "operationId": "updateNoxCueCustomFeature",
         "summary": "Update or pause a registered custom feature",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           },
@@ -2099,12 +2513,31 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       },
       "delete": {
         "operationId": "deleteNoxCueCustomFeature",
         "summary": "Delete a custom feature definition while retaining historical results",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           },
@@ -2146,7 +2579,23 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/custom-metrics": {
@@ -2154,6 +2603,9 @@
         "operationId": "listNoxCueCustomMetrics",
         "summary": "List registered custom activity metrics and event status",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -2189,12 +2641,30 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       },
       "post": {
         "operationId": "createNoxCueCustomMetric",
         "summary": "Register a custom activity metric before ingest",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           }
@@ -2240,7 +2710,23 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/sources/{sourceId}/custom-metrics/{metricKey}": {
@@ -2248,6 +2734,9 @@
         "operationId": "updateNoxCueCustomMetric",
         "summary": "Rename or pause a registered custom activity metric",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           },
@@ -2299,12 +2788,31 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       },
       "delete": {
         "operationId": "deleteNoxCueCustomMetric",
         "summary": "Delete a custom metric definition while retaining historical events",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/sourceId"
           },
@@ -2346,7 +2854,23 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/projects/{projectId}/metrics": {
@@ -2354,6 +2878,9 @@
         "operationId": "getNoxCueProjectMetrics",
         "summary": "List selectable metrics and their active event status for one project",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/projectId"
           }
@@ -2389,12 +2916,30 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       },
       "put": {
         "operationId": "updateNoxCueProjectMetrics",
         "summary": "Choose metrics included in one project's daily report",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/projectId"
           }
@@ -2440,7 +2985,23 @@
           "NoxCue"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/cues/metrics": {
@@ -2448,6 +3009,9 @@
         "operationId": "getNoxCueDailyHealth",
         "summary": "Get stored NoxCue-derived user metrics and digest state",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "sourceId",
             "in": "query",
@@ -2489,7 +3053,22 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       }
     },
     "/api/v1/slack/connections/{connectionId}": {
@@ -2498,6 +3077,9 @@
         "summary": "Assign a Slack workspace to a project",
         "description": "One workspace may be organization-wide. With multiple workspaces, every connection requires a project.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/connectionId"
           }
@@ -2547,13 +3129,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/projects/{projectId}/archive": {
@@ -2562,6 +3146,9 @@
         "summary": "Stop tracking a project without deleting it",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/projectId"
           }
@@ -2604,19 +3191,24 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "delete": {
         "operationId": "restoreProject",
         "summary": "Resume tracking an eligible project",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/projectId"
           }
@@ -2656,13 +3248,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/repos": {
@@ -2670,6 +3264,9 @@
         "operationId": "listRepositories",
         "summary": "List tracked repositories or include all discovered repositories",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "include",
             "in": "query",
@@ -2722,7 +3319,8 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/repos/acknowledge": {
@@ -2787,13 +3385,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/actors": {
@@ -2841,7 +3446,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/actors/{actorId}": {
@@ -2849,6 +3460,9 @@
         "operationId": "getActor",
         "summary": "Get one organization identity",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/actorId"
           }
@@ -2897,13 +3511,17 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "patch": {
         "operationId": "updateActor",
         "summary": "Update an organization identity overlay",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/actorId"
           }
@@ -2956,13 +3574,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/features": {
@@ -2970,6 +3590,9 @@
         "operationId": "listFeatures",
         "summary": "List NoxTicket features",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "state",
             "in": "query",
@@ -2985,7 +3608,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/FeatureList"
                 }
               }
             }
@@ -3020,7 +3643,8 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "post": {
         "operationId": "createFeature",
@@ -3041,7 +3665,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/Feature"
                 }
               }
             }
@@ -3076,13 +3700,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/features/{number}": {
@@ -3090,6 +3721,9 @@
         "operationId": "updateFeature",
         "summary": "Partially update a feature",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/number"
           }
@@ -3110,7 +3744,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/Feature"
                 }
               }
             }
@@ -3145,18 +3779,23 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "delete": {
         "operationId": "closeFeature",
         "summary": "Close a feature",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/number"
           }
@@ -3167,7 +3806,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -3199,13 +3838,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/specs": {
@@ -3213,6 +3854,9 @@
         "operationId": "listSpecs",
         "summary": "List NoxTicket specifications",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "featureNumber",
             "in": "query",
@@ -3238,7 +3882,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/SpecList"
                 }
               }
             }
@@ -3273,7 +3917,8 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "post": {
         "operationId": "createSpec",
@@ -3294,7 +3939,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/Spec"
                 }
               }
             }
@@ -3326,13 +3971,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/specs/{specId}": {
@@ -3340,6 +3992,9 @@
         "operationId": "getSpec",
         "summary": "Get one specification",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3350,7 +4005,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/Spec"
                 }
               }
             }
@@ -3388,12 +4043,16 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "patch": {
         "operationId": "updateSpec",
         "summary": "Partially update or relink a specification",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3414,7 +4073,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/Spec"
                 }
               }
             }
@@ -3449,13 +4108,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/specs/{specId}/archive": {
@@ -3464,6 +4125,9 @@
         "summary": "Archive a specification",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3474,7 +4138,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -3503,19 +4167,24 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "delete": {
         "operationId": "restoreSpec",
         "summary": "Restore a specification",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3526,7 +4195,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -3555,13 +4224,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/specs/{specId}/attachments": {
@@ -3569,6 +4240,9 @@
         "operationId": "listSpecAttachments",
         "summary": "List specification attachments",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3579,7 +4253,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/SpecAttachmentList"
                 }
               }
             }
@@ -3614,12 +4288,16 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "post": {
         "operationId": "uploadSpecAttachment",
         "summary": "Upload a bounded specification attachment",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           }
@@ -3649,7 +4327,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/SpecAttachment"
                 }
               }
             }
@@ -3684,13 +4362,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/specs/{specId}/attachments/{attachmentId}": {
@@ -3698,6 +4378,9 @@
         "operationId": "downloadSpecAttachment",
         "summary": "Download a specification attachment",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           },
@@ -3750,12 +4433,16 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       },
       "delete": {
         "operationId": "deleteSpecAttachment",
         "summary": "Delete a specification attachment",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/specId"
           },
@@ -3769,7 +4456,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -3801,13 +4488,15 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/issues": {
@@ -3820,7 +4509,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/RecordCollection"
                 }
               }
             }
@@ -3842,6 +4531,9 @@
           }
         },
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "state",
             "in": "query",
@@ -3910,7 +4602,22 @@
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxfeed:read"
       }
     },
     "/api/v1/issues/{repo}/{number}": {
@@ -3918,6 +4625,9 @@
         "operationId": "getIssue",
         "summary": "Get one tracked GitHub issue",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/repo"
           },
@@ -3931,7 +4641,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -3959,7 +4669,22 @@
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxfeed:read"
       }
     },
     "/api/v1/prs": {
@@ -3972,7 +4697,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/RecordCollection"
                 }
               }
             }
@@ -3994,6 +4719,9 @@
           }
         },
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "state",
             "in": "query",
@@ -4049,7 +4777,22 @@
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxfeed:read"
       }
     },
     "/api/v1/prs/{repo}/{number}": {
@@ -4057,6 +4800,9 @@
         "operationId": "getPullRequest",
         "summary": "Get one tracked pull request",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/repo"
           },
@@ -4070,7 +4816,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -4098,7 +4844,22 @@
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxfeed:read"
       }
     },
     "/api/v1/prs/close": {
@@ -4136,7 +4897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -4165,13 +4926,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/engineer-activity": {
@@ -4179,6 +4947,9 @@
         "operationId": "getEngineerActivity",
         "summary": "Get normalized monthly activity for one engineer",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "name": "login",
             "in": "query",
@@ -4202,7 +4973,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -4237,7 +5008,8 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/llm-settings": {
@@ -4251,7 +5023,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AiSettings"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -4286,7 +5058,13 @@
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       },
       "put": {
         "operationId": "putAiSettings",
@@ -4321,7 +5099,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AiSettings"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -4353,13 +5131,20 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/spots/sites/{siteId}/retry-deliveries": {
@@ -4368,6 +5153,9 @@
         "summary": "Retry blocked deliveries for one NoxSpot site",
         "x-required-role": "admin",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
           {
             "$ref": "#/components/parameters/siteId"
           }
@@ -4406,7 +5194,23 @@
           "NoxSpot"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxspot:write"
       }
     },
     "/api/v1/cues/events": {
@@ -4442,6 +5246,9 @@
         },
         "parameters": [
           {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
             "name": "sourceId",
             "in": "query",
             "required": false,
@@ -4468,7 +5275,22 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:read"
       }
     },
     "/api/v1/cues/public/events": {
@@ -4535,7 +5357,12 @@
           "NoxCue"
         ],
         "x-authentication": "ingest_key",
-        "x-change-safety": "idempotent_with_event_key"
+        "x-change-safety": "idempotent_with_event_key",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ]
       }
     },
     "/api/v1/auth/native/device/start": {
@@ -4941,6 +5768,12 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "security": [
           {
             "browserSession": [],
@@ -5002,10 +5835,17 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional",
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
@@ -5117,14 +5957,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/assign": {
@@ -5148,7 +5995,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5179,14 +6026,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/bootstrap-status": {
@@ -5238,7 +6092,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/config/{key}": {
@@ -5301,7 +6161,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       },
       "put": {
         "operationId": "putWorkspaceConfig",
@@ -5354,126 +6220,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
-      }
-    },
-    "/api/v1/cues/shares": {
-      "get": {
-        "operationId": "listNoxCueDashboardShares",
-        "summary": "List active NoxCue dashboard shares",
-        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/V1Error"
-          }
-        },
-        "x-required-role": "admin",
-        "x-first-party-client": true,
-        "x-organization-optional": false,
-        "tags": [
-          "NoxCue"
-        ],
-        "x-authentication": "admin",
-        "security": [
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
           {
-            "browserSession": [],
-            "organization": []
-          },
-          {
-            "nativeSession": [],
-            "organization": []
+            "$ref": "#/components/parameters/projectContext"
           }
         ],
-        "x-change-safety": "safe_read"
-      },
-      "post": {
-        "operationId": "upsertNoxCueDashboardShare",
-        "summary": "Create or rotate a NoxCue dashboard share",
-        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonValue"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/V1Error"
-          }
-        },
-        "x-required-role": "admin",
-        "x-first-party-client": true,
-        "x-organization-optional": false,
-        "tags": [
-          "NoxCue"
-        ],
-        "x-authentication": "admin",
-        "security": [
-          {
-            "browserSession": [],
-            "organization": []
-          },
-          {
-            "nativeSession": [],
-            "organization": []
-          }
-        ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/cues/sources/{sourceId}/health/test": {
@@ -5536,7 +6297,28 @@
           "NoxCue"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-project-scope": "optional",
+        "x-automation-scope": "noxcue:write"
       }
     },
     "/api/v1/engineer-stats": {
@@ -5550,7 +6332,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5588,7 +6370,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/events": {
@@ -5602,7 +6390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5640,7 +6428,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/events/{id}": {
@@ -5665,7 +6459,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5703,7 +6497,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/github/comments": {
@@ -5717,7 +6517,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5755,7 +6555,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/github/details": {
@@ -5769,7 +6575,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -5807,7 +6613,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/github/rate-limit": {
@@ -5859,7 +6671,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/integrations/status": {
@@ -5911,7 +6729,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/issue-state": {
@@ -5935,7 +6759,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/MutationReceipt"
                 }
               }
             }
@@ -5966,14 +6790,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/me": {
@@ -6025,7 +6856,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/members": {
@@ -6077,7 +6914,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/noxfeed/release-notes-prompt": {
@@ -6091,7 +6934,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -6129,7 +6972,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/op-failures": {
@@ -6181,7 +7030,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/operator/usage": {
@@ -6297,7 +7152,24 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/recover-repo-history": {
@@ -6352,20 +7224,27 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/search": {
       "get": {
         "operationId": "searchWorkspace",
-        "summary": "Search tracked work and people",
+        "summary": "Search accessible project data with combinable filters",
         "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
         "responses": {
           "200": {
@@ -6373,7 +7252,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
+                  "$ref": "#/components/schemas/ApiRecord"
                 }
               }
             }
@@ -6411,7 +7290,107 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Included words; quote a phrase to keep it together."
+          },
+          {
+            "name": "tools",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated tools."
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated kinds."
+          },
+          {
+            "name": "repos",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated repos."
+          },
+          {
+            "name": "assignees",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated assignees."
+          },
+          {
+            "name": "statuses",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated statuses."
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated tags."
+          },
+          {
+            "name": "exclude",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated exclude."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Earliest updated date, inclusive."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Latest updated date, inclusive."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 60
+            }
+          }
+        ],
+        "x-guest-access": "read",
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/slack/disconnect": {
@@ -6466,14 +7445,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/slack/status": {
@@ -6525,7 +7511,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/slack/test": {
@@ -6580,76 +7572,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
-      }
-    },
-    "/api/v1/spots/shares": {
-      "post": {
-        "operationId": "upsertNoxSpotProjectShare",
-        "summary": "Create or rotate a NoxSpot project share",
-        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonValue"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/V1Error"
-          }
-        },
-        "x-required-role": "admin",
-        "x-first-party-client": true,
-        "x-organization-optional": false,
-        "tags": [
-          "NoxSpot"
-        ],
-        "x-authentication": "admin",
-        "security": [
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
           {
-            "browserSession": [],
-            "organization": []
-          },
-          {
-            "nativeSession": [],
-            "organization": []
+            "$ref": "#/components/parameters/projectContext"
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/sync": {
@@ -6701,7 +7638,13 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       },
       "post": {
         "operationId": "syncGitHubData",
@@ -6754,14 +7697,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/sync-events": {
@@ -6816,14 +7766,21 @@
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
     "/api/v1/teams": {
@@ -6875,24 +7832,19 @@
             "organization": []
           }
         ],
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "x-project-scope": "optional"
       }
     },
-    "/api/v1/cues/shares/{shareId}": {
-      "parameters": [
-        {
-          "name": "shareId",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      ],
-      "delete": {
-        "operationId": "deleteNoxCueDashboardShare",
-        "summary": "Disable a NoxCue dashboard share",
+    "/api/v1/cues/project-overview": {
+      "get": {
+        "operationId": "getNoxCueProjectOverview",
+        "summary": "Read a guest-safe NoxCue project overview",
         "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
         "responses": {
           "200": {
@@ -6921,87 +7873,190 @@
             "$ref": "#/components/responses/V1Error"
           }
         },
-        "x-required-role": "admin",
+        "x-required-role": "member",
         "x-first-party-client": true,
         "x-organization-optional": false,
+        "x-guest-access": "read",
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "member",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read",
+        "x-project-scope": "optional"
+      }
+    },
+    "/api/v1/spots/project-overview": {
+      "get": {
+        "operationId": "getNoxSpotProjectOverview",
+        "summary": "Read a guest-safe NoxSpot project overview",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "x-guest-access": "read",
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "member",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read",
+        "x-project-scope": "optional"
+      }
+    },
+    "/api/v1/cues/errors/{sourceId}/{fingerprint}": {
+      "put": {
+        "operationId": "updateNoxCueErrorStatus",
+        "summary": "Update an error incident status",
+        "description": "Acknowledge, resolve, or reopen one NoxCue error group in the optional project context.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "acknowledged",
+                      "resolved"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Error incident status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
         "tags": [
           "NoxCue"
         ],
         "x-authentication": "admin",
+        "x-project-scope": "optional",
         "security": [
           {
             "browserSession": [],
-            "organization": []
+            "organization": [],
+            "csrfProof": []
           },
           {
             "nativeSession": [],
             "organization": []
           }
         ],
-        "x-change-safety": "destructive"
-      }
-    },
-    "/api/v1/spots/shares/{shareId}": {
-      "parameters": [
-        {
-          "name": "shareId",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      ],
-      "delete": {
-        "operationId": "deleteNoxSpotProjectShare",
-        "summary": "Disable a NoxSpot project share",
-        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "401": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/V1Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/V1Error"
-          }
-        },
-        "x-required-role": "admin",
-        "x-first-party-client": true,
-        "x-organization-optional": false,
-        "tags": [
-          "NoxSpot"
-        ],
-        "x-authentication": "admin",
-        "security": [
-          {
-            "browserSession": [],
-            "organization": []
-          },
-          {
-            "nativeSession": [],
-            "organization": []
-          }
-        ],
-        "x-change-safety": "destructive"
+        "x-change-safety": "write_not_safe_to_retry"
       }
     }
   },
@@ -7021,19 +8076,25 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "__Host-nox_session",
-        "description": "Opaque HttpOnly session created by GitHub OAuth for the first-party web application. Browser mutations also require X-CSRF-Token."
+        "description": "Opaque HttpOnly session created by an email magic link or GitHub OAuth. Browser mutations also require X-CSRF-Token."
       },
       "noxApiToken": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "nox_sk_{environment}_…",
-        "description": "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once."
+        "description": "Organization- and project-bound, service-scoped NoxHere automation token. Store as a secret; the value is shown only once."
       },
       "nativeSession": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "nox_at_…",
-        "description": "Short-lived first-party native application session. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect."
+        "description": "Short-lived first-party native application session issued by NoxHere. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect."
+      },
+      "csrfProof": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Required with the nox_csrf cookie for unsafe browser-session requests. Native sessions and automation tokens do not use CSRF proof."
       }
     },
     "parameters": {
@@ -7173,6 +8234,17 @@
         "description": "ETag returned by the latest service config GET",
         "schema": {
           "type": "string"
+        }
+      },
+      "projectContext": {
+        "name": "X-Project-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional project selector inside the authenticated organization. Omit it for organization-wide data. When supplied, it must match any project identifier in the URL and the project bound to an API token.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
         }
       }
     },
@@ -8421,15 +9493,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "projectScope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 200,
-            "description": "Null selects all projects; otherwise use the ID of an active project returned by GET /api/v1/projects."
-          },
           "releaseNotesPrompt": {
             "type": [
               "string",
@@ -9244,6 +10307,255 @@
             "minimum": 15,
             "maximum": 10080,
             "default": 360
+          }
+        }
+      },
+      "ApiRecord": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "MutationReceipt": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeedActor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "login",
+          "name",
+          "avatarUrl"
+        ],
+        "properties": {
+          "login": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        }
+      },
+      "FeedPullRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "number",
+          "title",
+          "url"
+        ],
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "FeedEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "createdAt",
+          "actor",
+          "repo",
+          "summary",
+          "technicalSummary",
+          "pr"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "opened",
+              "merged",
+              "release-notes"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/FeedActor"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "technicalSummary": {
+            "type": "string"
+          },
+          "pr": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FeedPullRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "FeedPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "events",
+          "nextCursor"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedEvent"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PaginatedRecords": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "data",
+          "totalCount",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiRecord"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "RecordCollection": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiRecord"
+            }
+          },
+          {
+            "$ref": "#/components/schemas/PaginatedRecords"
+          },
+          {
+            "$ref": "#/components/schemas/ApiRecord"
+          }
+        ]
+      },
+      "Feature": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiRecord"
+          }
+        ],
+        "description": "NoxTicket feature mirrored from its GitHub issue, including number, title, workflow status, owners, labels, and project."
+      },
+      "FeatureList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Feature"
+        }
+      },
+      "Spec": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiRecord"
+          }
+        ],
+        "description": "NoxTicket specification with its project, workflow state, content, and archive metadata."
+      },
+      "SpecList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "specs"
+        ],
+        "properties": {
+          "specs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Spec"
+            }
+          }
+        }
+      },
+      "SpecAttachment": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiRecord"
+          }
+        ],
+        "description": "Metadata for one specification attachment."
+      },
+      "SpecAttachmentList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attachments"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpecAttachment"
+            }
           }
         }
       }

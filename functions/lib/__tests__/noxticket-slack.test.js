@@ -18,12 +18,16 @@ import { stageNoxTicketActivity } from "../noxticket-slack.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { isAppEnabled } from "../apps.js";
 
+const DB = {
+  prepare: () => ({ bind() { return this; }, first: async () => ({ project_id: "project-1" }) }),
+};
+
 describe("NoxTicket Slack routing", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("routes ticket lifecycle activity to the NoxTicket channel", async () => {
     await stageNoxTicketActivity(
-      { DB: {}, TASK_QUEUE: { send: vi.fn() } },
+      { DB, TASK_QUEUE: { send: vi.fn() } },
       { orgId: 7, ownerId: "acme", repo: "noxconnect", action: "opened", actor: "ada", issue: { number: 9, title: "Ship alerts", labels: [] } },
     );
     expect(stageSlackDelivery).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -34,7 +38,7 @@ describe("NoxTicket Slack routing", () => {
 
   it("does not duplicate NoxSpot issues into NoxTicket", async () => {
     await stageNoxTicketActivity(
-      { DB: {} },
+      { DB },
       { orgId: 7, ownerId: "acme", repo: "noxconnect", action: "opened", issue: { number: 9, labels: [{ name: "noxspot" }] } },
     );
     expect(stageSlackDelivery).not.toHaveBeenCalled();
@@ -43,7 +47,7 @@ describe("NoxTicket Slack routing", () => {
   it("does nothing while NoxTicket is off", async () => {
     vi.mocked(isAppEnabled).mockResolvedValueOnce(false);
     const result = await stageNoxTicketActivity(
-      { DB: {}, TASK_QUEUE: { send: vi.fn() } },
+      { DB, TASK_QUEUE: { send: vi.fn() } },
       { orgId: 7, ownerId: "acme", repo: "noxconnect", action: "opened", issue: { number: 9, labels: [] } },
     );
     expect(result).toEqual({ skipped: "service_disabled" });

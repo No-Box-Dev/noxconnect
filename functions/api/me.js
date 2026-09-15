@@ -5,11 +5,18 @@ import { getCtx, jsonResponse } from "../lib/db";
 // Clients use this in place of GitHub's /orgs/{org}/memberships/{user}, which
 // is a heavy authz check on every load and doesn't carry app-level state.
 export async function onRequestGet(context) {
-  const { userLogin, orgLogin, isAdmin, isPlatformOperator } = getCtx(context);
+  const { userLogin, orgLogin, isAdmin, isPlatformOperator, projectId, auth } = getCtx(context);
+  const projectServices = projectId ? auth?.guestAccess?.projects?.[projectId] : undefined;
   return jsonResponse({
     login: userLogin,
     org: orgLogin,
     isAdmin: Boolean(isAdmin),
     isPlatformOperator: Boolean(isPlatformOperator),
+    accessLevel: auth?.accessLevel ?? "member",
+    allowedServices: auth?.accessLevel === "guest"
+      ? (auth.guestAccess?.organizationWide === true || projectServices === null
+        ? ["noxticket", "noxfeed", "noxspot", "noxcue"]
+        : projectServices ?? [])
+      : ["noxticket", "noxfeed", "noxspot", "noxcue"],
   });
 }

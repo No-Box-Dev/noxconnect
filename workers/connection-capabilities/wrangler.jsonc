@@ -28,6 +28,8 @@
     "staging": {
       "name": "noxconnect-capabilities-staging",
       "vars": {
+        "GITHUB_APP_ID": "3652510",
+        "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
         "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/auth/github/callback"
       },
       "d1_databases": [

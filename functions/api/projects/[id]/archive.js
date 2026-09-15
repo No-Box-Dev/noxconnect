@@ -31,9 +31,9 @@ async function setArchived(context, value) {
       `SELECT project.repo, project.archived, repo.archived_at, repo.retired_at
        FROM projects project
        LEFT JOIN repos repo ON repo.org_id = ? AND repo.name = project.repo
-       WHERE project.id = ? AND project.owner_id = ?`,
+       WHERE project.id = ? AND project.org_id = ?`,
     )
-    .bind(orgId, id, orgLogin)
+    .bind(orgId, id, orgId)
     .first();
   if (!project) return errorResponse(`Unknown project ${id}`, 404);
   if (value === 0 && (project.archived_at || project.retired_at)) {
@@ -43,8 +43,8 @@ async function setArchived(context, value) {
   const result = await context.env.DB.prepare(
     `UPDATE projects
         SET archived = ?, archived_at = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE id = ? AND owner_id = ?`
-  ).bind(value, archivedAt, id, orgLogin).run();
+      WHERE id = ? AND org_id = ?`
+  ).bind(value, archivedAt, id, orgId).run();
 
   const changes = result.meta?.changes ?? 0;
   if (!changes) return errorResponse(`Unknown project ${id}`, 404);

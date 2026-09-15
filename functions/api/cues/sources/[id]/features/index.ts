@@ -14,14 +14,14 @@ const CreateSchema = z.object({
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
+  data: { orgId: number; orgLogin: string; projectId?: string | null; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
   params: { id: string };
   request: Request;
 }
 
 async function scopeFor(context: Ctx) {
-  const { orgId, orgLogin } = getCtx(context) as Ctx["data"];
-  return findCueFeatureScope(getNoxDb(context.env), orgId, orgLogin, context.params.id);
+  const { orgId, orgLogin, projectId } = getCtx(context) as Ctx["data"];
+  return findCueFeatureScope(getNoxDb(context.env), orgId, orgLogin, context.params.id, projectId);
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {

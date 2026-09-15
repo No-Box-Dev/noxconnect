@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, AlertTriangle, Check, CheckCircle2, CircleDashed, Clipboard, ExternalLink, KeyRound, Plus, RefreshCw, Send, Server, Share2, ShieldCheck, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Send, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
@@ -11,11 +11,9 @@ import {
   useCreateNoxCueSource,
   useDeleteNoxCueFeature,
   useDeleteNoxCueCustomMetric,
-  useDeleteNoxCueDashboardShare,
   useDeleteNoxCueSource,
   useNoxCueMetrics,
   useNoxCueCustomMetrics,
-  useNoxCueDashboardShares,
   useNoxCueFeatures,
   useNoxCueProjectMetrics,
   useNoxCueSources,
@@ -26,7 +24,6 @@ import {
   useSaveNoxCueProjectMetrics,
   useTestNoxCueEndpoint,
   useUpdateNoxCueError,
-  useUpsertNoxCueDashboardShare,
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { apiPost } from "@/lib/api";
@@ -237,10 +234,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         projects={sources.data.projects}
         initialProjectId={selected.projectId}
       /> : null}
-      {!creating && selected ? <NoxCueDashboardPanel
-        projects={sources.data.projects}
-        initialProjectId={selected.projectId}
-      /> : null}
+      {!creating && selected ? <Panel><h3 className="text-sm font-semibold text-stone-900">Guest dashboard access</h3><p className="mt-1 text-xs leading-5 text-stone-500">Password dashboards have been retired. Invite named guests under Nox → People and grant this project plus NoxCue.</p></Panel> : null}
       {!creating && selected ? <DailyUserStats source={selected} /> : null}
     </div>
   );
@@ -450,71 +444,6 @@ export function ProjectMetricControls({
     <p className="text-[11px] text-stone-400">At least one metric must remain selected. Turn off the daily Slack report above to pause the report entirely.</p>
     {save.isError ? <p className="text-xs text-red-600">Could not save the project metric selection.</p> : null}
   </Panel>;
-}
-
-function NoxCueDashboardPanel({
-  projects,
-  initialProjectId,
-}: {
-  projects: Array<{ id: string; name: string }>;
-  initialProjectId: string | null;
-}) {
-  const [projectId, setProjectId] = useState(() => initialProjectId ?? projects[0]?.id ?? "");
-  const [password, setPassword] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [validationError, setValidationError] = useState("");
-  const shares = useNoxCueDashboardShares();
-  const upsert = useUpsertNoxCueDashboardShare();
-  const remove = useDeleteNoxCueDashboardShare();
-  const { confirm, dialogProps } = useConfirm();
-  const activeShare = shares.data?.shares.find((share) => share.projectId === projectId)
-    ?? (upsert.data?.share.projectId === projectId ? upsert.data.share : null);
-  const shareUrl = activeShare ? `${window.location.origin}/cue/${activeShare.slug}` : "";
-  const selectedProject = projects.find((project) => project.id === projectId);
-
-  return <><Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <div className="flex items-center gap-2"><Share2 size={16} /><h3 className="text-sm font-semibold text-stone-900">Protected dashboard</h3></div>
-        <p className="mt-1 text-xs leading-5 text-stone-500">Share a read-only view of user statistics, feature health, endpoint status, and recent errors. No NoxConnect account is required.</p>
-      </div>
-      {activeShare ? <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">Password protected</span> : null}
-    </div>
-    <label className="block text-xs font-medium text-stone-600">Project
-      <select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPassword(""); setValidationError(""); upsert.reset(); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
-        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-      </select>
-    </label>
-    {activeShare ? <div>
-      <p className="mb-1 text-xs font-medium text-stone-500">Dashboard link</p>
-      <div className="flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
-        <a href={shareUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-stone-200 hover:text-white">{shareUrl}</a>
-        <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); })} className="shrink-0 text-stone-400 hover:text-white" title="Copy dashboard link"><span className="inline-flex items-center gap-1.5">{copied ? <Check size={15} /> : <Clipboard size={15} />} {copied ? "Copied" : "Copy link"}</span></button>
-        <a href={shareUrl} target="_blank" rel="noreferrer" className="shrink-0 text-stone-400 hover:text-white" title="Open dashboard"><ExternalLink size={15} /></a>
-      </div>
-    </div> : <p className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">Create the dashboard to generate its private link.</p>}
-    <form noValidate className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => {
-      event.preventDefault();
-      if (!projectId) return;
-      if (password.length < 12) { setValidationError("Use at least 12 characters for the dashboard password."); return; }
-      setValidationError("");
-      upsert.mutate({ projectId, password }, { onSuccess: () => setPassword("") });
-    }}>
-      <div className="min-w-0 flex-1">
-        <label htmlFor="noxcue-dashboard-password" className="text-xs font-medium text-stone-500">{activeShare ? "New password" : "Dashboard password"}</label>
-        <input id="noxcue-dashboard-password" type="password" autoComplete="new-password" minLength={12} maxLength={200} required value={password} onChange={(event) => { setPassword(event.target.value); if (validationError) setValidationError(""); }} placeholder="At least 12 characters" className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-xs" />
-        <span className="mt-1 block text-[11px] text-stone-400">12 character minimum · changing it signs out existing viewers</span>
-      </div>
-      <button type="submit" disabled={upsert.isPending || !projectId} className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-stone-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{upsert.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} {upsert.isPending ? "Saving…" : activeShare ? "Change password" : "Create dashboard"}</button>
-    </form>
-    {validationError ? <p role="alert" className="text-xs text-red-600">{validationError}</p> : null}
-    {upsert.isError || shares.isError ? <p role="alert" className="text-xs text-red-600">{upsert.error instanceof Error ? upsert.error.message : "The dashboard settings could not be loaded or saved."}</p> : null}
-    {activeShare ? <button type="button" disabled={remove.isPending} onClick={async () => {
-      if (await confirm({ title: `Disable ${selectedProject?.name ?? "this"} dashboard?`, message: "The link and all viewer sessions will stop working immediately. NoxCue data is not deleted.", confirmLabel: "Disable dashboard", variant: "danger" })) {
-        remove.mutate(activeShare.id, { onSuccess: () => upsert.reset() });
-      }
-    }} className="text-xs font-medium text-red-600 disabled:opacity-50">Disable dashboard</button> : null}
-  </Panel><ConfirmDialog {...dialogProps} /></>;
 }
 
 function MetricActivity({ active }: { active: boolean }) {

@@ -47,10 +47,12 @@ export async function onRequestGet(context) {
     return errorResponse(`Invalid config key: ${key}`, 400);
   }
 
-  const { orgId } = getCtx(context);
+  const { orgId, projectId } = getCtx(context);
   const row = await context.env.DB
-    .prepare("SELECT data FROM config WHERE org_id = ? AND key = ?")
-    .bind(orgId, key)
+    .prepare(projectId
+      ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = ?"
+      : "SELECT data FROM config WHERE org_id = ? AND key = ?")
+    .bind(...(projectId ? [orgId, projectId, key] : [orgId, key]))
     .first();
 
   if (!row) {
@@ -88,7 +90,7 @@ export async function onRequestPut(context) {
     return errorResponse("Config payload too large (max 256KB)", 413);
   }
 
-  const { orgId, orgLogin } = getCtx(context);
+  const { orgId, projectId } = getCtx(context);
   let body;
   try { body = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
@@ -153,10 +155,10 @@ export async function onRequestPut(context) {
     // to disappear — otherwise it would silently vanish from the board.
     const newIds = new Set(body.boardStages.map((s) => s.id));
     const { results: openFeatures } = await context.env.DB
-      .prepare(
-        "SELECT number, title, labels_json FROM features WHERE org_id = ? AND state = 'open'",
-      )
-      .bind(orgId)
+      .prepare(projectId
+        ? "SELECT number, title, labels_json FROM features WHERE org_id = ? AND project_id = ? AND state = 'open'"
+        : "SELECT number, title, labels_json FROM features WHERE org_id = ? AND state = 'open'")
+      .bind(...(projectId ? [orgId, projectId] : [orgId]))
       .all();
     const orphans = [];
     for (const row of openFeatures ?? []) {
@@ -208,33 +210,57 @@ export async function onRequestPut(context) {
   }
 
   const compareAndSwap = context.data?.configCompareAndSwap;
-  const configStatement = compareAndSwap
-    ? compareAndSwap.expectedRaw == null
-      ? context.env.DB.prepare(
+  const configStatement = projectId
+    ? compareAndSwap
+      ? compareAndSwap.expectedRaw == null
+        ? context.env.DB.prepare(
+            `INSERT INTO project_config (org_id, project_id, key, data, updated_at)
+             VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+             ON CONFLICT(org_id, project_id, key) DO NOTHING`,
+          ).bind(orgId, projectId, key, serialized)
+        : context.env.DB.prepare(
+            `UPDATE project_config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+             WHERE org_id = ? AND project_id = ? AND key = ? AND data = ?`,
+          ).bind(serialized, orgId, projectId, key, compareAndSwap.expectedRaw)
+      : context.env.DB.prepare(
+          `INSERT INTO project_config (org_id, project_id, key, data, updated_at)
+           VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+           ON CONFLICT(org_id, project_id, key) DO UPDATE SET
+             data = excluded.data,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+        ).bind(orgId, projectId, key, serialized)
+    : compareAndSwap
+      ? compareAndSwap.expectedRaw == null
+        ? context.env.DB.prepare(
+            `INSERT INTO config (org_id, key, data, updated_at)
+             VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+             ON CONFLICT(org_id, key) DO NOTHING`,
+          ).bind(orgId, key, serialized)
+        : context.env.DB.prepare(
+            `UPDATE config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+             WHERE org_id = ? AND key = ? AND data = ?`,
+          ).bind(serialized, orgId, key, compareAndSwap.expectedRaw)
+      : context.env.DB.prepare(
           `INSERT INTO config (org_id, key, data, updated_at)
            VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-           ON CONFLICT(org_id, key) DO NOTHING`,
-        ).bind(orgId, key, serialized)
-      : context.env.DB.prepare(
-          `UPDATE config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND key = ? AND data = ?`,
-        ).bind(serialized, orgId, key, compareAndSwap.expectedRaw)
-    : context.env.DB.prepare(
-        `INSERT INTO config (org_id, key, data, updated_at)
-         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-         ON CONFLICT(org_id, key) DO UPDATE SET
-           data = excluded.data,
-           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
-      )
-      .bind(orgId, key, serialized);
+           ON CONFLICT(org_id, key) DO UPDATE SET
+             data = excluded.data,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+        ).bind(orgId, key, serialized);
 
   const dependentStatements = [];
   // A CAS miss must not mutate dependent outbox rows. Every repair is guarded
   // by the desired config value and runs in the same D1 batch as the setting.
   const configGuard = compareAndSwap
-    ? " AND EXISTS (SELECT 1 FROM config config_guard WHERE config_guard.org_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
+    ? projectId
+      ? " AND EXISTS (SELECT 1 FROM project_config config_guard WHERE config_guard.org_id = ? AND config_guard.project_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
+      : " AND EXISTS (SELECT 1 FROM config config_guard WHERE config_guard.org_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
     : "";
-  const configGuardBinds = compareAndSwap ? [orgId, key, serialized] : [];
+  const configGuardBinds = compareAndSwap
+    ? projectId ? [orgId, projectId, key, serialized] : [orgId, key, serialized]
+    : [];
+  const deliveryScope = projectId ? "org_id = ? AND project_id = ?" : "org_id = ?";
+  const deliveryScopeBinds = projectId ? [orgId, projectId] : [orgId];
   if (slackWasSupplied) {
     const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};
     const clean = (value) => typeof value === "string" ? value.trim() : "";
@@ -254,17 +280,17 @@ export async function onRequestPut(context) {
           `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source IN (${placeholders})
+           WHERE ${deliveryScope} AND source IN (${placeholders})
              AND destination = 'slack' AND status != 'delivered'${configGuard}`,
-        ).bind(channelId, connectionId, orgId, ...sources, ...configGuardBinds));
+        ).bind(channelId, connectionId, ...deliveryScopeBinds, ...sources, ...configGuardBinds));
       } else {
         dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'blocked_configuration',
              last_error_code = 'alerts_disabled', last_error = 'No Slack channel is configured for this service',
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source IN (${placeholders})
+           WHERE ${deliveryScope} AND source IN (${placeholders})
              AND destination = 'slack' AND status != 'delivered'${configGuard}`,
-        ).bind(orgId, ...sources, ...configGuardBinds));
+        ).bind(...deliveryScopeBinds, ...sources, ...configGuardBinds));
       }
     }
 
@@ -275,21 +301,21 @@ export async function onRequestPut(context) {
         `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
            last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-         WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
+         WHERE ${deliveryScope} AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
-             SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
+             SELECT id FROM spot_sites WHERE ${deliveryScope} AND slack_channel_id IS NULL
            )${configGuard}`,
-      ).bind(fallbackChannelId, fallbackConnectionId, orgId, orgId, ...configGuardBinds));
+      ).bind(fallbackChannelId, fallbackConnectionId, ...deliveryScopeBinds, ...deliveryScopeBinds, ...configGuardBinds));
     } else {
       dependentStatements.push(context.env.DB.prepare(
         `UPDATE delivery_outbox SET status = 'blocked_configuration',
            last_error_code = 'alerts_disabled', last_error = 'No NoxSpot site or organization fallback channel is configured',
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-         WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
+         WHERE ${deliveryScope} AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
-             SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
+             SELECT id FROM spot_sites WHERE ${deliveryScope} AND slack_channel_id IS NULL
            )${configGuard}`,
-      ).bind(orgId, orgId, ...configGuardBinds));
+      ).bind(...deliveryScopeBinds, ...deliveryScopeBinds, ...configGuardBinds));
     }
   }
 
@@ -301,17 +327,17 @@ export async function onRequestPut(context) {
           `UPDATE delivery_outbox SET status = 'blocked_service_disabled',
              last_error_code = 'service_disabled', last_error = ?, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source IN (${placeholders})
+           WHERE ${deliveryScope} AND source IN (${placeholders})
              AND destination = 'slack' AND status != 'delivered'${configGuard}`,
-        ).bind(`${appId} is off for this organization`, orgId, ...sources, ...configGuardBinds));
+        ).bind(`${appId} is off for this ${projectId ? "project" : "organization"}`, ...deliveryScopeBinds, ...sources, ...configGuardBinds));
       } else {
         dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source IN (${placeholders})
+           WHERE ${deliveryScope} AND source IN (${placeholders})
              AND destination = 'slack' AND status = 'blocked_service_disabled'${configGuard}`,
-        ).bind(orgId, ...sources, ...configGuardBinds));
+        ).bind(...deliveryScopeBinds, ...sources, ...configGuardBinds));
       }
     }
   }
@@ -327,8 +353,10 @@ export async function onRequestPut(context) {
     // asks the caller to refetch instead of guessing. A different stored value
     // is a genuine conflict.
     const current = await context.env.DB.prepare(
-      "SELECT data FROM config WHERE org_id = ? AND key = ?",
-    ).bind(orgId, key).first();
+      projectId
+        ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = ?"
+        : "SELECT data FROM config WHERE org_id = ? AND key = ?",
+    ).bind(...(projectId ? [orgId, projectId, key] : [orgId, key])).first();
     if (String(current?.data ?? "") !== serialized) {
       return errorResponse("Settings changed concurrently; fetch routing and retry", 409);
     }

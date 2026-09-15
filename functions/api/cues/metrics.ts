@@ -10,7 +10,7 @@ const QuerySchema = z.object({
 
 interface Ctx {
   env: { DB: D1Database };
-  data: { orgId: number; isAdmin: boolean; auth?: { type?: string } };
+  data: { orgId: number; projectId?: string | null; isAdmin: boolean; auth?: { type?: string } };
   request: Request;
 }
 
@@ -32,14 +32,15 @@ interface ActivityMetricRow {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!canReadProjectResource(context.data)) return errorResponse("Admin required", 403);
   const parsed = validate(QuerySchema, Object.fromEntries(new URL(context.request.url).searchParams.entries()));
   if (!parsed.ok) return parsed.response;
   const source = await context.env.DB.prepare(
-    "SELECT id FROM cue_sources WHERE id = ? AND org_id = ?",
-  ).bind(parsed.data.sourceId, orgId).first();
+    `SELECT id FROM cue_sources
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}`,
+  ).bind(...(projectId ? [parsed.data.sourceId, orgId, projectId] : [parsed.data.sourceId, orgId])).first();
   if (!source) return errorResponse("Cue source not found", 404);
 
   const [catalog, metricRows, activityRows, digests, errorGroups] = await Promise.all([

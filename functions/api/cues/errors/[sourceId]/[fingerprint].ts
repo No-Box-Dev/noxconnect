@@ -8,13 +8,13 @@ const BodySchema = z.object({
 
 interface Ctx {
   env: { DB: D1Database };
-  data: { orgId: number; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
   params: { sourceId: string; fingerprint: string };
   request: Request;
 }
 
 export async function onRequestPut(context: Ctx): Promise<Response> {
-  const { orgId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
@@ -34,7 +34,7 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
             resolved_by = CASE WHEN ? = 'resolved' THEN ? ELSE NULL END
       WHERE source_id = ? AND fingerprint = ? AND org_id = ?
         AND EXISTS (SELECT 1 FROM cue_sources source
-          WHERE source.id = cue_error_groups.source_id AND source.org_id = ?)`,
+          WHERE source.id = cue_error_groups.source_id AND source.org_id = ?${projectId ? " AND source.project_id = ?" : ""})`,
   ).bind(
     parsed.data.status,
     parsed.data.status, now,
@@ -42,6 +42,7 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     parsed.data.status, now,
     parsed.data.status, userLogin,
     context.params.sourceId, context.params.fingerprint, orgId, orgId,
+    ...(projectId ? [projectId] : []),
   ).run();
   if (!result.meta.changes) return errorResponse("NoxCue error incident not found", 404);
   return jsonResponse({ status: parsed.data.status, updatedAt: now });

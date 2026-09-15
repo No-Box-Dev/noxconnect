@@ -137,7 +137,7 @@ describe("POST/DELETE /api/projects/:id/archive", () => {
     expect(binds[0]).toBe(1);                    // archived value
     expect(typeof binds[1]).toBe("string");      // archived_at ISO
     expect(binds[2]).toBe("p1");
-    expect(binds[3]).toBe("acme");
+    expect(binds[3]).toBe(1);
   });
 
   it("DELETE unarchives (archived=0 with archived_at=null)", async () => {

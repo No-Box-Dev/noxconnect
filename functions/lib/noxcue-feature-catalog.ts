@@ -17,14 +17,20 @@ interface CueCustomFeatureRow {
   feature_key: string; label: string; failure_message: string; enabled: number;
 }
 
-export async function findCueFeatureScope(db: D1Database, orgId: number, orgLogin: string, sourceId: string): Promise<CueFeatureScope | null> {
+export async function findCueFeatureScope(
+  db: D1Database,
+  orgId: number,
+  orgLogin: string,
+  sourceId: string,
+  projectId?: string | null,
+): Promise<CueFeatureScope | null> {
   const row = await db.prepare(
     `SELECT source.id AS source_id, source.name AS source_name,
             source.project_id, project.name AS project_name
        FROM cue_sources source
        LEFT JOIN projects project ON project.id = source.project_id
-      WHERE source.id = ? AND source.org_id = ? AND source.owner_id = ?`,
-  ).bind(sourceId, orgId, orgLogin).first<{
+      WHERE source.id = ? AND source.org_id = ? AND source.owner_id = ?${projectId ? " AND source.project_id = ?" : ""}`,
+  ).bind(...(projectId ? [sourceId, orgId, orgLogin, projectId] : [sourceId, orgId, orgLogin])).first<{
     source_id: string; source_name: string; project_id: string | null; project_name: string | null;
   }>();
   return row ? { sourceId: row.source_id, sourceName: row.source_name, projectId: row.project_id, projectName: row.project_name } : null;

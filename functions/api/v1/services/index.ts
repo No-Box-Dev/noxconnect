@@ -16,7 +16,7 @@ export interface ServiceCatalogContext {
     SLACK_APP_ID?: string;
     SLACK_ACCEPT_LEGACY_INSTALLS?: string;
   };
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; isAdmin: boolean };
 }
 
 interface IntegrationStatus {
@@ -35,12 +35,12 @@ interface IntegrationStatus {
 }
 
 export async function loadServiceCatalog(context: ServiceCatalogContext) {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as ServiceCatalogContext["data"];
+  const { orgId, projectId, orgLogin, isAdmin } = getCtx(context) as ServiceCatalogContext["data"];
   if (!orgId || !orgLogin) return { response: v1Error("missing_org_context", "Missing organization context", 400) };
   const db = getNoxDb(context.env);
 
   const [rawEnabledApps, statusResponse, serviceManifests] = await Promise.all([
-    getEnabledApps(db, orgId),
+    getEnabledApps(db, orgId, projectId),
     getIntegrationStatus(context as never),
     loadServiceManifests(context.env),
   ]);
@@ -57,6 +57,7 @@ export async function loadServiceCatalog(context: ServiceCatalogContext) {
     body: {
       apiVersion: API_VERSION,
       organization: { login: orgLogin },
+      project: projectId ? { id: projectId } : null,
       canConfigure: Boolean(isAdmin),
       services: buildServiceCatalog({
         enabledApps,

@@ -177,13 +177,14 @@ export function buildIssueBody(plan, metadata) {
 
 // Read the current feature row from D1 (or null) — used by PATCH to preserve
 // metadata and compare the old status.
-export async function readFeatureRow(db, orgId, number) {
+export async function readFeatureRow(db, orgId, projectId, number) {
   return db
-    .prepare(
-      `SELECT number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at
-         FROM features WHERE org_id = ? AND number = ?`,
-    )
-    .bind(orgId, number)
+    .prepare(projectId
+      ? `SELECT number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at
+           FROM features WHERE org_id = ? AND project_id = ? AND number = ?`
+      : `SELECT number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at
+           FROM features WHERE org_id = ? AND number = ? ORDER BY project_id LIMIT 1`)
+    .bind(...(projectId ? [orgId, projectId, number] : [orgId, number]))
     .first();
 }
 
@@ -203,6 +204,7 @@ export async function readFeatureRow(db, orgId, number) {
 // every call site needing an update.
 export async function upsertFeatureRow(db, orgId, ghIssue, opts = {}) {
   const from = opts.from ?? "github";
+  const projectId = opts.projectId ?? null;
   const assignees = (ghIssue.assignees ?? []).map((a) => ({
     login: a.login,
     avatar_url: a.avatar_url || "",
@@ -217,9 +219,10 @@ export async function upsertFeatureRow(db, orgId, ghIssue, opts = {}) {
     // value (set by the last GH-sourced mirror) is preserved.
     await db
       .prepare(
-        `INSERT INTO features (org_id, number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at, gh_synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-         ON CONFLICT(org_id, number) DO UPDATE SET
+        `INSERT INTO features (org_id, project_id, number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at, gh_synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+         ON CONFLICT(org_id, project_id, number) DO UPDATE SET
+           project_id = COALESCE(excluded.project_id, features.project_id),
            title = excluded.title,
            state = excluded.state,
            body = excluded.body,
@@ -231,6 +234,7 @@ export async function upsertFeatureRow(db, orgId, ghIssue, opts = {}) {
       )
       .bind(
         orgId,
+        projectId,
         ghIssue.number,
         ghIssue.title,
         ghIssue.state ?? "open",
@@ -248,9 +252,10 @@ export async function upsertFeatureRow(db, orgId, ghIssue, opts = {}) {
 
   await db
     .prepare(
-      `INSERT INTO features (org_id, number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at, gh_synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(org_id, number) DO UPDATE SET
+      `INSERT INTO features (org_id, project_id, number, title, state, body, assignees_json, labels_json, milestone_title, html_url, created_at, updated_at, gh_synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(org_id, project_id, number) DO UPDATE SET
+         project_id = COALESCE(excluded.project_id, features.project_id),
          title = excluded.title,
          state = excluded.state,
          body = excluded.body,
@@ -263,6 +268,7 @@ export async function upsertFeatureRow(db, orgId, ghIssue, opts = {}) {
     )
     .bind(
       orgId,
+      projectId,
       ghIssue.number,
       ghIssue.title,
       ghIssue.state ?? "open",

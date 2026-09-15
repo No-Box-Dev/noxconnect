@@ -3,6 +3,7 @@ import { executeConnectionCapability } from "../../../functions/lib/connection-c
 import {
   exchangeGitHubOAuthIdentity,
   pollGitHubDeviceIdentity,
+  refreshGitHubIdentity,
   startGitHubDeviceIdentity,
 } from "../../../functions/lib/connection-identity";
 
@@ -25,6 +26,10 @@ export default class NoxConnectCapabilities extends WorkerEntrypoint<Env> {
 
   exchangeGitHubOAuth(input: unknown) {
     return exchangeGitHubOAuthIdentity(this.env, input);
+  }
+
+  refreshGitHubIdentity(input: unknown) {
+    return refreshGitHubIdentity(this.env, input);
   }
 
   startGitHubDeviceAuth(input: unknown) {

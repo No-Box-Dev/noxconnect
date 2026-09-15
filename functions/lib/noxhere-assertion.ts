@@ -12,6 +12,11 @@ export interface NoxHereAuthContext {
   projectId: string | null;
   scopes: string[];
   connectionId: string | null;
+  accessLevel?: "member" | "guest" | "api_token";
+  guestAccess?: {
+    organizationWide: boolean;
+    projects: Record<string, string[] | null>;
+  } | null;
 }
 
 interface NoxHereAssertion {
@@ -81,7 +86,19 @@ function validAuth(auth: NoxHereAuthContext): boolean {
     && Array.isArray(auth.scopes) && auth.scopes.length <= 16
     && auth.scopes.every((scope) => typeof scope === "string" && scope.length <= 64)
     && (auth.projectId === null || typeof auth.projectId === "string")
-    && (auth.connectionId === null || typeof auth.connectionId === "string"));
+    && (auth.connectionId === null || typeof auth.connectionId === "string")
+    && (auth.accessLevel === undefined || ["member", "guest", "api_token"].includes(auth.accessLevel))
+    && (auth.accessLevel !== "guest" || validGuestAccess(auth.guestAccess)));
+}
+
+function validGuestAccess(value: NoxHereAuthContext["guestAccess"]): boolean {
+  if (!value || typeof value !== "object" || typeof value.organizationWide !== "boolean"
+      || !value.projects || typeof value.projects !== "object" || Array.isArray(value.projects)) return false;
+  return Object.entries(value.projects).every(([projectId, services]) => projectId.length > 0
+    && projectId.length <= 240
+    && (services === null || (Array.isArray(services)
+      && services.length <= 4
+      && services.every((service) => ["noxticket", "noxfeed", "noxspot", "noxcue"].includes(service)))));
 }
 
 function base64UrlDecode(value: string): Uint8Array {

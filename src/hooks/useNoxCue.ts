@@ -8,7 +8,6 @@ import type {
   NoxCueCustomMetricInput,
   NoxCueCustomMetricUpdate,
   NoxCueCustomMetricsResponse,
-  NoxCueDashboardShare,
   NoxCueFeaturesResponse,
   NoxCueGithubIssueProject,
   NoxCueGithubIssueSettingsResponse,
@@ -57,36 +56,6 @@ export function useNoxCueSources() {
     queryKey: sourcesKey(selectedOrg),
     queryFn: () => apiGet<NoxCueSourcesResponse>("/api/v1/cues/sources"),
     enabled: Boolean(selectedOrg),
-  });
-}
-
-const dashboardSharesKey = (org: string | null | undefined) => ["noxcue-dashboard-shares", org];
-
-export function useNoxCueDashboardShares() {
-  const { selectedOrg } = useAuth();
-  return useQuery({
-    queryKey: dashboardSharesKey(selectedOrg),
-    queryFn: () => apiGet<{ shares: NoxCueDashboardShare[] }>("/api/v1/cues/shares"),
-    enabled: Boolean(selectedOrg),
-  });
-}
-
-export function useUpsertNoxCueDashboardShare() {
-  const { selectedOrg } = useAuth();
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { projectId: string; password: string }) =>
-      apiPost<{ share: NoxCueDashboardShare }>("/api/v1/cues/shares", input),
-    onSuccess: () => client.invalidateQueries({ queryKey: dashboardSharesKey(selectedOrg) }),
-  });
-}
-
-export function useDeleteNoxCueDashboardShare() {
-  const { selectedOrg } = useAuth();
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (shareId: string) => apiDelete<{ ok: true }>(`/api/v1/cues/shares/${encodeURIComponent(shareId)}`),
-    onSuccess: () => client.invalidateQueries({ queryKey: dashboardSharesKey(selectedOrg) }),
   });
 }
 

@@ -85,7 +85,7 @@ function makeDb({
         if (sql.includes("FROM projects")) return project;
         if (sql.includes("FROM actors")) return actor;
         if (sql.includes("FROM pull_requests")) return pullRequest;
-        if (sql.includes("FROM config")) return settings;
+        if (sql.includes("FROM project_config") || sql.includes("FROM config")) return settings;
         if (sql.includes("FROM orgs")) return org;
         return null;
       },

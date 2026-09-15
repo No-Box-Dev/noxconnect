@@ -9,7 +9,7 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; userLogin: string };
+  data: { orgId: number; projectId?: string | null; userLogin: string };
   request: Request;
   params: { id: string; attachmentId: string };
 }
@@ -32,15 +32,15 @@ function parseIds(context: Ctx): { specId: number; attachmentId: number } | null
 // `?disposition=attachment` forces a download prompt; default is inline
 // so the client-side viewer modal can iframe/embed the file.
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   const ids = parseIds(context);
   if (!ids) return errorResponse("Invalid ids", 400);
 
-  if (context.env.NOXTICKET_SERVICE) {
+  if (context.env.NOXTICKET_SERVICE && projectId) {
     try {
       const response = await context.env.NOXTICKET_SERVICE.getAttachment(
-        { orgId, userLogin: context.data.userLogin },
+        { orgId, projectId, userLogin: context.data.userLogin },
         ids.specId,
         ids.attachmentId,
       );
@@ -61,12 +61,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   }
 
   const row = await context.env.DB.prepare(
-    `SELECT id, org_id, spec_id, filename, content_type, size, r2_key,
+    `SELECT id, org_id, project_id, spec_id, filename, content_type, size, r2_key,
             uploaded_by, uploaded_at
        FROM spec_attachments
-      WHERE id = ? AND spec_id = ? AND org_id = ?`,
+      WHERE id = ? AND spec_id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}`,
   )
-    .bind(ids.attachmentId, ids.specId, orgId)
+    .bind(ids.attachmentId, ids.specId, orgId, ...(projectId ? [projectId] : []))
     .first<SpecAttachmentRow>();
   if (!row) return errorResponse("Attachment not found", 404);
 
@@ -97,22 +97,22 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // Removes both the R2 object and the D1 row. Any authenticated org member
 // can delete; a more granular ACL can be added later if needed.
 export async function onRequestDelete(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   const ids = parseIds(context);
   if (!ids) return errorResponse("Invalid ids", 400);
 
-  const delegated = await callNoxTicket(context.env, (service) => service.deleteAttachment(
-    { orgId, userLogin: context.data.userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.deleteAttachment(
+    { orgId, projectId, userLogin: context.data.userLogin },
     ids.specId,
     ids.attachmentId,
-  ));
+  )) : null;
   if (delegated) return delegated;
 
-  const row = await context.env.DB.prepare(
-    "SELECT id, r2_key FROM spec_attachments WHERE id = ? AND spec_id = ? AND org_id = ?",
-  )
-    .bind(ids.attachmentId, ids.specId, orgId)
+  const row = await context.env.DB.prepare(projectId
+    ? "SELECT id, r2_key FROM spec_attachments WHERE id = ? AND spec_id = ? AND org_id = ? AND project_id = ?"
+    : "SELECT id, r2_key FROM spec_attachments WHERE id = ? AND spec_id = ? AND org_id = ?")
+    .bind(...(projectId ? [ids.attachmentId, ids.specId, orgId, projectId] : [ids.attachmentId, ids.specId, orgId]))
     .first<{ id: number; r2_key: string }>();
   if (!row) return errorResponse("Attachment not found", 404);
 

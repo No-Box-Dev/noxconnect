@@ -24,14 +24,14 @@ export function managedLlmConfig(env) {
   };
 }
 
-export async function resolveAiMode(env, orgId) {
-  if (!env?.DB || !orgId) {
+export async function resolveAiMode(env, orgId, projectId) {
+  if (!env?.DB || !orgId || !projectId) {
     return { status: "error", mode: AI_MODE_MANAGED, errorCode: "routing_context_missing" };
   }
 
   try {
-    const row = await env.DB.prepare("SELECT mode FROM ai_settings WHERE org_id = ?")
-      .bind(orgId)
+    const row = await env.DB.prepare("SELECT mode FROM project_ai_settings WHERE org_id = ? AND project_id = ?")
+      .bind(orgId, projectId)
       .first();
 
     if (row?.mode === AI_MODE_DISABLED) {
@@ -45,13 +45,14 @@ export async function resolveAiMode(env, orgId) {
     console.error(JSON.stringify({
       event: "ai_route_lookup_failed",
       orgId,
+      projectId,
       error: error instanceof Error ? error.message : String(error),
     }));
     return { status: "error", mode: AI_MODE_MANAGED, errorCode: "routing_lookup_failed" };
   }
 }
 
-export async function resolveLlmConfig(env, orgId) {
-  const mode = await resolveAiMode(env, orgId);
+export async function resolveLlmConfig(env, orgId, projectId) {
+  const mode = await resolveAiMode(env, orgId, projectId);
   return mode.status === "enabled" ? managedLlmConfig(env) : mode;
 }

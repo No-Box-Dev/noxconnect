@@ -174,11 +174,14 @@ export async function deleteSlackInstall(env, orgId, connectionId = null) {
 
 // ---------- Per-org settings.slack.* (channels) ----------
 
-export async function resolveSlackChannels(db, orgId) {
+/** @param {string | null} [projectId] */
+export async function resolveSlackChannels(db, orgId, projectId = null) {
   if (!db || !orgId) return emptySlackChannels();
   const row = await db
-    .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
-    .bind(orgId)
+    .prepare(projectId
+      ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'"
+      : "SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
+    .bind(...(projectId ? [orgId, projectId] : [orgId]))
     .first()
     .catch(() => null);
   if (!row?.data) return emptySlackChannels();

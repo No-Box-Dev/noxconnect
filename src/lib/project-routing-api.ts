@@ -34,6 +34,6 @@ export const fetchProjectRouting = () => apiGet<ProjectRoutingResponse>("/api/v1
 
 export const saveProjectRouting = (projectId: string, routing: SaveProjectRouting) =>
   apiPut<{ ok: true; projectId: string; enabled: boolean; repositories: string[] }>(
-    `/api/v1/projects/routing/${encodeURIComponent(projectId)}`,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/routing`,
     routing,
   );

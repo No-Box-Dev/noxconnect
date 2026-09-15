@@ -32,7 +32,7 @@ function makeDb(repo: string | null = "playnist") {
 
 function context(db: ReturnType<typeof makeDb>, body?: unknown, isAdmin = true) {
   return {
-    env: { DB: db }, data: { orgId: 7, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin },
+    env: { DB: db }, data: { orgId: 7, orgLogin: "No-Box-Dev", projectId: "playnist", userLogin: "jasper", isAdmin },
     request: new Request("https://app.noxhere.com/api/cues/github-issues", {
       method: body === undefined ? "GET" : "PUT", headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

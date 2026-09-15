@@ -87,6 +87,23 @@ export async function exchangeGitHubOAuthIdentity(
   return persistGitHubIdentity(env, token);
 }
 
+export async function refreshGitHubIdentity(
+  env: IdentityEnvironment,
+  input: unknown,
+): Promise<IdentityExchangeResult> {
+  const connectionId = input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>).connectionId
+    : null;
+  if (typeof connectionId !== "string" || !connectionId.startsWith("noxic_") || connectionId.length > 256) {
+    throw new Error("invalid_identity_connection");
+  }
+  const connection = await resolveIdentityConnection(env, connectionId);
+  if (!connection) throw new Error("identity_connection_expired");
+  const identity = await loadGitHubIdentity(env.DB, connection.token);
+  if (identity.user.id !== connection.user.id) throw new Error("identity_connection_mismatch");
+  return { version: 1, connectionId, ...identity };
+}
+
 async function persistGitHubIdentity(
   env: IdentityEnvironment,
   token: GitHubTokenResponse,

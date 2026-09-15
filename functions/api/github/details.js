@@ -6,7 +6,7 @@ import { getInstallationIdForOrg, getInstallationToken } from "../../lib/github-
 // NoxConnect owns the live GitHub read. Clients receive a bounded projection,
 // never an installation token or raw GitHub client response.
 export async function onRequestGet(context) {
-  const { orgId, orgLogin } = getCtx(context);
+  const { orgId, orgLogin, projectId } = getCtx(context);
   const url = new URL(context.request.url);
   const kind = url.searchParams.get("kind");
   const repo = url.searchParams.get("repo")?.trim();
@@ -14,7 +14,7 @@ export async function onRequestGet(context) {
   if ((kind !== "issue" && kind !== "pr") || !repo || !Number.isSafeInteger(number) || number < 1) {
     return errorResponse("Invalid GitHub detail request", 400);
   }
-  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
   if (!activeRepos.includes(repo)) return errorResponse("Unknown repository", 404);
 
   const installationId = await getInstallationIdForOrg(context.env.DB, orgId);

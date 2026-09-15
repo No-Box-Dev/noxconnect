@@ -13,11 +13,11 @@ Write one short plain-language sentence with a Flesch Reading Ease target of 80-
 Use active voice and simple words. Explain what changed, not that the pull request was merged.
 If the description does not explain the fix, set summary to null. Do not infer or invent details.`;
 
-export async function summarizeNoxSpotResolutions(env, orgId, solved) {
+export async function summarizeNoxSpotResolutions(env, orgId, projectId, solved) {
   const candidates = uniqueCandidates(solved);
   if (!candidates.length) return withoutBodies(solved, new Map());
 
-  const config = await resolveLlmConfig(env, orgId);
+  const config = await resolveLlmConfig(env, orgId, projectId);
   if (config.status !== "ready") return withoutBodies(solved, new Map());
 
   const summaries = new Map();

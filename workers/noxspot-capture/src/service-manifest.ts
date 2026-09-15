@@ -24,10 +24,6 @@ export const NOXSPOT_SERVICE_MANIFEST = {
         { id: "submit_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/reports", authentication: "public", description: "Submit bounded website feedback from an allowed origin." },
         { id: "submit_browser_errors", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/errors", authentication: "public", description: "Submit a bounded batch of automatic browser errors." },
       ] },
-      { id: "spot_sharing", name: "External project sharing", description: "Create password-protected project portals without exposing NoxConnect credentials.", access: "admin", requires: ["github"], operations: [
-        { id: "upsert_spot_share", method: "POST", path: "/api/v1/spots/shares", authentication: "admin", description: "Create or rotate a password-protected project share." },
-        { id: "delete_spot_share", method: "DELETE", path: "/api/v1/spots/shares/{shareId}", authentication: "admin", description: "Disable a project share and revoke its sessions." },
-      ] },
       { id: "spot_delivery", name: "Slack delivery", description: "Route each site's feedback to its own Slack destination or the shared fallback.", access: "admin", requires: ["github", "slack"], operations: [
         { id: "update_site_delivery", method: "PATCH", path: "/api/v1/spots/sites/{siteId}", authentication: "admin", description: "Set a site's Slack workspace and channel override." },
         { id: "retry_site_deliveries", method: "POST", path: "/api/v1/spots/sites/{siteId}/retry-deliveries", authentication: "admin", description: "Retry blocked delivery for a site." },
@@ -35,7 +31,7 @@ export const NOXSPOT_SERVICE_MANIFEST = {
     ],
     setupSections: [
       { id: "sites", name: "Sites", capabilityIds: ["sites"] },
-      { id: "capture", name: "Capture", capabilityIds: ["widget", "reports", "spot_sharing"] },
+      { id: "capture", name: "Capture", capabilityIds: ["widget", "reports"] },
       { id: "delivery", name: "Delivery", capabilityIds: ["spot_delivery"] },
     ],
   },

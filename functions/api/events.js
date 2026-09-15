@@ -4,12 +4,15 @@ import { getCtx, jsonResponse, errorResponse } from "../lib/db";
 // Query params: type, project_id, actor_id, before (composite cursor
 // "<created_at>:<id>"), limit (default 50, max 200).
 export async function onRequestGet(context) {
-  const { orgLogin } = getCtx(context);
+  const { orgLogin, projectId } = getCtx(context);
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   const url = new URL(context.request.url);
   const type = url.searchParams.get("type");
-  const projectId = url.searchParams.get("project_id");
+  const requestedProjectId = url.searchParams.get("project_id");
+  if (requestedProjectId && requestedProjectId !== projectId) {
+    return errorResponse("The requested resource was not found", 404);
+  }
   const actorId = url.searchParams.get("actor_id");
   const before = url.searchParams.get("before");
   const limit = clampLimit(url.searchParams.get("limit"), 50, 200);
@@ -33,7 +36,10 @@ export async function onRequestGet(context) {
     "SELECT id, delivery_id, source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, created_at FROM events WHERE owner_id = ?";
   const binds = [orgLogin];
   if (type) { sql += " AND type = ?"; binds.push(type); }
-  if (projectId) { sql += " AND project_id = ?"; binds.push(projectId); }
+  if (projectId) {
+    sql += " AND project_id = ?";
+    binds.push(projectId);
+  }
   if (actorId) { sql += " AND actor_id = ?"; binds.push(actorId); }
   if (repo && prNumber != null) {
     // Match either payload_json.pr.number (raw github events, e.g.

@@ -37,7 +37,7 @@ export async function createNoxSpotGitHubIssue(env, capture) {
 
   await upsertIssue(env.DB, resolvedCapture.orgId, resolvedCapture.repo, issue);
   await storeEvent(env.DB, resolvedCapture, issue);
-  const slackChannels = await resolveSlackChannels(env.DB, resolvedCapture.orgId);
+  const slackChannels = await resolveSlackChannels(env.DB, resolvedCapture.orgId, resolvedCapture.projectId);
   const slackChannelId = resolveSlackRoute(
     slackChannels,
     "noxspot",
@@ -52,6 +52,7 @@ export async function createNoxSpotGitHubIssue(env, capture) {
     const slackResponse = await getNoxSpotSlackResponse(env, resolvedCapture, issue);
     const delivery = await stageSlackDelivery(env.DB, {
       orgId: resolvedCapture.orgId,
+      projectId: resolvedCapture.projectId,
       source: "noxspot",
       sourceId: resolvedCapture.captureId,
       siteId: resolvedCapture.siteId,

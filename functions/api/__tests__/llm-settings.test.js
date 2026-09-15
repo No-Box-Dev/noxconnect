@@ -44,7 +44,7 @@ function makeCtx({
           },
         },
       },
-      data: { orgId, isAdmin, orgLogin: "acme", userLogin: "admin" },
+      data: { orgId, projectId: "project-1", isAdmin, orgLogin: "acme", userLogin: "admin" },
       request: new Request("https://example.com/api/llm-settings", {
         method: body === undefined ? "GET" : "PUT",
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -108,8 +108,8 @@ describe("managed AI settings", () => {
   it("admin can disable AI and the change is audited", async () => {
     const { ctx, calls } = makeCtx({ body: { mode: "disabled" } });
     expect((await onRequestPut(ctx)).status).toBe(200);
-    expect(calls.batches[0][0].sql).toContain("INSERT INTO ai_settings");
-    expect(calls.batches[0][1].args).toEqual([7, "admin", "disabled"]);
+    expect(calls.batches[0][0].sql).toContain("INSERT INTO project_ai_settings");
+    expect(calls.batches[0][1].args).toEqual([7, "project-1", "admin", "disabled"]);
   });
 
   it("rejects BYOK fields and missing managed infrastructure", async () => {

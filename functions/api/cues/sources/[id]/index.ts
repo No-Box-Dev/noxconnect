@@ -6,13 +6,13 @@ import { validate } from "../../../../lib/validate";
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; isAdmin: boolean };
   params: { id: string };
   request: Request;
 }
 
 export async function onRequestPut(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -21,38 +21,37 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   catch { return errorResponse("Invalid JSON body", 400); }
   const parsed = validate(cueSourceInputSchema, raw);
   if (!parsed.ok) return parsed.response;
+  if (projectId && parsed.data.projectId && parsed.data.projectId !== projectId) {
+    return errorResponse("The requested resource was not found", 404);
+  }
 
   const existing = await db.prepare(
-    `SELECT source.environment,
+    `SELECT source.environment, source.project_id,
             EXISTS(SELECT 1 FROM cue_source_keys key
                     WHERE key.source_id = source.id AND key.last_used_at IS NOT NULL) AS has_events
        FROM cue_sources source
-      WHERE source.id = ? AND source.org_id = ? AND source.owner_id = ?`,
-  ).bind(context.params.id, orgId, orgLogin).first<{ environment: string; has_events: number }>();
+      WHERE source.id = ? AND source.org_id = ?${projectId ? " AND source.project_id = ?" : ""} AND source.owner_id = ?`,
+  ).bind(...(projectId
+    ? [context.params.id, orgId, projectId, orgLogin]
+    : [context.params.id, orgId, orgLogin])).first<{ environment: string; project_id: string; has_events: number }>();
   if (!existing) return errorResponse("Cue source not found", 404);
+  const targetProjectId = projectId || parsed.data.projectId || existing.project_id;
+  if (targetProjectId !== existing.project_id) {
+    const target = await db.prepare(
+      `SELECT project.id FROM projects project
+        JOIN project_routing_settings routing
+          ON routing.org_id = ? AND routing.project_id = project.id AND routing.enabled = 1
+       WHERE project.id = ? AND project.org_id = ? AND COALESCE(project.archived, 0) = 0`,
+    ).bind(orgId, targetProjectId, orgId).first();
+    if (!target) return errorResponse("Active project not found in this organization", 404);
+  }
   if (existing.has_events === 1 && parsed.data.environment !== existing.environment) {
     return errorResponse("Environment cannot change after this source receives events. Create a separate source for the other environment.", 409);
   }
 
-  const activeProjects = await db.prepare(
-    `SELECT project.id FROM projects project
-      JOIN project_routing_settings routing ON routing.project_id = project.id
-     WHERE project.owner_id = ? AND routing.org_id = ?
-       AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0
-     ORDER BY project.name`,
-  ).bind(orgLogin, orgId).all<{ id: string }>();
-  const projects = activeProjects.results ?? [];
-  let projectId = parsed.data.projectId;
-  if (!projectId && projects.length === 1) projectId = projects[0]!.id;
-  if (!projectId && projects.length > 1) {
-    return errorResponse("Choose the project this NoxCue source belongs to", 409);
-  }
-  if (projectId && !projects.some((project) => project.id === projectId)) {
-    return errorResponse("Active project not found in this organization", 404);
-  }
   let slackConnectionId: string | null = null;
   try {
-    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, projectId, {
+    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, targetProjectId, {
       connectionId: parsed.data.slackConnectionId,
       channelId: parsed.data.slackChannelId,
     });
@@ -64,13 +63,13 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
        timezone = ?, digest_enabled = ?, digest_time_local = ?, allowed_origins_json = ?, slack_channel_id = ?,
        slack_connection_id = ?,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-     WHERE id = ? AND org_id = ? AND owner_id = ?`,
+     WHERE id = ? AND org_id = ? AND project_id = ? AND owner_id = ?`,
   ).bind(
-    parsed.data.name, parsed.data.environment, projectId, parsed.data.enabled ? 1 : 0,
+    parsed.data.name, parsed.data.environment, targetProjectId, parsed.data.enabled ? 1 : 0,
     parsed.data.alertsEnabled ? 1 : 0,
     parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal, JSON.stringify(parsed.data.allowedOrigins),
-    parsed.data.slackChannelId, slackConnectionId, context.params.id, orgId, orgLogin,
+    parsed.data.slackChannelId, slackConnectionId, context.params.id, orgId, existing.project_id, orgLogin,
   ).run();
   if (!result.meta.changes) return errorResponse("Cue source not found", 404);
   await db.prepare(
@@ -94,12 +93,15 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestDelete(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const result = await getNoxDb(context.env).prepare(
-    "DELETE FROM cue_sources WHERE id = ? AND org_id = ? AND owner_id = ?",
-  ).bind(context.params.id, orgId, orgLogin).run();
+    `DELETE FROM cue_sources
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""} AND owner_id = ?`,
+  ).bind(...(projectId
+    ? [context.params.id, orgId, projectId, orgLogin]
+    : [context.params.id, orgId, orgLogin])).run();
   if (!result.meta.changes) return errorResponse("Cue source not found", 404);
   return jsonResponse({ ok: true });
 }

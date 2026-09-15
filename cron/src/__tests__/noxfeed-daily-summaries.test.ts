@@ -48,8 +48,10 @@ describe("NoxFeed daily Slack summaries", () => {
           bind(...args: unknown[]) { this.args = args; return this; },
           async all() {
             statements.push({ sql, args: this.args });
-            if (sql.includes("FROM orgs org")) return { results: [{
+            if (sql.includes("FROM projects project")) return { results: [{
               id: 7,
+              project_id: "project-1",
+              project_name: "Project One",
               github_login: "acme",
               timezone: "Asia/Kuala_Lumpur",
               time_local: "17:00",
@@ -79,21 +81,21 @@ describe("NoxFeed daily Slack summaries", () => {
     );
 
     expect(result).toEqual({ created: 1, skipped: 0, failed: 0 });
-    expect(getActiveRepoNames).toHaveBeenCalledWith(db, 7, "acme");
-    expect(resolveLlmConfig).toHaveBeenCalledWith(expect.anything(), 7);
+    expect(getActiveRepoNames).toHaveBeenCalledWith(db, 7, "acme", "project-1");
+    expect(resolveLlmConfig).toHaveBeenCalledWith(expect.anything(), 7, "project-1");
     expect(completeNarrative).toHaveBeenCalledOnce();
     const userPrompt = JSON.parse(completeNarrative.mock.calls[0][2]);
     expect(userPrompt.activity).toHaveLength(2);
     expect(userPrompt.counts).toMatchObject({ pullRequestsMerged: 1, reviews: 1 });
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
       source: "noxfeed_daily_summary",
-      sourceId: "daily-summary:7:2026-09-01",
+      sourceId: "daily-summary:7:project-1:2026-09-01",
       connectionId: "connection-1",
       channelId: "C123",
     }));
     expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.anything(), "delivery-1", "acme");
     expect(statements.find(({ sql }) => sql.includes("FROM events"))?.args).toContain("api");
-    const orgQuery = statements.find(({ sql }) => sql.includes("FROM orgs org"))?.sql ?? "";
+    const orgQuery = statements.find(({ sql }) => sql.includes("FROM projects project"))?.sql ?? "";
     expect(orgQuery).toContain("dailySummaryChannelId");
     expect(orgQuery).not.toContain("releaseNotesChannelId");
   });
@@ -104,8 +106,9 @@ describe("NoxFeed daily Slack summaries", () => {
         return {
           bind() { return this; },
           async all() {
-            if (sql.includes("FROM orgs org")) return { results: [{
+            if (sql.includes("FROM projects project")) return { results: [{
               id: 7, github_login: "acme", timezone: "UTC", time_local: "09:00",
+              project_id: "project-1", project_name: "Project One",
               channel_id: "C123", connection_id: "connection-1",
             }] };
             return { results: [] };

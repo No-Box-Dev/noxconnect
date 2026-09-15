@@ -12,9 +12,11 @@
 // Returns a Set<string> of repo names to exclude.
 import { normalizeNoxSettings } from "./naming-compat.js";
 
-export async function getInactiveRepoSet(db, orgId, orgLogin) {
+export async function getInactiveRepoSet(db, orgId, orgLogin, projectId = null) {
   const [settingsRow, archivedRows, ghArchivedRows] = await db.batch([
-    db.prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'").bind(orgId),
+    projectId
+      ? db.prepare("SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'").bind(orgId, projectId)
+      : db.prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'").bind(orgId),
     db.prepare("SELECT repo FROM projects WHERE owner_id = ? AND archived = 1").bind(orgLogin),
     db.prepare("SELECT name FROM repos WHERE org_id = ? AND (archived_at IS NOT NULL OR retired_at IS NOT NULL)").bind(orgId),
   ]);
@@ -53,10 +55,12 @@ export async function getInactiveRepoSet(db, orgId, orgLogin) {
 // Resolve the configured noxconnect repo name (settings.noxTicketRepo, default
 // "noxconnect"). The noxconnect repo holds features/todos/plans, not product work,
 // and is read separately from the product-repo sync.
-export async function getNoxTicketRepoName(db, orgId) {
+export async function getNoxTicketRepoName(db, orgId, projectId = null) {
   const settingsRow = await db
-    .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
-    .bind(orgId)
+    .prepare(projectId
+      ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'"
+      : "SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
+    .bind(...(projectId ? [orgId, projectId] : [orgId]))
     .first();
   if (settingsRow?.data) {
     let parsed;
@@ -84,6 +88,7 @@ export async function filterInactive(db, orgId, orgLogin, repoNames) {
 // instead of `NOT IN (capped-list)` — keeps the bind count bounded by the
 // active count (small in practice) and never silently drops inactive repos
 // past the old 30-bind cap.
+/** @param {string | null} [projectId] */
 export async function getActiveRepoNames(db, orgId, orgLogin, projectId = null) {
   const [reposRow, inactive] = await Promise.all([
     projectId
@@ -95,7 +100,7 @@ export async function getActiveRepoNames(db, orgId, orgLogin, projectId = null) 
           WHERE repo.org_id = ? AND assignment.project_id = ?`,
       ).bind(orgId, projectId).all()
       : db.prepare("SELECT name FROM repos WHERE org_id = ?").bind(orgId).all(),
-    getInactiveRepoSet(db, orgId, orgLogin),
+    getInactiveRepoSet(db, orgId, orgLogin, projectId),
   ]);
   const out = [];
   for (const row of reposRow.results ?? []) {

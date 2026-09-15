@@ -11,7 +11,7 @@ import { setInstallationRepos, upsertInstallation } from "../lib/gh-mirror";
 // webhook fix), we bootstrap by pulling /installation/repositories from
 // GitHub via an installation token.
 export async function onRequestGet(context) {
-  const { orgLogin, orgId } = getCtx(context);
+  const { orgLogin, orgId, auth } = getCtx(context);
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   const db = context.env.DB;
@@ -37,11 +37,16 @@ export async function onRequestGet(context) {
      LEFT JOIN repos repo ON repo.org_id = ? AND repo.name = project.repo
      LEFT JOIN project_routing_settings routing
        ON routing.org_id = ? AND routing.project_id = project.id
-     WHERE project.owner_id = ?
+     WHERE project.org_id = ?
      ORDER BY archived, COALESCE(project.org, ''), project.name`
-  ).bind(orgId, orgId, orgLogin).all();
+  ).bind(orgId, orgId, orgId).all();
 
-  return jsonResponse({ projects: rows.results ?? [] });
+  const projects = rows.results ?? [];
+  if (auth?.accessLevel !== "guest" || auth.guestAccess?.organizationWide === true) {
+    return jsonResponse({ projects });
+  }
+  const allowed = new Set(Object.keys(auth?.guestAccess?.projects ?? {}));
+  return jsonResponse({ projects: projects.filter((project) => allowed.has(project.id)) });
 }
 
 // If `orgs.installation_id` is set but no installations row exists yet
@@ -201,9 +206,9 @@ async function syncProjectsFromInstallations(db, ownerId) {
       const projectId = `proj_${org}_${repo}`.toLowerCase();
       upserts.push(
         db.prepare(
-          `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, updated_at)
-           VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
-        ).bind(projectId, repo, org, repo, ownerId)
+          `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, org_id, updated_at)
+           VALUES (?, ?, ?, ?, ?, (SELECT id FROM orgs WHERE github_login = ? COLLATE NOCASE), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
+        ).bind(projectId, repo, org, repo, ownerId, ownerId)
       );
     }
   }

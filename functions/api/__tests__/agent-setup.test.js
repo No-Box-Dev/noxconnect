@@ -15,7 +15,7 @@ function dbWithSettings(settings = {}, options = {}) {
     prepare: vi.fn((sql) => {
       const statement = {
         bind: vi.fn(() => statement),
-        first: vi.fn(async () => sql.includes("SELECT data FROM config") ? (configRows.shift() ?? null) : null),
+        first: vi.fn(async () => sql.includes("SELECT data FROM") ? (configRows.shift() ?? null) : null),
         all: vi.fn(async () => ({ results: [] })),
         run: vi.fn(async () => ({ success: true, meta: { changes: options.changes ?? 1 } })),
       };
@@ -57,9 +57,35 @@ describe("agent setup APIs", () => {
   it("reads canonical Slack routes", async () => {
     const response = await getRouting({
       env: { DB: dbWithSettings({ slack: { fallbackChannelId: "C1", postsChannelId: "C2" } }) },
-      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true },
     });
     expect(await response.json()).toMatchObject({ routes: { fallback: "C1", noxfeed_posts: "C2", noxcue: null } });
+  });
+
+  it("reads organization-wide Slack routes when no project is selected", async () => {
+    const DB = dbWithSettings({ slack: { postsChannelId: "C2" } });
+    const response = await getRouting({
+      env: { DB },
+      data: { orgId: 7, orgLogin: "acme", projectId: null, isAdmin: true },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ routes: { noxfeed_posts: "C2" } });
+    expect(DB.prepare.mock.calls[0][0]).toContain("FROM config");
+  });
+
+  it("writes organization-wide Slack routes to legacy organization config", async () => {
+    const DB = dbWithSettings({ slack: {} });
+    const response = await patchRouting({
+      request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
+        method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
+      }),
+      env: { DB },
+      data: { orgId: 7, orgLogin: "acme", projectId: null, isAdmin: true },
+      params: {},
+    });
+    expect(response.status).toBe(200);
+    expect(DB.prepare.mock.calls.some(([sql]) => sql.includes("UPDATE config SET"))).toBe(true);
+    expect(DB.prepare.mock.calls.some(([sql]) => sql.includes("UPDATE delivery_outbox") && !sql.includes("project_id = ?"))).toBe(true);
   });
 
   it("rejects unknown route names without mutating config", async () => {
@@ -69,7 +95,7 @@ describe("agent setup APIs", () => {
         method: "PATCH", body: JSON.stringify({ routes: { surprise: "C1" } }),
       }),
       env: { DB },
-      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true },
       params: {},
     });
     expect(response.status).toBe(400);
@@ -83,13 +109,13 @@ describe("agent setup APIs", () => {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
       env: { DB },
-      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true },
       params: {},
     });
     expect(response.status).toBe(200);
     expect(DB.batch).toHaveBeenCalledOnce();
     expect(DB.batch.mock.calls[0][0]).toHaveLength(7);
-    const updateCall = DB.prepare.mock.calls.find(([sql]) => sql.includes("WHERE org_id = ? AND key = ? AND data = ?"));
+    const updateCall = DB.prepare.mock.calls.find(([sql]) => sql.includes("WHERE org_id = ? AND project_id = ? AND key = ? AND data = ?"));
     expect(updateCall).toBeTruthy();
     const dependentSql = DB.prepare.mock.calls
       .map(([sql]) => sql)
@@ -112,7 +138,7 @@ describe("agent setup APIs", () => {
       request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
-      env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
+      env: { DB }, data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true }, params: {},
     });
     expect(response.status).toBe(200);
   });
@@ -127,7 +153,7 @@ describe("agent setup APIs", () => {
       request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
-      env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
+      env: { DB }, data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true }, params: {},
     });
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "Settings changed concurrently; fetch routing and retry" });
@@ -146,7 +172,7 @@ describe("agent setup APIs", () => {
         method: "POST", body: JSON.stringify({ route, channelId: "C1" }),
       }),
       env: { DB: dbWithSettings({}) },
-      data: { orgId: 7, orgLogin: "acme", isAdmin: true },
+      data: { orgId: 7, orgLogin: "acme", projectId: "project-1", isAdmin: true },
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ channelId: "C1", kind });

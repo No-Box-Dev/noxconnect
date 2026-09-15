@@ -34,7 +34,7 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin?: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; userLogin: string; isAdmin?: boolean };
   request: Request;
 }
 
@@ -62,22 +62,23 @@ const FEATURE_COLUMNS = [
 ].join(", ");
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   const url = new URL(context.request.url);
   const state = url.searchParams.get("state") || "open";
 
   const delegated = await delegateFeatureList(context.env, {
     orgId,
+    projectId,
     userLogin: context.data.userLogin,
     isAdmin: context.data.isAdmin,
   }, state);
   if (delegated) return delegated;
 
   const featureRows = await context.env.DB
-    .prepare(
-      `SELECT ${FEATURE_COLUMNS} FROM features WHERE org_id = ? AND state = ? ORDER BY number ASC`,
-    )
-    .bind(orgId, state)
+    .prepare(projectId
+      ? `SELECT ${FEATURE_COLUMNS} FROM features WHERE org_id = ? AND project_id = ? AND state = ? ORDER BY number ASC`
+      : `SELECT ${FEATURE_COLUMNS} FROM features WHERE org_id = ? AND state = ? ORDER BY number ASC`)
+    .bind(...(projectId ? [orgId, projectId, state] : [orgId, state]))
     .all();
 
   const data = (featureRows.results as Record<string, any>[]).map((row) => ({
@@ -101,7 +102,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // Stays synchronous because we need GitHub's assigned issue number before we
 // can write a D1 row — PATCH and DELETE are the optimistic ones.
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, projectId, orgLogin } = getCtx(context) as Ctx["data"];
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   let rawBody: unknown;
@@ -111,6 +112,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
 
   const delegated = await delegateFeatureMutation(context.env, {
     orgId,
+    projectId,
     userLogin: context.data.userLogin,
     isAdmin: context.data.isAdmin,
   }, context.request, "create", undefined, rawBody);
@@ -123,7 +125,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const title = typeof payload?.title === "string" ? payload.title.trim() : "";
   if (!title) return errorResponse("title is required", 422);
 
-  const stages = await resolveBoardStages(context.env.DB, orgId);
+  const stages = await resolveBoardStages(context.env.DB, orgId, projectId);
   const validStatusIds = new Set(stages.map((s) => s.id));
   const status = payload?.status ?? stages[0]?.id ?? "todo";
   if (!validStatusIds.has(status)) return errorResponse(`Invalid status: ${status}`, 422);
@@ -163,7 +165,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       ...(owners.length > 0 ? { assignees: owners } : {}),
     });
 
-    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github" });
+    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github", projectId });
     return jsonResponse(ghIssueToFeature(ghIssue), 201);
   } catch (err) {
     const e = err as { status?: number; message?: string; ghBody?: unknown };

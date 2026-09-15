@@ -3,25 +3,31 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import openapi from "../../../public/openapi.json";
 
+const functionsRoot = join(process.cwd(), "functions");
+const routeRoot = join(functionsRoot, "api", "v1");
+const routes = walkRouteFiles(routeRoot).map((file) => {
+  const route = relative(functionsRoot, file)
+    .replace(/\.(?:js|ts)$/, "")
+    .replace(/\/index$/, "")
+    .split("/")
+    .map((segment) => /^\[.+\]$/.test(segment) ? "[^/]+" : escapeRegex(segment))
+    .join("/");
+  const source = readFileSync(file, "utf8");
+  const handlers = new Set(source.split("\n")
+    .filter((line) => line.trimStart().startsWith("export "))
+    .flatMap((line) => [...line.matchAll(/\bonRequest(?:Get|Post|Put|Patch|Delete|Head|Options)?\b/g)])
+    .map((match) => match[0]));
+  const documentedPath = `/${relative(functionsRoot, file)
+    .replace(/\.(?:js|ts)$/, "")
+    .replace(/\/index$/, "")
+    .split("/")
+    .map((segment) => /^\[(.+)\]$/.test(segment) ? `{${segment.slice(1, -1)}}` : segment)
+    .join("/")}`;
+  return { path: documentedPath, pattern: new RegExp(`^/${route}$`), handlers };
+});
+
 describe("canonical OpenAPI routes", () => {
   it("has a connector route for every canonical non-control-plane path", () => {
-    const functionsRoot = join(process.cwd(), "functions");
-    const routeRoot = join(functionsRoot, "api", "v1");
-    const routes = walkRouteFiles(routeRoot).map((file) => {
-      const route = relative(functionsRoot, file)
-        .replace(/\.(?:js|ts)$/, "")
-        .replace(/\/index$/, "")
-        .split("/")
-        .map((segment) => /^\[.+\]$/.test(segment) ? "[^/]+" : escapeRegex(segment))
-        .join("/");
-      const source = readFileSync(file, "utf8");
-      const handlers = new Set(source.split("\n")
-        .filter((line) => line.trimStart().startsWith("export "))
-        .flatMap((line) => [...line.matchAll(/\bonRequest(?:Get|Post|Put|Patch|Delete|Head|Options)?\b/g)])
-        .map((match) => match[0]));
-      return { pattern: new RegExp(`^/${route}$`), handlers };
-    });
-
     for (const [path, operations] of Object.entries(openapi.paths)
       .filter(([candidate]) => candidate.startsWith("/api/v1/") && !isNoxHereControlPath(candidate))) {
       const route = routes.find((candidate) => candidate.pattern.test(path));
@@ -33,6 +39,20 @@ describe("canonical OpenAPI routes", () => {
           route.handlers.has("onRequest") || route.handlers.has(methodHandler),
           `${method.toUpperCase()} ${path} is not exported by its v1 route file`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("documents every canonical v1 connector route and named method handler", () => {
+    for (const route of routes) {
+      const matches = Object.entries(openapi.paths)
+        .filter(([path]) => path.startsWith("/api/v1/") && route.pattern.test(path));
+      expect(matches, `${route.path} is implemented but missing from OpenAPI`).toHaveLength(1);
+      const [documentedPath, operations] = matches[0] ?? [];
+      for (const method of ["get", "post", "put", "patch", "delete"]) {
+        const handler = `onRequest${method[0].toUpperCase()}${method.slice(1)}`;
+        if (!route.handlers.has(handler)) continue;
+        expect(operations?.[method], `${handler} for ${documentedPath ?? route.path} is missing from OpenAPI`).toBeDefined();
       }
     }
   });

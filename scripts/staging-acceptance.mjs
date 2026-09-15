@@ -121,7 +121,6 @@ async function preflight() {
   const ticketConfig = (await request("NoxTicket staging config", "/api/v1/services/noxticket/config")).body?.config;
   if (ticketConfig?.featureRepository !== config.repo) fail("NoxTicket feature repository is not the allowlisted staging repository");
   const feedConfig = (await request("NoxFeed staging config", "/api/v1/services/noxfeed/config")).body?.config;
-  if (feedConfig?.projectScope && feedConfig.projectScope !== config.projectId) fail("NoxFeed is scoped to a different project");
 
   const repo = gh("read staging repository", "GET", `repos/${config.org}/${config.repo}`);
   if (repo?.owner?.login?.toLowerCase() !== config.org.toLowerCase() || repo?.name !== config.repo) {

@@ -18,6 +18,8 @@ interface DailySummaryEnv {
 
 interface DailySummaryOrg {
   id: number;
+  project_id: string;
+  project_name: string;
   github_login: string;
   timezone: string;
   time_local: string;
@@ -125,13 +127,13 @@ function slackMessage(org: DailySummaryOrg, period: string, text: string, counts
 }
 
 async function createSummary(env: DailySummaryEnv, org: DailySummaryOrg, period: string, nowMs: number) {
-  const sourceId = `daily-summary:${org.id}:${period}`;
+  const sourceId = `daily-summary:${org.id}:${org.project_id}:${period}`;
   const existing = await env.DB.prepare(
     "SELECT id FROM delivery_outbox WHERE source = 'noxfeed_daily_summary' AND destination = 'slack' AND source_id = ?",
   ).bind(sourceId).first();
   if (existing) return { skipped: "already_created" };
 
-  const activeRepos = await getActiveRepoNames(env.DB, org.id, org.github_login);
+  const activeRepos = await getActiveRepoNames(env.DB, org.id, org.github_login, org.project_id);
   if (activeRepos.length === 0) return { skipped: "no_active_repositories" };
 
   const since = new Date(nowMs - LOOKBACK_MS).toISOString();
@@ -139,7 +141,7 @@ async function createSummary(env: DailySummaryEnv, org: DailySummaryOrg, period:
   const { results } = await env.DB.prepare(
     `SELECT type, actor_id, repo, summary, created_at
        FROM events
-      WHERE owner_id = ? AND repo IN (${placeholders}) AND created_at >= ?
+      WHERE owner_id = ? AND project_id = ? AND repo IN (${placeholders}) AND created_at >= ?
         AND type IN (
           'github:pr:opened', 'github:pr:merged', 'github:pr:closed', 'github:pr:reopened',
           'github:pr:review:approved', 'github:pr:review:changes_requested', 'github:pr:review:commented',
@@ -148,11 +150,11 @@ async function createSummary(env: DailySummaryEnv, org: DailySummaryOrg, period:
         )
       ORDER BY created_at DESC
       LIMIT ?`,
-  ).bind(org.github_login, ...activeRepos, since, MAX_EVENTS).all<ActivityEvent>();
+  ).bind(org.github_login, org.project_id, ...activeRepos, since, MAX_EVENTS).all<ActivityEvent>();
   const events = uniqueEvents((results ?? []).filter((event) => eventPeriod(event, org.timezone) === period));
   if (events.length === 0) return { skipped: "no_activity" };
 
-  const llm = await resolveLlmConfig(env, org.id);
+  const llm = await resolveLlmConfig(env, org.id, org.project_id);
   if (llm.status !== "ready") throw new Error(`NoxFeed AI unavailable (${llm.errorCode ?? llm.status})`);
   const prompt = buildPrompt(org, period, events);
   const generated = await completeNarrative(llm, prompt.system, prompt.user, {
@@ -163,6 +165,7 @@ async function createSummary(env: DailySummaryEnv, org: DailySummaryOrg, period:
   const text = generated.slice(0, SUMMARY_MAX_CHARS);
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: org.id,
+    projectId: org.project_id,
     source: "noxfeed_daily_summary",
     sourceId,
     siteId: null,
@@ -179,7 +182,7 @@ async function createSummary(env: DailySummaryEnv, org: DailySummaryOrg, period:
 
 export async function runNoxFeedDailySummaries(env: DailySummaryEnv, nowMs = Date.now()) {
   const { results } = await env.DB.prepare(
-    `SELECT org.id, org.github_login,
+    `SELECT org.id, org.github_login, project.id AS project_id, project.name AS project_name,
             COALESCE(NULLIF(json_extract(config.data, '$.noxfeedDailySummary.timezone'), ''), 'UTC') AS timezone,
             COALESCE(NULLIF(json_extract(config.data, '$.noxfeedDailySummary.timeLocal'), ''), '17:00') AS time_local,
             NULLIF(json_extract(config.data, '$.slack.dailySummaryChannelId'), '') AS channel_id,
@@ -189,11 +192,16 @@ export async function runNoxFeedDailySummaries(env: DailySummaryEnv, nowMs = Dat
                 WHERE connection.org_id = org.id
                 ORDER BY connection.is_default DESC, connection.installed_at LIMIT 1)
             ) AS connection_id
-       FROM orgs org
-       JOIN config ON config.org_id = org.id AND config.key = 'settings'
+       FROM projects project
+       JOIN orgs org ON org.id = project.org_id
+       JOIN project_routing_settings routing
+         ON routing.org_id = org.id AND routing.project_id = project.id AND routing.enabled = 1
+       JOIN project_config config
+         ON config.org_id = org.id AND config.project_id = project.id AND config.key = 'settings'
       WHERE COALESCE(json_extract(config.data, '$.apps.noxfeed'), 1) != 0
         AND json_extract(config.data, '$.noxfeedDailySummary.enabled') = 1
-      ORDER BY org.id LIMIT ?`,
+        AND COALESCE(project.archived, 0) = 0
+      ORDER BY org.id, project.id LIMIT ?`,
   ).bind(MAX_ORGS_PER_TICK).all<DailySummaryOrg>();
 
   let created = 0;

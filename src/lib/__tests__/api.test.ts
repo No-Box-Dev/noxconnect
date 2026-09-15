@@ -34,9 +34,10 @@ function mockFetch(status: number, body: unknown) {
 }
 
 describe("apiFetch", () => {
-  it("uses the HttpOnly session and injects only the selected organization", async () => {
+  it("uses the HttpOnly session and injects the selected organization and project", async () => {
     storage.ut_token = "tok123";
     storage.ut_org = "my-org";
+    storage.ut_project = "project-1";
     const fn = mockFetch(200, {});
 
     await apiFetch("/api/test");
@@ -44,9 +45,31 @@ describe("apiFetch", () => {
     expect(fn).toHaveBeenCalledWith("/api/test", expect.objectContaining({
       headers: expect.objectContaining({
         "X-Org": "my-org",
+        "X-Project-ID": "project-1",
       }),
       credentials: "same-origin",
     }));
+  });
+
+  it("uses an explicit resource project instead of the stored project", async () => {
+    storage.ut_project = "project-1";
+    const fn = mockFetch(200, {});
+
+    await apiFetch("/api/v1/projects/project-2/archive", { method: "POST" });
+
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBe("project-2");
+  });
+
+  it("uses a JSON body project for project-owned resource creation", async () => {
+    storage.ut_project = "project-1";
+    const fn = mockFetch(200, {});
+
+    await apiFetch("/api/v1/spots/sites", {
+      method: "POST",
+      body: JSON.stringify({ projectId: "project-2", name: "Portal" }),
+    });
+
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBe("project-2");
   });
 
   it("uses empty strings when localStorage is empty", async () => {

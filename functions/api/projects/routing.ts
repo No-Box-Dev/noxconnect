@@ -23,9 +23,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
          FROM projects project
          LEFT JOIN project_routing_settings settings
            ON settings.project_id = project.id AND settings.org_id = ?
-        WHERE project.owner_id = ?
+        WHERE project.org_id = ?
         ORDER BY archived, routing_enabled DESC, lower(project.name)`,
-    ).bind(orgId, orgLogin).all<ProjectRow>(),
+    ).bind(orgId, orgId).all<ProjectRow>(),
     context.env.DB.prepare(
       `SELECT assignment.project_id, assignment.repo
          FROM project_repositories assignment

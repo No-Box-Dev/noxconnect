@@ -46,7 +46,7 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin?: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; userLogin: string; isAdmin?: boolean };
   request: Request;
   params?: { number?: string };
   waitUntil: (promise: Promise<unknown>) => void;
@@ -101,7 +101,7 @@ function synthesizeIssue(
 // Any omitted field is left unchanged on GitHub (the current value is sent
 // back so a partial update doesn't blank out a field we didn't touch).
 export async function onRequestPatch(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, projectId, orgLogin } = getCtx(context) as Ctx["data"];
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   const number = parseFeatureNumber(context);
@@ -114,6 +114,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
 
   const delegated = await delegateFeatureMutation(context.env, {
     orgId,
+    projectId,
     userLogin: context.data.userLogin,
     isAdmin: context.data.isAdmin,
   }, context.request, "update", number, rawBody);
@@ -123,7 +124,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
   const payload = parsed.data;
 
-  const row = await readFeatureRow(context.env.DB, orgId, number);
+  const row = await readFeatureRow(context.env.DB, orgId, projectId, number);
   if (!row) return errorResponse("Feature not found", 404);
 
   // Compose desired state from request + current D1 row.
@@ -136,7 +137,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     ? payload.title.trim()
     : row.title;
 
-  const stages = await resolveBoardStages(context.env.DB, orgId);
+  const stages = await resolveBoardStages(context.env.DB, orgId, projectId);
   const validStatusIds = new Set(stages.map((s) => s.id));
 
   let status = currentStatus;
@@ -193,7 +194,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   // 30-min cron's syncFeatures will detect d1.updated_at > d1.gh_synced_at
   // and push the change to GitHub on the next tick — no more silent reverts.
   const optimistic = synthesizeIssue({ row, number, title, body, status, backlog, owners });
-  await upsertFeatureRow(context.env.DB, orgId, optimistic, { from: "local" });
+  await upsertFeatureRow(context.env.DB, orgId, optimistic, { from: "local", projectId });
 
   // Only send the fields the caller actually changed. GitHub PATCH is
   // additive per-field — anything omitted stays as-is. Blindly sending
@@ -226,7 +227,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     // cached per-org so this is a no-op after the first hit.
     await ensureNoxTicketRepoLabels(token, orgLogin, stages);
     const ghIssue = await patchFeatureIssue(token, orgLogin, number, ghPatch);
-    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github" });
+    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github", projectId });
   })();
   context.waitUntil(
     ghWrite.catch(async (err) => {
@@ -247,7 +248,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
 // noxticket/feature/status labels so it disappears from the board, and mark
 // D1 closed. Optimistic: D1 closes first; GitHub close runs in waitUntil.
 export async function onRequestDelete(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, projectId, orgLogin } = getCtx(context) as Ctx["data"];
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   const number = parseFeatureNumber(context);
@@ -255,12 +256,13 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
 
   const delegated = await delegateFeatureMutation(context.env, {
     orgId,
+    projectId,
     userLogin: context.data.userLogin,
     isAdmin: context.data.isAdmin,
   }, context.request, "close", number);
   if (delegated) return delegated;
 
-  const row = await readFeatureRow(context.env.DB, orgId, number);
+  const row = await readFeatureRow(context.env.DB, orgId, projectId, number);
   if (!row) return errorResponse("Feature not found", 404);
 
   // Drop NoxTicket-owned labels but keep any user-applied ones.
@@ -287,25 +289,28 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
   // 0037 the truth is `spec.feature_number`, and no cascade FK exists
   // yet — this is the natural moment to null it out.
   await context.env.DB.batch([
-    context.env.DB.prepare(
-      `UPDATE features
-          SET state = 'closed',
-              labels_json = ?,
-              updated_at = ?
-        WHERE org_id = ? AND number = ?`,
-    )
-      .bind(
+    context.env.DB.prepare(projectId
+      ? `UPDATE features
+           SET state = 'closed', labels_json = ?, updated_at = ?
+         WHERE org_id = ? AND project_id = ? AND number = ?`
+      : `UPDATE features
+           SET state = 'closed', labels_json = ?, updated_at = ?
+         WHERE org_id = ? AND number = ?`)
+      .bind(...[
         JSON.stringify(keepLabels.map((name: string) => ({ name, color: "" }))),
         new Date().toISOString(),
         orgId,
+        ...(projectId ? [projectId] : []),
         number,
-      ),
-    context.env.DB.prepare(
-      `UPDATE specs
-          SET feature_number = NULL,
-              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-        WHERE org_id = ? AND feature_number = ?`,
-    ).bind(orgId, number),
+      ]),
+    context.env.DB.prepare(projectId
+      ? `UPDATE specs
+           SET feature_number = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE org_id = ? AND project_id = ? AND feature_number = ?`
+      : `UPDATE specs
+           SET feature_number = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE org_id = ? AND feature_number = ?`)
+      .bind(...(projectId ? [orgId, projectId, number] : [orgId, number])),
   ]);
 
   const ghWrite = (async () => {
@@ -314,7 +319,7 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
       labels: keepLabels,
       state: "closed",
     });
-    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github" });
+    await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github", projectId });
   })();
   context.waitUntil(
     ghWrite.catch(async (err) => {

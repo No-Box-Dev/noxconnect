@@ -4,6 +4,7 @@ vi.mock("../../lib/github-app.js", () => ({
   getInstallationIdForOrg: vi.fn(async () => 12345),
   getInstallationToken: vi.fn(async () => "install-tok"),
 }));
+vi.mock("../../lib/inactive-repos.js", () => ({ getActiveRepoNames: vi.fn(async () => ["api"]) }));
 
 import { onRequestPost } from "../assign";
 import { getInstallationIdForOrg, getInstallationToken } from "../../lib/github-app.js";
@@ -29,7 +30,7 @@ function makeContext({ db, body, orgId = 1, orgLogin = "acme" }) {
     headers: { "Content-Type": "application/json" },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
-  return { request: req, env: { DB: db }, data: { orgId, orgLogin } };
+  return { request: req, env: { DB: db }, data: { orgId, orgLogin, projectId: "project-1" } };
 }
 
 beforeEach(() => {

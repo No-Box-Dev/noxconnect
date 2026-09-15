@@ -3,6 +3,7 @@
 export interface SpecAttachmentRow {
   id: number;
   org_id: number;
+  project_id: string;
   spec_id: number;
   filename: string;
   content_type: string;
@@ -14,6 +15,7 @@ export interface SpecAttachmentRow {
 
 export interface SpecAttachmentDto {
   id: number;
+  projectId: string;
   filename: string;
   contentType: string;
   size: number;
@@ -75,6 +77,7 @@ export function contentTypeFromFilename(filename: string): string {
 export function rowToDto(row: SpecAttachmentRow): SpecAttachmentDto {
   return {
     id: row.id,
+    projectId: row.project_id,
     filename: row.filename,
     contentType: row.content_type,
     size: row.size,

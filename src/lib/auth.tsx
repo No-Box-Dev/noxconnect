@@ -68,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("ut_token");
     const handler = () => {
       localStorage.removeItem("ut_org");
+      localStorage.removeItem("ut_project");
       setUser(null);
       setSelectedOrg(null);
     };
@@ -182,12 +183,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     localStorage.removeItem("ut_token");
     localStorage.removeItem("ut_org");
+    localStorage.removeItem("ut_project");
     localStorage.setItem("ut_logout_at", String(Date.now()));
     setUser(null);
     setSelectedOrg(null);
   };
 
   const handleSetOrg = (org: string | null) => {
+    if (org !== selectedOrg) localStorage.removeItem("ut_project");
     setSelectedOrg(org);
     if (org) localStorage.setItem("ut_org", org);
     else localStorage.removeItem("ut_org");

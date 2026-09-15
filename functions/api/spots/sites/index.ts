@@ -55,11 +55,6 @@ function siteDto(row: Record<string, unknown>) {
     slackBlockedCount: blockedCount + failedCount,
     slackLastError: row.slack_last_error ?? null,
     dailySummaryEnabled: config.dailySummaryEnabled !== false,
-    externalShare: row.external_share_id ? {
-      id: row.external_share_id,
-      slug: row.external_share_slug,
-      enabled: Number(row.external_share_enabled ?? 0) === 1,
-    } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -110,17 +105,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
             (SELECT delivery.last_error FROM delivery_outbox delivery
               WHERE delivery.site_id = site.id AND delivery.destination = 'slack'
                 AND delivery.last_error IS NOT NULL
-              ORDER BY delivery.updated_at DESC LIMIT 1) AS slack_last_error,
-            (SELECT share.id FROM external_project_shares share
-                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_id,
-            (SELECT share.slug FROM external_project_shares share
-                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_slug,
-            (SELECT share.enabled FROM external_project_shares share
-                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_enabled
+              ORDER BY delivery.updated_at DESC LIMIT 1) AS slack_last_error
        FROM spot_sites site
-      WHERE site.org_id = ? AND (? IS NULL OR site.project_id = ?)
+      WHERE site.org_id = ?${projectId ? " AND site.project_id = ?" : ""}
       ORDER BY site.created_at DESC`,
-  ).bind(orgId, projectId ?? null, projectId ?? null).all<Record<string, unknown>>();
+  ).bind(...(projectId ? [orgId, projectId] : [orgId])).all<Record<string, unknown>>();
 
   return jsonResponse({
     sites: (results ?? []).map((row) => ({
@@ -132,7 +121,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, userLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
+  const { orgId, userLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -144,12 +133,12 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
   if (projectId && input.projectId && input.projectId !== projectId) return errorResponse("The requested resource was not found", 404);
-  const targetProjectId = projectId ?? input.projectId;
-  if (!targetProjectId) return errorResponse("Project is required", 400);
+  const targetProjectId = projectId || input.projectId;
+  if (!targetProjectId) return errorResponse("Choose a project for the new site", 422);
 
   const project = await db.prepare(
-    "SELECT repo FROM projects WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0",
-  ).bind(targetProjectId, orgLogin).first<{ repo: string }>();
+    "SELECT repo FROM projects WHERE id = ? AND org_id = ? AND COALESCE(archived, 0) = 0",
+  ).bind(targetProjectId, orgId).first<{ repo: string }>();
   if (!project?.repo) return errorResponse("Active project not found in this organization", 400);
 
   const id = crypto.randomUUID();
@@ -173,6 +162,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     insertSite,
     noxSpotAuditStatement(db, {
       orgId,
+      projectId: targetProjectId,
       siteId: id,
       actorLogin: userLogin,
       action: "site.created",
@@ -185,8 +175,8 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
        (SELECT json_extract(config.data, '$.slack.fallbackChannelId') FROM config
          WHERE config.org_id = site.org_id AND config.key = 'settings') AS slack_fallback_channel_id
      FROM spot_sites site
-     WHERE site.id = ? AND site.org_id = ?`,
-  ).bind(id, orgId).first<Record<string, unknown>>();
+     WHERE site.id = ? AND site.org_id = ? AND site.project_id = ?`,
+  ).bind(id, orgId, targetProjectId).first<Record<string, unknown>>();
 
   return jsonResponse({ site: siteDto(row ?? {}) }, 201);
 }
