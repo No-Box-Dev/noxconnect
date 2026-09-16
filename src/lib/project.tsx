@@ -28,9 +28,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     ?? available.find((item) => item.routing_enabled === 1)
     ?? available[0];
 
-  // Establish the request context before children mount and start their
-  // queries. Deferring this until an effect creates a first-render race where
-  // service requests can leave without X-Project-ID.
+  // This is UI selection state only. API calls that need project scope must
+  // identify the project explicitly in their path, query, body, or headers.
   if (project && localStorage.getItem("ut_project") !== project.id) {
     localStorage.setItem("ut_project", project.id);
   }

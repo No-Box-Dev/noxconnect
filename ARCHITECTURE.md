@@ -25,7 +25,7 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 
 ## Multi-tenancy
 
-NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. NoxHere resolves the caller and signs the bounded context; NoxConnect middleware (`functions/_middleware.js`) verifies that assertion and scopes every query by `org_id`. A project selector is optional for user sessions: omission is organization-wide and a supplied header, query value, URL project, or signed token project narrows the request. Multiple selectors must agree.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. NoxHere resolves the caller and signs the bounded context; NoxConnect middleware (`functions/_middleware.js`) verifies that assertion and scopes every query by `org_id`. A project selector is optional for user sessions: omission is organization-wide and a supplied header, query value, URL project, or signed token project narrows the request. Multiple selectors must agree. The browser's project selection is UI state only: the shared API client never attaches it automatically, so project-scoped requests must identify their project explicitly.
 
 ## Authentication and credentials
 
