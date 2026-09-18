@@ -6,6 +6,7 @@ import {
   refreshGitHubIdentity,
   startGitHubDeviceIdentity,
 } from "../../../functions/lib/connection-identity";
+import { sendTransactionalEmail } from "../../../functions/lib/transactional-email";
 
 interface Env {
   DB: D1Database;
@@ -17,6 +18,9 @@ interface Env {
   GITHUB_APP_CLIENT_ID?: string;
   GITHUB_APP_CLIENT_SECRET?: string;
   NOXHERE_OAUTH_CALLBACK_URL?: string;
+  POSTMARK_SERVER_TOKEN?: string;
+  PLATFORM_EMAIL_FROM?: string;
+  NOXSPOT_EMAIL_FROM?: string;
 }
 
 export default class NoxConnectCapabilities extends WorkerEntrypoint<Env> {
@@ -38,6 +42,10 @@ export default class NoxConnectCapabilities extends WorkerEntrypoint<Env> {
 
   pollGitHubDeviceAuth(input: unknown) {
     return pollGitHubDeviceIdentity(this.env, input);
+  }
+
+  sendEmail(input: unknown) {
+    return sendTransactionalEmail(this.env, input);
   }
 
   fetch(): Response {

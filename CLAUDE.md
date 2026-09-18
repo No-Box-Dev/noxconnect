@@ -74,6 +74,25 @@ Admin uses separately routeable service pages under `?tab=admin&service=<noxconn
 ### Backend setup (TypeScript + zod)
 New backend code (Pages Functions + cron) is written in **TypeScript**, not JS. D1 access uses the native binding (`context.env.DB.prepare(...).bind(...)`, `DB.batch([...])`) — the same proven pattern as `prs.js` / `issues.js`; read `.results` off each batch entry. (Drizzle was trialed and removed — its `db.batch([db.all(sql\`...\`)])` path returned no rows for our `json_each` aggregations in the D1 runtime, and nothing else used it.) External request input is validated at the boundary with `validate(schema, input)` from `functions/lib/validate.ts` (zod) — it returns a 400 `Response` on failure that the handler returns directly. Type-check the backend with `npm run typecheck:functions` (`tsconfig.functions.json`, also wired into CI). Existing hand-rolled `.js` endpoints migrate to this pattern opportunistically; **`functions/api/engineer-stats.ts`** is the reference for an aggregation read and **`functions/api/assign.ts`** for a validated write (zod).
 
+### Transactional email ownership
+
+NoxConnect owns transactional-email provider access. The private
+`noxconnect-capabilities` Worker holds `POSTMARK_SERVER_TOKEN`, validates and
+renders bounded template commands in `functions/lib/transactional-email.ts`,
+and returns receipts that never contain recipient addresses or credentials.
+NoxHere calls the `sendEmail` RPC through its existing private
+`NOXCONNECT_IDENTITY` service binding; it does not hold a Postmark token or
+construct provider requests. Platform login/invitation mail uses the default
+`outbound` stream. NoxSpot reporter-resolution mail uses the dedicated
+`noxspot-resolutions` transactional stream and `updates@noxhere.com` sender.
+Provider feedback returns to `POST /api/postmark/webhook`, which is publicly
+relayed by NoxHere but authenticated and processed only by NoxConnect. The
+handler combines Postmark HTTP Basic Auth with Postmark source-IP allowlisting,
+validates and deduplicates delivery/bounce/complaint events, and stores only a
+SHA-256 recipient hash in `transactional_email_events` (migration 0084). The
+per-environment `POSTMARK_WEBHOOK_SECRET` is installed only on the NoxConnect
+API Worker. Bounce and complaint content is disabled at the provider.
+
 ### API Routes (Cloudflare Pages Functions)
 - `GET/POST /api/cues/sources/:sourceId/features` and `PUT/DELETE /api/cues/sources/:sourceId/features/:featureKey` — Admin-only NoxCue custom-feature registry. Standard features are code-owned; custom keys must use `custom.*` and be registered before ingest. Linked sources resolve the shared project catalog, while unlinked sources resolve an isolated source catalog. Paused/deleted names are handled by NoxCue as bounded `UNREGISTERED_FEATURE` errors and never create metrics implicitly.
 - `GET/POST /api/cues/sources/:sourceId/custom-metrics` and `PUT/DELETE /api/cues/sources/:sourceId/custom-metrics/:metricKey` — Admin-only custom activity registry, separate from feature health. Each accepted idempotent event is aggregated by NoxCue into a cumulative total and total per registered user. Unknown names become `UNREGISTERED_METRIC` errors and never create definitions implicitly.
@@ -87,6 +106,7 @@ New backend code (Pages Functions + cron) is written in **TypeScript**, not JS. 
 - `functions/api/op-failures.js` — Admin-only GET. Lists recent rows from the `op_failures` table (errors swallowed by `waitUntil`). Capped at 100 rows per call, default 25. 403s for non-admin callers.
 - `functions/api/llm-settings.ts` — Admin-only GET/PUT for per-org managed-AI mode (`ai_settings`, migration `0061_managed_ai.sql`). Customers can enable or disable managed AI but cannot supply keys, endpoints, or models. Its readiness response combines the private NoxFeed generation RPC with NoxConnect's shared managed-AI configuration and exposes both service statuses. `resolveAiMode(env, orgId)` applies that policy before NoxFeed generation; `resolveLlmConfig(env, orgId)` remains the provider route for shared NoxConnect-owned AI tasks.
 - `functions/api/webhook.js` — GitHub webhook receiver (HMAC-SHA256 verified, handles `issues`, `pull_request`, `member` events)
+- `functions/api/postmark/webhook.ts` — Postmark delivery/bounce/complaint receiver (Basic Auth + provider-IP allowlist, bounded payload, idempotent privacy-preserving audit rows)
 - `functions/api/assign.ts` — POST: update issue assignees on GitHub + D1 (`{ repo, issue_number, assignees }`)
 - `functions/api/issues.js`, `functions/api/prs.js`, `functions/api/repos.js`, `functions/api/members.js` — cached data endpoints
 - `functions/api/prs.js` and `functions/api/prs/[repo]/[number].js` expose `head_sha` from `pull_requests`. All PR sync and webhook upsert paths persist `pull_request.head.sha` (migration `0045_pr_head_sha.sql`) so review clients can invalidate results when new commits land.

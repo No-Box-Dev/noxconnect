@@ -14,7 +14,9 @@
   "vars": {
     "GITHUB_APP_ID": "3652510",
     "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
-    "NOXHERE_OAUTH_CALLBACK_URL": "https://app.noxhere.com/auth/github/callback"
+    "NOXHERE_OAUTH_CALLBACK_URL": "https://app.noxhere.com/auth/github/callback",
+    "PLATFORM_EMAIL_FROM": "invites@noxhere.com",
+    "NOXSPOT_EMAIL_FROM": "updates@noxhere.com"
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "noxconnect", "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25" }
@@ -30,7 +32,9 @@
       "vars": {
         "GITHUB_APP_ID": "3652510",
         "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
-        "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/auth/github/callback"
+        "NOXHERE_OAUTH_CALLBACK_URL": "https://noxhere-staging.jasper-414.workers.dev/auth/github/callback",
+        "PLATFORM_EMAIL_FROM": "invites@noxhere.com",
+        "NOXSPOT_EMAIL_FROM": "updates@noxhere.com"
       },
       "d1_databases": [
         {
