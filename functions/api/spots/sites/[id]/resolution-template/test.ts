@@ -8,7 +8,7 @@ import { NoxSpotResolutionTemplateSchema } from "../../../../../lib/noxspot-reso
 interface EmailService { sendEmail(command: unknown): Promise<{ messageId: string }> }
 interface Ctx {
   env: NoxDatabaseEnv & { NOXCONNECT_EMAIL?: EmailService };
-  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
   request: Request;
   params: { id: string };
 }
@@ -19,9 +19,9 @@ const TestEmail = z.object({
 }).strict();
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin, auth } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin && auth?.type !== "api_token") return errorResponse("Admin or project API token required", 403);
   if (!context.env.NOXCONNECT_EMAIL?.sendEmail) return errorResponse("Email delivery is unavailable", 503);
   let raw: unknown;
   try { raw = await context.request.json(); } catch { return errorResponse("Invalid JSON body", 400); }

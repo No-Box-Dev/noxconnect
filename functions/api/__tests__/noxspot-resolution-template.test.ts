@@ -28,7 +28,7 @@ function database(widgetConfig = "{}", changes = 1) {
   };
 }
 
-function context(options: { method?: string; body?: unknown; etag?: string; isAdmin?: boolean; db?: ReturnType<typeof database>; email?: { sendEmail: ReturnType<typeof vi.fn> } } = {}) {
+function context(options: { method?: string; body?: unknown; etag?: string; isAdmin?: boolean; apiToken?: boolean; db?: ReturnType<typeof database>; email?: { sendEmail: ReturnType<typeof vi.fn> } } = {}) {
   const headers = new Headers();
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
   if (options.etag) headers.set("If-Match", options.etag);
@@ -37,7 +37,13 @@ function context(options: { method?: string; body?: unknown; etag?: string; isAd
     db,
     ctx: {
       env: { DB: db, ...(options.email ? { NOXCONNECT_EMAIL: options.email } : {}) },
-      data: { orgId: 7, projectId: "playnist", userLogin: "admin", isAdmin: options.isAdmin ?? true },
+      data: {
+        orgId: 7,
+        projectId: "playnist",
+        userLogin: options.apiToken ? "api-token:test" : "admin",
+        isAdmin: options.isAdmin ?? true,
+        ...(options.apiToken ? { auth: { type: "api_token" } } : {}),
+      },
       params: { id: "site-1" },
       request: new Request("https://app.noxhere.com/api/v1/spots/sites/site-1/resolution-template", {
         method: options.method ?? "GET",
@@ -56,6 +62,7 @@ describe("NoxSpot resolution template API", () => {
     expect(body).toMatchObject({ usingDefault: true, template: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE });
     expect(response.headers.get("ETag")).toBe(`"${body.revision}"`);
     expect((await onRequestGet(context({ isAdmin: false }).ctx as never)).status).toBe(403);
+    expect((await onRequestGet(context({ isAdmin: false, apiToken: true }).ctx as never)).status).toBe(200);
   });
 
   it("saves with If-Match and preserves unrelated widget configuration", async () => {

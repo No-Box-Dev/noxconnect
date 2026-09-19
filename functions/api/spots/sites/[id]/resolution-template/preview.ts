@@ -6,7 +6,7 @@ import { NoxSpotResolutionTemplateSchema, renderResolutionTemplate } from "../..
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; projectId?: string | null; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; isAdmin: boolean; auth?: { type?: string } };
   request: Request;
   params: { id: string };
 }
@@ -14,9 +14,9 @@ interface Ctx {
 const Preview = z.object({ template: NoxSpotResolutionTemplateSchema }).strict();
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, projectId, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, isAdmin, auth } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin && auth?.type !== "api_token") return errorResponse("Admin or project API token required", 403);
   const site = await getNoxDb(context.env).prepare(
     `SELECT name FROM spot_sites WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""} LIMIT 1`,
   ).bind(...(projectId ? [context.params.id, orgId, projectId] : [context.params.id, orgId])).first<{ name: string }>();

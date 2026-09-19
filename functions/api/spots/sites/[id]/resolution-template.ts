@@ -10,7 +10,7 @@ import {
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean; auth?: { type?: string } };
   request: Request;
   params: { id: string };
 }
@@ -38,9 +38,9 @@ function ifMatch(request: Request) {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, isAdmin, auth } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin && auth?.type !== "api_token") return errorResponse("Admin or project API token required", 403);
   const site = await loadSite(context);
   if (!site) return errorResponse("NoxSpot site not found", 404);
   const resolved = resolutionTemplateFromWidgetConfig(site.widget_config);
@@ -54,9 +54,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPatch(context: Ctx): Promise<Response> {
-  const { orgId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, userLogin, isAdmin, auth } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin && auth?.type !== "api_token") return errorResponse("Admin or project API token required", 403);
   const requestedRevision = ifMatch(context.request);
   if (!requestedRevision) return errorResponse("If-Match is required; fetch the template first", 428);
   let raw: unknown;
