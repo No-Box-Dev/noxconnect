@@ -203,6 +203,79 @@ document.components.schemas.ApiTokenCreate = {
     expiresInDays: { type: "integer", minimum: 1, maximum: 365, default: 90 },
   },
 };
+document.components.schemas.NoxSpotResolutionTemplate = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tone", "subject", "acknowledgement", "reopenText", "buttonLabel", "closing", "replyTo"],
+  properties: {
+    tone: { type: "string", enum: ["default", "warm", "formal", "concise"] },
+    subject: { type: "string", minLength: 1, maxLength: 200 },
+    acknowledgement: { type: "string", minLength: 1, maxLength: 500 },
+    reopenText: { type: "string", minLength: 1, maxLength: 500 },
+    buttonLabel: { type: "string", minLength: 1, maxLength: 60 },
+    closing: { type: "string", minLength: 1, maxLength: 500 },
+    replyTo: { type: ["string", "null"], format: "email", maxLength: 254 },
+  },
+  description: "Site-level presentation for NoxSpot resolution emails. Only {{report_title}} and {{site_name}} placeholders are accepted. NoxConnect owns the evidence rules, AI safety prompt, HTML rendering, verified sender, and reopen behavior.",
+};
+document.components.schemas.NoxSpotResolutionTemplateDocument = {
+  type: "object",
+  additionalProperties: false,
+  required: ["template", "defaults", "usingDefault", "revision"],
+  properties: {
+    template: { "$ref": "#/components/schemas/NoxSpotResolutionTemplate" },
+    defaults: { "$ref": "#/components/schemas/NoxSpotResolutionTemplate" },
+    usingDefault: { type: "boolean" },
+    revision: { type: "string", pattern: "^[a-f0-9]{64}$" },
+  },
+};
+
+const resolutionTemplatePath = "/api/v1/spots/sites/{siteId}/resolution-template";
+const resolutionTemplateParameters = [{ name: "siteId", in: "path", required: true, schema: { type: "string", minLength: 1 } }];
+document.paths[resolutionTemplatePath] = {
+  get: {
+    operationId: "getNoxSpotResolutionTemplate",
+    summary: "Read the effective NoxSpot resolution email template",
+    description: "Returns the site's custom template or the NoxConnect default plus a revision for conditional updates.",
+    parameters: resolutionTemplateParameters,
+    responses: { "200": { description: "Effective template", content: { "application/json": { schema: { "$ref": "#/components/schemas/NoxSpotResolutionTemplateDocument" } } } } },
+    "x-required-role": "admin",
+  },
+  patch: {
+    operationId: "updateNoxSpotResolutionTemplate",
+    summary: "Update or reset a NoxSpot resolution email template",
+    description: "Send the revision returned by GET as If-Match. Set template to null to restore the default. Postmark is transport-only; NoxConnect validates, renders, and snapshots the template used for each resolution.",
+    parameters: [...resolutionTemplateParameters, { name: "If-Match", in: "header", required: true, schema: { type: "string" } }],
+    requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["template"], properties: { template: { oneOf: [{ "$ref": "#/components/schemas/NoxSpotResolutionTemplate" }, { type: "null" }] } } } } } },
+    responses: {
+      "200": { description: "Saved template", content: { "application/json": { schema: { "$ref": "#/components/schemas/NoxSpotResolutionTemplateDocument" } } } },
+      "412": { description: "The template changed since it was read" },
+      "428": { description: "If-Match is required" },
+    },
+    "x-required-role": "admin",
+  },
+};
+document.paths[`${resolutionTemplatePath}/preview`] = {
+  post: {
+    operationId: "previewNoxSpotResolutionTemplate",
+    summary: "Render a safe preview of a draft resolution email template",
+    parameters: resolutionTemplateParameters,
+    requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["template"], properties: { template: { "$ref": "#/components/schemas/NoxSpotResolutionTemplate" } } } } } },
+    responses: { "200": { description: "Rendered preview" } },
+    "x-required-role": "admin",
+  },
+};
+document.paths[`${resolutionTemplatePath}/test`] = {
+  post: {
+    operationId: "testNoxSpotResolutionTemplate",
+    summary: "Send a draft resolution email through NoxConnect and Postmark",
+    description: "The draft does not need to be saved. NoxConnect renders the safe email and sends it through its private Postmark-backed email capability.",
+    parameters: resolutionTemplateParameters,
+    requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["recipient", "template"], properties: { recipient: { type: "string", format: "email", maxLength: 254 }, template: { "$ref": "#/components/schemas/NoxSpotResolutionTemplate" } } } } } },
+    responses: { "200": { description: "Postmark accepted the test email" }, "503": { description: "Email delivery is unavailable" } },
+    "x-required-role": "admin",
+  },
+};
 
 document.components.securitySchemes.browserSession = {
   type: "apiKey", in: "cookie", name: "__Host-nox_session",
@@ -689,7 +762,7 @@ function authenticationFor(operation) {
 
 function changeSafety(method, operationId) {
   if (method === "get") return "safe_read";
-  if (operationId === "patchNoxServiceConfig") return "conditional_write";
+  if (["patchNoxServiceConfig", "updateNoxSpotResolutionTemplate"].includes(operationId)) return "conditional_write";
   if (operationId === "ingestNoxCueEvent") return "idempotent_with_event_key";
   if (method === "delete" || /disconnect|archive|close|revoke|delete/i.test(operationId)) return "destructive";
   return "write_not_safe_to_retry";

@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPatchWithHeaders, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { NoxSpotBlock, NoxSpotEnvironment, NoxSpotSite } from "@/lib/types";
+import type {
+  NoxSpotBlock,
+  NoxSpotEnvironment,
+  NoxSpotResolutionPreview,
+  NoxSpotResolutionTemplate,
+  NoxSpotResolutionTemplateDocument,
+  NoxSpotSite,
+} from "@/lib/types";
 
 export function useNoxSpotSites() {
   const { selectedOrg } = useAuth();
@@ -62,5 +69,51 @@ export function useRetryNoxSpotDeliveries() {
       {},
     ),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
+  });
+}
+
+export function useNoxSpotResolutionTemplate(siteId: string) {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: ["noxspot-resolution-template", selectedOrg, siteId],
+    queryFn: () => apiGet<NoxSpotResolutionTemplateDocument>(
+      `/api/v1/spots/sites/${encodeURIComponent(siteId)}/resolution-template`,
+    ),
+    enabled: Boolean(selectedOrg && siteId),
+  });
+}
+
+export function useSaveNoxSpotResolutionTemplate(siteId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ template, revision }: { template: NoxSpotResolutionTemplate | null; revision: string }) =>
+      apiPatchWithHeaders<NoxSpotResolutionTemplateDocument>(
+        `/api/v1/spots/sites/${encodeURIComponent(siteId)}/resolution-template`,
+        { template },
+        { "If-Match": `"${revision}"` },
+      ),
+    onSuccess: (result) => {
+      client.setQueryData(["noxspot-resolution-template", selectedOrg, siteId], result);
+    },
+  });
+}
+
+export function usePreviewNoxSpotResolutionTemplate(siteId: string) {
+  return useMutation({
+    mutationFn: (template: NoxSpotResolutionTemplate) => apiPost<{ preview: NoxSpotResolutionPreview }>(
+      `/api/v1/spots/sites/${encodeURIComponent(siteId)}/resolution-template/preview`,
+      { template },
+    ),
+  });
+}
+
+export function useTestNoxSpotResolutionTemplate(siteId: string) {
+  return useMutation({
+    mutationFn: ({ recipient, template }: { recipient: string; template: NoxSpotResolutionTemplate }) =>
+      apiPost<{ ok: true; messageId: string }>(
+        `/api/v1/spots/sites/${encodeURIComponent(siteId)}/resolution-template/test`,
+        { recipient, template },
+      ),
   });
 }

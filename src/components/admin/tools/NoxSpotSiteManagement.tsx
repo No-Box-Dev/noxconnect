@@ -16,6 +16,7 @@ import { fetchSlackChannels, fetchSlackStatus, type SlackConnection } from "@/li
 import { fetchIntegrationsStatus } from "@/lib/integrations-api";
 import type { NoxSpotSite } from "@/lib/types";
 import { NoxSpotWidgetConfiguration } from "@/components/admin/tools/NoxSpotWidgetConfiguration";
+import { NoxSpotResolutionEmailTemplate } from "@/components/admin/tools/NoxSpotResolutionEmailTemplate";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 
 function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>; loading: boolean }) {
@@ -190,6 +191,7 @@ function SiteCard({
         </form>
       </details>
       <NoxSpotWidgetConfiguration site={site} />
+      <NoxSpotResolutionEmailTemplate siteId={site.id} />
       <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs leading-5 text-stone-600">
         External access now uses named, email-based guests. Manage access under Nox → People and choose this project plus NoxSpot.
       </div>

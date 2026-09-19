@@ -121,9 +121,13 @@ describe("NoxSpot report resolution", () => {
     const result = await prepareNoxSpotResolutionEmail(env, report.id);
 
     expect(result).toMatchObject({ status: "ready", evidenceSource: "closing_pull_request" });
-    expect(generateNoxSpotResolutionSummary).toHaveBeenCalledWith(env, report);
+    expect(generateNoxSpotResolutionSummary).toHaveBeenCalledWith(env, {
+      ...report,
+      resolution_email_tone: "default",
+    });
     const update = statements.find((item) => item.sql.includes("resolution_ai_status = 'ready'"));
     expect(update.binds[0]).toContain("We fixed collection selection");
+    expect(JSON.parse(update.binds[3])).toMatchObject({ tone: "default", buttonLabel: "Reopen the ticket" });
     expect(env.TASK_QUEUE.send).toHaveBeenCalledWith(expect.objectContaining({
       type: "spot_send_resolution_email", reportId: report.id,
     }));

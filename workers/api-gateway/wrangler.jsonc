@@ -38,6 +38,7 @@
   },
   "services": [
     { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api" },
+    { "binding": "NOXCONNECT_EMAIL", "service": "noxconnect-capabilities" },
     { "binding": "NOXTICKET_SERVICE", "service": "noxticket" },
     { "binding": "NOXCUE_RESPONSE", "service": "noxcue" },
     { "binding": "NOXCUE_INGEST", "service": "noxcue" },
@@ -60,6 +61,7 @@
       },
       "services": [
         { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api-staging" },
+        { "binding": "NOXCONNECT_EMAIL", "service": "noxconnect-capabilities-staging" },
         { "binding": "NOXTICKET_SERVICE", "service": "noxticket-staging" },
         { "binding": "NOXCUE_RESPONSE", "service": "noxcue-staging" },
         { "binding": "NOXCUE_INGEST", "service": "noxcue-staging" },

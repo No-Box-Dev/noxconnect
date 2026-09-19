@@ -1,4 +1,5 @@
 import { getInstallationToken } from "./github-app.js";
+import { resolutionToneInstruction } from "./noxspot-resolution-template.js";
 
 const GRAPHQL_URL = "https://api.github.com/graphql";
 const MAX_PR_BODY = 6_000;
@@ -41,7 +42,7 @@ export async function generateNoxSpotResolutionSummary(env, report) {
     capability: "ai.complete",
     input: {
       purpose: "resolution-email",
-      system: NOXSPOT_RESOLUTION_SYSTEM_PROMPT,
+      system: `${NOXSPOT_RESOLUTION_SYSTEM_PROMPT}\n${resolutionToneInstruction(report.resolution_email_tone)}`,
       user: JSON.stringify({
         issueTitle: report.title,
         closingPullRequests: evidence.closingPullRequests,

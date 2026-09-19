@@ -8247,6 +8247,369 @@
         ],
         "x-change-safety": "write_not_safe_to_retry"
       }
+    },
+    "/api/v1/spots/sites/{siteId}/resolution-template": {
+      "get": {
+        "operationId": "getNoxSpotResolutionTemplate",
+        "summary": "Read the effective NoxSpot resolution email template",
+        "description": "Returns the site's custom template or the NoxConnect default plus a revision for conditional updates.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "siteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoxSpotResolutionTemplateDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "x-project-scope": "optional",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-automation-scope": "noxspot:read",
+        "x-change-safety": "safe_read"
+      },
+      "patch": {
+        "operationId": "updateNoxSpotResolutionTemplate",
+        "summary": "Update or reset a NoxSpot resolution email template",
+        "description": "Send the revision returned by GET as If-Match. Set template to null to restore the default. Postmark is transport-only; NoxConnect validates, renders, and snapshots the template used for each resolution.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "siteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "template"
+                ],
+                "properties": {
+                  "template": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/NoxSpotResolutionTemplate"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoxSpotResolutionTemplateDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "412": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "x-project-scope": "optional",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-automation-scope": "noxspot:write",
+        "x-change-safety": "conditional_write"
+      }
+    },
+    "/api/v1/spots/sites/{siteId}/resolution-template/preview": {
+      "post": {
+        "operationId": "previewNoxSpotResolutionTemplate",
+        "summary": "Render a safe preview of a draft resolution email template",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "siteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "template"
+                ],
+                "properties": {
+                  "template": {
+                    "$ref": "#/components/schemas/NoxSpotResolutionTemplate"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rendered preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "x-project-scope": "optional",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-automation-scope": "noxspot:write",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/spots/sites/{siteId}/resolution-template/test": {
+      "post": {
+        "operationId": "testNoxSpotResolutionTemplate",
+        "summary": "Send a draft resolution email through NoxConnect and Postmark",
+        "description": "The draft does not need to be saved. NoxConnect renders the safe email and sends it through its private Postmark-backed email capability.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/projectContext"
+          },
+          {
+            "name": "siteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "recipient",
+                  "template"
+                ],
+                "properties": {
+                  "recipient": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
+                  "template": {
+                    "$ref": "#/components/schemas/NoxSpotResolutionTemplate"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Postmark accepted the test email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "x-project-scope": "optional",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "noxApiToken": []
+          }
+        ],
+        "x-automation-scope": "noxspot:write",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
     }
   },
   "components": {
@@ -10751,6 +11114,89 @@
             "items": {
               "$ref": "#/components/schemas/SpecAttachment"
             }
+          }
+        }
+      },
+      "NoxSpotResolutionTemplate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tone",
+          "subject",
+          "acknowledgement",
+          "reopenText",
+          "buttonLabel",
+          "closing",
+          "replyTo"
+        ],
+        "properties": {
+          "tone": {
+            "type": "string",
+            "enum": [
+              "default",
+              "warm",
+              "formal",
+              "concise"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "acknowledgement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "reopenText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "buttonLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "closing": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "replyTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 254
+          }
+        },
+        "description": "Site-level presentation for NoxSpot resolution emails. Only {{report_title}} and {{site_name}} placeholders are accepted. NoxConnect owns the evidence rules, AI safety prompt, HTML rendering, verified sender, and reopen behavior."
+      },
+      "NoxSpotResolutionTemplateDocument": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "template",
+          "defaults",
+          "usingDefault",
+          "revision"
+        ],
+        "properties": {
+          "template": {
+            "$ref": "#/components/schemas/NoxSpotResolutionTemplate"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/NoxSpotResolutionTemplate"
+          },
+          "usingDefault": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       }

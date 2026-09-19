@@ -149,6 +149,15 @@ export async function apiPatch<T>(path: string, data: unknown): Promise<T> {
   return handleResponse<T>(res);
 }
 
+export async function apiPatchWithHeaders<T>(path: string, data: unknown, headers: HeadersInit): Promise<T> {
+  const res = await apiFetch(path, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(data),
+  });
+  return handleResponse<T>(res);
+}
+
 export async function apiDelete<T>(path: string): Promise<T> {
   const res = await apiFetch(path, { method: "DELETE" });
   return handleResponse<T>(res);

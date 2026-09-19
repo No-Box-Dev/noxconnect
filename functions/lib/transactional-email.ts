@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+  NoxSpotResolutionTemplateSchema,
+  renderResolutionTemplate,
+} from "./noxspot-resolution-template.js";
 
 const Email = z.string().trim().email().max(254);
 const HttpUrl = z.string().url().max(3_000).refine((value) => {
@@ -31,6 +36,8 @@ const NoxSpotResolutionCommand = BaseCommand.extend({
     summary: z.string().trim().min(1).max(4_000),
     reporterName: z.string().trim().min(1).max(100).optional(),
     responseUrl: HttpUrl.optional(),
+    // Optional for backward compatibility with already-running internal callers.
+    presentation: NoxSpotResolutionTemplateSchema.optional(),
   }).strict(),
 }).strict();
 
@@ -82,6 +89,7 @@ export async function sendTransactionalEmail(
     body: JSON.stringify({
       From: rendered.from,
       To: command.recipient,
+      ...(rendered.replyTo ? { ReplyTo: rendered.replyTo } : {}),
       Subject: rendered.subject,
       TextBody: rendered.text,
       HtmlBody: rendered.html,
@@ -117,22 +125,29 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
     const from = env.NOXSPOT_EMAIL_FROM;
     if (!from) throw new Error("NoxSpot email sender is not configured");
     const summary = resolutionSummary(command.model.summary);
+    const presentation = renderResolutionTemplate(
+      command.model.presentation ?? DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+      {
+      report_title: command.model.reportTitle,
+      site_name: command.model.siteName,
+      },
+    );
     const action = command.model.responseUrl
-      ? `\n\nStill seeing the problem? Reopen the ticket and add more details or a screenshot if helpful:\n${command.model.responseUrl}`
+      ? `\n\n${presentation.reopenText}\n${command.model.responseUrl}`
       : "";
     const actionHtml = command.model.responseUrl
-      ? `<p>Still seeing the problem? Reopen the ticket and add more details or a screenshot if helpful.</p><p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Reopen the ticket</a></p>`
+      ? `<p>${escapeHtml(presentation.reopenText)}</p><p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">${escapeHtml(presentation.buttonLabel)}</a></p>`
       : "";
     const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
     const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
-    const closing = `Thank you again for helping us improve ${command.model.siteName}.`;
     return {
       from: `NoxSpot <${from}>`,
-      subject: `Resolved: ${command.model.reportTitle}`,
-      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${summary}${action}\n\n${closing}`,
+      replyTo: presentation.replyTo,
+      subject: presentation.subject,
+      text: `${greeting}${presentation.acknowledgement}\n\n${summary}${action}\n\n${presentation.closing}`,
       html: layout(
-        `Resolved: ${command.model.reportTitle}`,
-        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(summary)}${actionHtml}<p>${escapeHtml(closing)}</p>`,
+        presentation.subject,
+        `${greetingHtml}<p>${escapeHtml(presentation.acknowledgement)}</p>${paragraphs(summary)}${actionHtml}<p>${escapeHtml(presentation.closing)}</p>`,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
@@ -144,6 +159,7 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   const actionLabel = command.template === "platform.email-login" ? "Sign in to Nox" : "Continue to Nox";
   return {
     from: `Nox <${from}>`,
+    replyTo: null,
     subject: command.model.subject,
     text: `${command.model.heading}\n\n${command.model.detail}\n\n${command.model.actionUrl}\n\nIf you did not expect this email, you can ignore it.`,
     html: layout(
