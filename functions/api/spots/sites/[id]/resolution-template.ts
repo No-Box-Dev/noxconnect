@@ -82,11 +82,20 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   const nextTemplate = parsed === null ? { ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE } : parsed.data;
   const nextRevision = await resolutionTemplateRevision(nextTemplate);
   const db = getNoxDb(context.env);
+  const serializedNextConfig = JSON.stringify(nextConfig);
   const result = await db.prepare(
     `UPDATE spot_sites SET widget_config = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ? AND org_id = ? AND project_id = ? AND widget_config = ?`,
-  ).bind(JSON.stringify(nextConfig), site.id, orgId, site.project_id, site.widget_config).run();
-  if ((result.meta?.changes ?? 0) !== 1) return errorResponse("Template changed concurrently; refresh and try again", 412);
+  ).bind(serializedNextConfig, site.id, orgId, site.project_id, site.widget_config).run();
+  if ((result.meta?.changes ?? 0) !== 1) {
+    // Some remote D1 bindings have returned a missing/zero change count even
+    // though the compare-and-swap was persisted. Confirm the stored value
+    // before reporting a conflict so callers never receive a false 412.
+    const persisted = await loadSite(context);
+    if (!persisted || persisted.widget_config !== serializedNextConfig) {
+      return errorResponse("Template changed concurrently; refresh and try again", 412);
+    }
+  }
   await noxSpotAuditStatement(db, {
     orgId,
     projectId: site.project_id,

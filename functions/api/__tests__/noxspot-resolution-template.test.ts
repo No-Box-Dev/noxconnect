@@ -4,8 +4,9 @@ import { onRequestPost as previewTemplate } from "../spots/sites/[id]/resolution
 import { onRequestPost as testTemplate } from "../spots/sites/[id]/resolution-template/test";
 import { DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE } from "../../lib/noxspot-resolution-template.js";
 
-function database(widgetConfig = "{}", changes = 1) {
+function database(widgetConfig = "{}", changes = 1, persistUpdate = false) {
   const runs: Array<{ sql: string; binds: unknown[] }> = [];
+  let storedWidgetConfig = widgetConfig;
   return {
     runs,
     prepare(sql: string) {
@@ -14,12 +15,13 @@ function database(widgetConfig = "{}", changes = 1) {
         bind(...binds: unknown[]) { statement.binds = binds; return statement; },
         async first() {
           if (sql.includes("FROM spot_sites")) {
-            return { id: "site-1", name: "Playnist", project_id: "playnist", widget_config: widgetConfig };
+            return { id: "site-1", name: "Playnist", project_id: "playnist", widget_config: storedWidgetConfig };
           }
           return null;
         },
         async run() {
           runs.push({ sql, binds: statement.binds });
+          if (persistUpdate && sql.includes("UPDATE spot_sites")) storedWidgetConfig = String(statement.binds[0]);
           return { success: true, meta: { changes: sql.includes("UPDATE spot_sites") ? changes : 1 } };
         },
       };
@@ -79,9 +81,19 @@ describe("NoxSpot resolution template API", () => {
   it("rejects missing and stale revisions without recording an update audit", async () => {
     expect((await onRequestPatch(context({ method: "PATCH", body: { template: null } }).ctx as never)).status).toBe(428);
     const racedDb = database("{}", 0);
-    const response = await onRequestPatch(context({ db: racedDb, method: "PATCH", etag: await currentEtag(), body: { template: null } }).ctx as never);
+    const changedTemplate = { ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE, tone: "formal" as const };
+    const response = await onRequestPatch(context({ db: racedDb, method: "PATCH", etag: await currentEtag(), body: { template: changedTemplate } }).ctx as never);
     expect(response.status).toBe(412);
-    expect(racedDb.runs.filter((run) => run.sql.includes("spot_audit"))).toHaveLength(0);
+    expect(racedDb.runs.filter((run) => run.sql.includes("noxspot_config_audit"))).toHaveLength(0);
+  });
+
+  it("confirms a persisted update when D1 reports an unreliable change count", async () => {
+    const db = database("{}", 0, true);
+    const etag = (await onRequestGet(context({ db }).ctx as never)).headers.get("ETag")!;
+    const custom = { ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE, buttonLabel: "Reopen the ticket" };
+    const response = await onRequestPatch(context({ db, method: "PATCH", etag, body: { template: custom } }).ctx as never);
+    expect(response.status).toBe(200);
+    expect(db.runs.filter((run) => run.sql.includes("noxspot_config_audit"))).toHaveLength(1);
   });
 
   it("previews substitutions and sends a test through the private email capability", async () => {
