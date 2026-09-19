@@ -190,7 +190,8 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
     `SELECT report.id, report.title, report.issue_url, report.resolution_summary,
             report.resolved_at, report.reporter_email_encrypted,
             report.notification_consent, report.notification_status,
-            report.updated_at, site.name AS site_name
+            report.updated_at, report.reporter_name, report.org_id, report.project_id,
+            report.site_id, report.repo, report.issue_number, site.name AS site_name
        FROM spot_reports report
        JOIN spot_sites site ON site.id = report.site_id
       WHERE report.id = ? AND report.status = 'resolved'
@@ -217,6 +218,7 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
 
   try {
     const recipient = await decryptToken(report.reporter_email_encrypted, env.ENCRYPTION_KEY);
+    const responseUrl = await ensureResolutionResponseUrl(env, report);
     const receipt = await env.NOXCONNECT_EMAIL.sendEmail({
       contract: "noxconnect.transactional-email",
       version: 1,
@@ -227,7 +229,8 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
         siteName: report.site_name,
         reportTitle: report.title,
         summary: report.resolution_summary || "This report has been resolved.",
-        ...(report.issue_url ? { statusUrl: report.issue_url } : {}),
+        ...(report.reporter_name ? { reporterName: report.reporter_name } : {}),
+        ...(responseUrl ? { responseUrl } : {}),
       },
     });
     const now = new Date().toISOString();
@@ -262,6 +265,44 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
     ]);
     throw error;
   }
+}
+
+async function ensureResolutionResponseUrl(env, report) {
+  const baseUrl = typeof env.NOXSPOT_PUBLIC_URL === "string" ? env.NOXSPOT_PUBLIC_URL.replace(/\/$/, "") : "";
+  if (!baseUrl || !report.project_id || !report.resolved_at) return null;
+  const resolutionKey = `${report.id}:${report.resolved_at}`;
+  const existing = await env.DB.prepare(
+    "SELECT token_encrypted FROM spot_report_response_tokens WHERE resolution_key = ? LIMIT 1",
+  ).bind(resolutionKey).first();
+  if (existing?.token_encrypted) {
+    const token = await decryptToken(existing.token_encrypted, env.ENCRYPTION_KEY);
+    return `${baseUrl}/resolution/${encodeURIComponent(token)}`;
+  }
+
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const [tokenHash, tokenEncrypted] = await Promise.all([
+    sha256(token),
+    encryptToken(token, env.ENCRYPTION_KEY),
+  ]);
+  const expiresAt = new Date(Date.now() + 90 * 86_400_000).toISOString();
+  await env.DB.prepare(
+    `INSERT INTO spot_report_response_tokens
+       (token_hash, token_encrypted, resolution_key, report_id, org_id, project_id,
+        site_id, repo, issue_number, report_title, reporter_name, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(resolution_key) DO NOTHING`,
+  ).bind(
+    tokenHash, tokenEncrypted, resolutionKey, report.id, report.org_id, report.project_id,
+    report.site_id, report.repo, report.issue_number, report.title, report.reporter_name ?? null, expiresAt,
+  ).run();
+  const stored = await env.DB.prepare(
+    "SELECT token_encrypted FROM spot_report_response_tokens WHERE resolution_key = ? LIMIT 1",
+  ).bind(resolutionKey).first();
+  const resolvedToken = stored?.token_encrypted
+    ? await decryptToken(stored.token_encrypted, env.ENCRYPTION_KEY)
+    : token;
+  return `${baseUrl}/resolution/${encodeURIComponent(resolvedToken)}`;
 }
 
 export async function recoverNoxSpotResolutionEmails(env) {

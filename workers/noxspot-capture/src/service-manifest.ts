@@ -23,6 +23,7 @@ export const NOXSPOT_SERVICE_MANIFEST = {
       { id: "reports", name: "Reports and screenshots", description: "Turn captured feedback and browser context into actionable reports.", access: "member", requires: ["github"], operations: [
         { id: "submit_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/reports", authentication: "public", description: "Submit bounded website feedback from an allowed origin." },
         { id: "submit_browser_errors", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/errors", authentication: "public", description: "Submit a bounded batch of automatic browser errors." },
+        { id: "reopen_resolved_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/resolution-responses/{token}", authentication: "reporter_token", description: "Add an optional note or screenshot and reopen the original issue through a single-use resolution link." },
       ] },
       { id: "spot_delivery", name: "Slack delivery", description: "Route each site's feedback to its own Slack destination or the shared fallback.", access: "admin", requires: ["github", "slack"], operations: [
         { id: "update_site_delivery", method: "PATCH", path: "/api/v1/spots/sites/{siteId}", authentication: "admin", description: "Set a site's Slack workspace and channel override." },

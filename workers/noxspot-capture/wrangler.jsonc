@@ -27,7 +27,8 @@
     {
       "binding": "DB",
       "database_name": "noxconnect",
-      "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25"
+      "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25",
+      "migrations_dir": "../../migrations"
     }
   ],
   "queues": {
@@ -45,6 +46,10 @@
     }
   ],
   "services": [
+    {
+      "binding": "NOXCONNECT",
+      "service": "noxconnect-capabilities"
+    },
     {
       "binding": "NOXCUE_INGEST",
       "service": "noxcue"
@@ -77,7 +82,8 @@
         {
           "binding": "DB",
           "database_name": "noxconnect-staging",
-          "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+          "database_id": "3a9d9857-c26d-4421-9fbd-b81f474864d3",
+          "migrations_dir": "../../migrations"
         }
       ],
       "queues": {
@@ -89,6 +95,7 @@
         { "binding": "ASSETS", "bucket_name": "noxspot-assets-staging" }
       ],
       "services": [
+        { "binding": "NOXCONNECT", "service": "noxconnect-capabilities-staging" },
         { "binding": "NOXCUE_INGEST", "service": "noxcue-staging" }
       ],
       "durable_objects": {

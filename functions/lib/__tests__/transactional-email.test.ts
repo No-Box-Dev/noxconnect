@@ -63,7 +63,8 @@ describe("NoxConnect transactional email", () => {
         siteName: "Storefront",
         reportTitle: "Checkout failed",
         summary: "The checkout flow now completes normally.",
-        statusUrl: "https://app.noxhere.com/status/report-1",
+        reporterName: "Ada",
+        responseUrl: "https://api.noxspot.dev/resolution/token-one",
       },
     });
     const body = JSON.parse(String(request.mock.calls[0][1]?.body));
@@ -72,6 +73,8 @@ describe("NoxConnect transactional email", () => {
       MessageStream: "noxspot-resolutions",
       Tag: "noxspot-resolution",
     });
+    expect(body.HtmlBody).toContain("This is not fixed");
+    expect(body.TextBody).toContain("Reopen the issue");
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {

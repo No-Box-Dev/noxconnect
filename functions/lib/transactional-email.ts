@@ -29,7 +29,8 @@ const NoxSpotResolutionCommand = BaseCommand.extend({
     siteName: z.string().trim().min(1).max(200),
     reportTitle: z.string().trim().min(1).max(300),
     summary: z.string().trim().min(1).max(4_000),
-    statusUrl: HttpUrl.optional(),
+    reporterName: z.string().trim().min(1).max(100).optional(),
+    responseUrl: HttpUrl.optional(),
   }).strict(),
 }).strict();
 
@@ -115,19 +116,21 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   if (command.template === "noxspot.resolution") {
     const from = env.NOXSPOT_EMAIL_FROM;
     if (!from) throw new Error("NoxSpot email sender is not configured");
-    const action = command.model.statusUrl
-      ? `\n\nView the update: ${command.model.statusUrl}`
+    const action = command.model.responseUrl
+      ? `\n\nStill seeing the problem? Reopen the issue: ${command.model.responseUrl}`
       : "";
-    const actionHtml = command.model.statusUrl
-      ? `<p style="margin:28px 0"><a href="${escapeHtml(command.model.statusUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">View update</a></p>`
+    const actionHtml = command.model.responseUrl
+      ? `<p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">This is not fixed</a></p>`
       : "";
+    const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
+    const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
     return {
       from: `NoxSpot <${from}>`,
       subject: `Resolved: ${command.model.reportTitle}`,
-      text: `${command.model.reportTitle}\n\nThis report for ${command.model.siteName} has been resolved.\n\n${command.model.summary}${action}`,
+      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${command.model.summary}${action}\n\n— The ${command.model.siteName} team, via NoxSpot`,
       html: layout(
         `Resolved: ${command.model.reportTitle}`,
-        `<p>Your report for <strong>${escapeHtml(command.model.siteName)}</strong> has been resolved.</p><p>${escapeHtml(command.model.summary)}</p>${actionHtml}`,
+        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(command.model.summary)}${actionHtml}<p style="font-size:13px;color:#78716c">— The ${escapeHtml(command.model.siteName)} team, via NoxSpot</p>`,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
@@ -152,6 +155,10 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
 
 function layout(heading: string, body: string): string {
   return `<main style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#292524"><h1 style="font-size:24px">${escapeHtml(heading)}</h1>${body}</main>`;
+}
+
+function paragraphs(value: string): string {
+  return value.split(/\n\s*\n/).filter(Boolean).map((part) => `<p>${escapeHtml(part)}</p>`).join("");
 }
 
 function escapeHtml(value: string): string {
