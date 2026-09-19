@@ -73,10 +73,10 @@ describe("NoxConnect transactional email", () => {
       MessageStream: "noxspot-resolutions",
       Tag: "noxspot-resolution",
     });
-    expect(body.HtmlBody).toContain("Reopen this report");
+    expect(body.HtmlBody).toContain("Reopen the ticket");
     expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
     expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
-    expect(body.TextBody).toContain("Reopen this report");
+    expect(body.TextBody).toContain("Reopen the ticket");
     expect(body.TextBody).not.toContain("Thank you for reporting this issue");
   });
 
