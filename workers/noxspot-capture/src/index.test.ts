@@ -93,7 +93,7 @@ describe("public capture Worker", () => {
       VALUES (?, 'encrypted', 'report:resolved:second', 1, 'project-1', 'site-1', 'web', 43,
               'Drag position is wrong', ?, ?, ?)`)
       .bind(hash, new Date(Date.now() + 86_400_000).toISOString(), now, now).run();
-    const execute = vi.fn(async () => ({ status: "completed" }));
+    const execute = vi.fn(async (_command: unknown) => ({ status: "completed" }));
     const form = new FormData();
     form.set("message", "The card still lands one place too far right.");
     form.set("screenshot", new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }));

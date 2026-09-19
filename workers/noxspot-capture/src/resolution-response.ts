@@ -29,6 +29,7 @@ interface TokenRow {
 
 export async function resolutionResponsePage(context: AppContext): Promise<Response> {
   const token = context.req.param("token");
+  if (!token || !TOKEN_PATTERN.test(token)) return page("Link unavailable", unavailableBody(), 404);
   const row = await activeToken(context.env.DB, token);
   if (!row) return page("Link unavailable", unavailableBody(), 404);
   return page(
@@ -49,7 +50,7 @@ export async function resolutionResponsePage(context: AppContext): Promise<Respo
 
 export async function submitResolutionResponse(context: AppContext): Promise<Response> {
   const token = context.req.param("token");
-  if (!TOKEN_PATTERN.test(token)) return page("Link unavailable", unavailableBody(), 404);
+  if (!token || !TOKEN_PATTERN.test(token)) return page("Link unavailable", unavailableBody(), 404);
   const hash = await sha256(token);
   const row = await context.env.DB.prepare(
     `SELECT token_hash, report_id, org_id, project_id, site_id, repo, issue_number,
