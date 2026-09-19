@@ -7,6 +7,7 @@ import { OrgPickerPage } from "@/pages/OrgPickerPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { Spinner } from "@/components/Spinner";
 import { Toaster } from "@/components/Toaster";
+import { ProjectProvider } from "@/lib/project";
 
 const IssueDetailPage = lazy(() =>
   import("@/pages/details/IssueDetailPage").then((m) => ({ default: m.IssueDetailPage })),
@@ -40,12 +41,6 @@ const DraftPrsPage = lazy(() =>
 );
 const StalePrsPage = lazy(() =>
   import("@/pages/lists/PrListPages").then((m) => ({ default: m.StalePrsPage })),
-);
-const PublicProjectSharePage = lazy(() =>
-  import("@/pages/PublicProjectSharePage").then((m) => ({ default: m.PublicProjectSharePage })),
-);
-const PublicNoxCueDashboardPage = lazy(() =>
-  import("@/pages/PublicNoxCueDashboardPage").then((m) => ({ default: m.PublicNoxCueDashboardPage })),
 );
 const OperatorPage = lazy(() => import("@/pages/OperatorPage"));
 
@@ -155,15 +150,9 @@ function PrivateApp() {
   if (!user) return <><Toaster /><LoginPage /></>;
   if (isOperatorRoute) return <><Toaster /><Suspense fallback={<PageFallback />}><OperatorPage /></Suspense></>;
   if (!selectedOrg) return <><Toaster /><OrgPickerPage /></>;
-  return <><Toaster /><AuthenticatedRoutes /></>;
+  return <><Toaster /><ProjectProvider><AuthenticatedRoutes /></ProjectProvider></>;
 }
 
 export function App() {
-  return (
-    <Routes>
-      <Route path="/share/:slug" element={<Suspense fallback={<PageFallback />}><PublicProjectSharePage /></Suspense>} />
-      <Route path="/cue/:slug" element={<Suspense fallback={<PageFallback />}><PublicNoxCueDashboardPage /></Suspense>} />
-      <Route path="*" element={<PrivateApp />} />
-    </Routes>
-  );
+  return <Routes><Route path="*" element={<PrivateApp />} /></Routes>;
 }

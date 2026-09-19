@@ -23,7 +23,7 @@ function database() {
         binds: [] as unknown[],
         bind(...binds: unknown[]) { statement.binds = binds; return statement; },
         async first() {
-          if (sql.includes("FROM spot_sites")) return { id: "site-1", slack_channel_id: null, widget_config: "{}" };
+          if (sql.includes("FROM spot_sites")) return { id: "site-1", project_id: "playnist", slack_channel_id: null, widget_config: "{}" };
           return null;
         },
         async run() { runs.push({ sql, binds: statement.binds }); return { success: true }; },

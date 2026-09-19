@@ -27,7 +27,7 @@ function makeCtx({ db, params, method = "GET", body, headers = {}, isAdmin = tru
   const req = body !== undefined
     ? new Request("http://x/api/config", { method, headers: { "Content-Type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) })
     : new Request("http://x/api/config", { method, headers });
-  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin: "acme", isAdmin }, params };
+  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin: "acme", projectId: "project-1", isAdmin }, params };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -128,8 +128,9 @@ describe("PUT /api/config/:key", () => {
     expect(res.status).toBe(200);
     expect(db._calls.run).toHaveLength(1);
     expect(db._calls.run[0].binds[0]).toBe(1);
-    expect(db._calls.run[0].binds[1]).toBe("features");
-    expect(db._calls.run[0].binds[2]).toBe(JSON.stringify([{ title: "Login" }]));
+    expect(db._calls.run[0].binds[1]).toBe("project-1");
+    expect(db._calls.run[0].binds[2]).toBe("features");
+    expect(db._calls.run[0].binds[3]).toBe(JSON.stringify([{ title: "Login" }]));
   });
 });
 
@@ -143,7 +144,7 @@ describe("PUT /api/config/settings — NoxFeed daily summary", () => {
       body: { noxfeedDailySummary: { enabled: true, timeLocal: "17:30", timezone: "Asia/Kuala_Lumpur" } },
     }));
     expect(res.status).toBe(200);
-    expect(JSON.parse(db._calls.run[0].binds[2]).noxfeedDailySummary).toEqual({
+    expect(JSON.parse(db._calls.run[0].binds[3]).noxfeedDailySummary).toEqual({
       enabled: true,
       timeLocal: "17:30",
       timezone: "Asia/Kuala_Lumpur",
@@ -274,7 +275,7 @@ describe("PUT /api/config/settings — app toggles", () => {
     }));
 
     expect(res.status).toBe(200);
-    const saved = JSON.parse(db._calls.batch[0]._binds[2]);
+    const saved = JSON.parse(db._calls.batch[0]._binds[3]);
     expect(saved.apps).toEqual({ noxfeed: true, noxcue: false });
     expect(saved.slack).toEqual({ noxCueChannelId: "", releaseNotesChannelId: "" });
     expect(saved.savedSiteName).toBe("Keep unrelated settings");
@@ -290,7 +291,7 @@ describe("PUT /api/config/settings — app toggles", () => {
     const res = await onRequestPut(makeCtx({ db, params: { key: "settings" }, method: "PUT", body }));
     expect(res.status).toBe(200);
     expect(db._calls.run).toHaveLength(0);
-    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify(body));
+    expect(db._calls.batch[0]._binds[3]).toBe(JSON.stringify(body));
     expect(db._calls.batch.slice(1)).toHaveLength(4);
     expect(db._calls.batch[1]._sql).toContain("blocked_service_disabled");
     expect(db._calls.batch[1]._binds).toContain("noxticket");
@@ -324,7 +325,7 @@ describe("PUT /api/config/settings — release-notes prompt", () => {
     }));
 
     expect(res.status).toBe(200);
-    expect(JSON.parse(db._calls.run[0].binds[2]).releaseNotesPrompt).toBe(prompt);
+    expect(JSON.parse(db._calls.run[0].binds[3]).releaseNotesPrompt).toBe(prompt);
   });
 
   it("removes an empty override so the built-in base is used", async () => {
@@ -337,7 +338,7 @@ describe("PUT /api/config/settings — release-notes prompt", () => {
     }));
 
     expect(res.status).toBe(200);
-    expect(JSON.parse(db._calls.run[0].binds[2])).toEqual({ savedSiteName: "keep" });
+    expect(JSON.parse(db._calls.run[0].binds[3])).toEqual({ savedSiteName: "keep" });
   });
 
   it("rejects non-text and oversized prompts with a clear correction", async () => {

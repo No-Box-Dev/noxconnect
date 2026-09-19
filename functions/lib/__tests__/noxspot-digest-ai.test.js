@@ -29,7 +29,7 @@ describe("NoxSpot digest fix summaries", () => {
       stop_reason: "end_turn",
     }), { status: 200, headers: { "content-type": "application/json" } }));
 
-    const result = await summarizeNoxSpotResolutions(env(), 7, [solvedIssue(), { ...solvedIssue(), number: 31 }]);
+    const result = await summarizeNoxSpotResolutions(env(), 7, "project-1", [solvedIssue(), { ...solvedIssue(), number: 31 }]);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result).toHaveLength(2);
@@ -43,7 +43,7 @@ describe("NoxSpot digest fix summaries", () => {
       stop_reason: "end_turn",
     }), { status: 200 }));
 
-    const [result] = await summarizeNoxSpotResolutions(env(), 7, [solvedIssue({ body: "Fixes #30" })]);
+    const [result] = await summarizeNoxSpotResolutions(env(), 7, "project-1", [solvedIssue({ body: "Fixes #30" })]);
     expect(result.resolution.summary).toBeUndefined();
     expect(result.resolution.title).toBe("Serve shared images through the proxy");
     expect(result.resolution.body).toBeUndefined();
@@ -51,7 +51,7 @@ describe("NoxSpot digest fix summaries", () => {
 
   it("does not call AI when no closing PR has a description", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
-    const [result] = await summarizeNoxSpotResolutions(env(), 7, [solvedIssue({ body: null })]);
+    const [result] = await summarizeNoxSpotResolutions(env(), 7, "project-1", [solvedIssue({ body: null })]);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.resolution.title).toBe("Serve shared images through the proxy");
   });

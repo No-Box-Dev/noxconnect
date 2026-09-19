@@ -26,7 +26,6 @@ const PATCH_SCHEMAS = {
     workflow: z.object({ stages: z.array(Stage) }).strict().optional(),
   }).strict(),
   noxfeed: z.object({
-    projectScope: z.string().trim().min(1).max(200).nullable().optional(),
     releaseNotesPrompt: z.string().max(20_000).nullable().optional(),
   }).strict(),
   noxspot: z.object({}).strict(),
@@ -70,7 +69,6 @@ export function serviceConfig(service: ServiceId, settings: NoxSettings) {
       };
     case "noxfeed":
       return {
-        projectScope: typeof settings.slack?.noxFeedProjectId === "string" ? settings.slack.noxFeedProjectId : null,
         releaseNotesPrompt: settings.releaseNotesPrompt ?? null,
       };
     case "noxspot":
@@ -102,11 +100,6 @@ export function applyServiceConfigPatch(service: ServiceId, current: NoxSettings
       if (patch.releaseNotesPrompt === null || !(patch.releaseNotesPrompt as string).trim()) delete next.releaseNotesPrompt;
       else next.releaseNotesPrompt = patch.releaseNotesPrompt as string;
     }
-    if (Object.hasOwn(patch, "projectScope")) {
-      next.slack = { ...(next.slack ?? {}) };
-      if (patch.projectScope === null) delete next.slack.noxFeedProjectId;
-      else next.slack.noxFeedProjectId = patch.projectScope as string;
-    }
   }
   return next;
 }
@@ -127,7 +120,7 @@ export function serviceConfigMetadata(service: ServiceId) {
   const fields: Record<ServiceId, string[]> = {
     noxconnect: ["enabledServices", "newRepositoryPolicy"],
     noxticket: ["featureRepository", "workflow.stages"],
-    noxfeed: ["projectScope", "releaseNotesPrompt"],
+    noxfeed: ["releaseNotesPrompt"],
     noxspot: [],
     noxcue: [],
   };

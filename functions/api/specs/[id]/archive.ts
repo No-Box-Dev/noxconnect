@@ -7,7 +7,7 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
   request: Request;
   params: { id: string };
 }
@@ -25,18 +25,18 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
 }
 
 async function setArchived(context: Ctx, archive: boolean): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context) as { orgId: number; isAdmin: boolean };
+  const { orgId, projectId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
   const id = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(id) || id <= 0) return errorResponse("Invalid spec id", 400);
 
-  const delegated = await callNoxTicket(context.env, (service) => service.setSpecArchived(
-    { orgId, userLogin: context.data.userLogin, isAdmin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.setSpecArchived(
+    { orgId, projectId, userLogin: context.data.userLogin, isAdmin },
     id,
     archive,
-  ));
+  )) : null;
   if (delegated) return delegated;
 
   const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -46,12 +46,11 @@ async function setArchived(context: Ctx, archive: boolean): Promise<Response> {
 
   const res = await context.env.DB.prepare(
     `UPDATE specs
-        SET archived = ?, archived_at = ?,
-            is_primary = 0,
+        SET archived = ?, archived_at = ?, is_primary = 0,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE id = ? AND org_id = ? AND archived = ?`,
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""} AND archived = ?`,
   )
-    .bind(targetFlag, targetAt, id, orgId, currentFlag)
+    .bind(targetFlag, targetAt, id, orgId, ...(projectId ? [projectId] : []), currentFlag)
     .run();
 
   const changes = res.meta?.changes ?? 0;

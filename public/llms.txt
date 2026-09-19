@@ -14,7 +14,7 @@ NoxConnect is the shared connection and workspace foundation for every Nox servi
 - [Agent setup guide](/docs/ai-setup.md)
 - [Resumable setup state](/api/v1/integrations/setup)
 
-Browser authentication uses GitHub OAuth to create an opaque HttpOnly NoxConnect session; provider tokens remain encrypted server-side. Automation uses an expiring `Authorization: Bearer nox_sk_…` token bound to one organization, one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Cross-project resources are hidden as not found. Public ingestion keys and private Worker bindings are separate credential classes. API-token lifecycle and provider setup require an organization-admin browser session.
+Browser authentication uses GitHub OAuth or an email magic link to create an opaque HttpOnly NoxHere session; browser writes also require CSRF proof. First-party native clients use short-lived `nox_at_…` access tokens with rotating `nox_rt_…` refresh credentials. Browser and native organization requests may omit `X-Project-ID` for organization-wide data or supply it to narrow results. Automation uses an expiring `Authorization: Bearer nox_sk_…` token bound to one organization, one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Raw GitHub bearer tokens are rejected. Public ingestion keys and private Worker bindings are separate credential classes.
 
 Every service has `/api/v1/services/{service}/setup`, `/config`, and `/health`. Config updates are service-scoped and require the latest config ETag in `If-Match`; provider credentials are never returned.
 

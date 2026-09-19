@@ -54,19 +54,32 @@ describe("GET /api/bootstrap-status", () => {
 });
 
 describe("GET /api/me", () => {
+  const memberAccess = {
+    accessLevel: "member",
+    allowedServices: ["noxticket", "noxfeed", "noxspot", "noxcue"],
+  };
+
   it("returns login, org, and isAdmin from context", async () => {
     const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: true } }));
-    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: true, isPlatformOperator: false });
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: true, isPlatformOperator: false, ...memberAccess });
   });
 
   it("coerces isAdmin to boolean", async () => {
     const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: 0 } }));
-    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: false });
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: false, ...memberAccess });
   });
 
   it("reports platform access independently from organization admin access", async () => {
     const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: false, isPlatformOperator: true } }));
-    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: true });
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: true, ...memberAccess });
+  });
+
+  it("returns only the selected project's invited tools for a guest", async () => {
+    const res = await meGet(makeCtx({ data: {
+      userLogin: "guest@example.com", orgLogin: "acme", isAdmin: false, projectId: "project-1",
+      auth: { accessLevel: "guest", guestAccess: { organizationWide: false, projects: { "project-1": ["noxspot"] } } },
+    } }));
+    expect(await res.json()).toMatchObject({ accessLevel: "guest", allowedServices: ["noxspot"] });
   });
 });
 

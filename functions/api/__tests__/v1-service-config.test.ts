@@ -33,10 +33,11 @@ interface ContextOptions {
   isAdmin?: boolean;
   changes?: number;
   projectFound?: boolean;
+  projectId?: string | null;
   noxFeedService?: { validateConfigPatch(current: unknown, patch: unknown): Promise<unknown> };
 }
 
-function context({ service = "noxticket", raw = null, method = "GET", body, etag, isAdmin = true, changes = 1, projectFound = true, noxFeedService }: ContextOptions = {}) {
+function context({ service = "noxticket", raw = null, method = "GET", body, etag, isAdmin = true, changes = 1, projectFound = true, projectId = "project-1", noxFeedService }: ContextOptions = {}) {
   const db = makeDb(raw, changes, projectFound);
   const headers = new Headers();
   if (body !== undefined) headers.set("Content-Type", "application/json");
@@ -45,7 +46,7 @@ function context({ service = "noxticket", raw = null, method = "GET", body, etag
     db,
     ctx: {
       env: { DB: db, ...(noxFeedService ? { NOXFEED_RESPONSE: noxFeedService } : {}) },
-      data: { orgId: 7, orgLogin: "acme", userLogin: "alice", isAdmin },
+      data: { orgId: 7, orgLogin: "acme", userLogin: "alice", isAdmin, projectId },
       params: { service },
       request: new Request(`https://app.noxhere.com/api/v1/services/${service}/config`, {
         method,
@@ -57,6 +58,26 @@ function context({ service = "noxticket", raw = null, method = "GET", body, etag
 }
 
 describe("service-scoped configuration API", () => {
+  it("reads and writes organization defaults when no project is selected", async () => {
+    const raw = JSON.stringify({ noxTicketRepo: "old" });
+    const initial = context({ raw, projectId: null });
+    const getResponse = await onRequestGet(initial.ctx as never);
+    const getBody = await getResponse.json() as any;
+    expect(getBody.project).toBeNull();
+
+    const update = context({
+      raw,
+      projectId: null,
+      method: "PATCH",
+      body: { featureRepository: "product" },
+      etag: getResponse.headers.get("ETag")!,
+    });
+    const response = await onRequestPatch(update.ctx as never);
+    expect(response.status).toBe(200);
+    expect(update.db.calls.runs[0].sql).toContain("UPDATE config SET");
+    expect(update.db.calls.runs[0].sql).not.toContain("project_config");
+  });
+
   it("returns defaults, a revision, links, and an ETag", async () => {
     const { ctx } = context();
     const response = await onRequestGet(ctx as never);
@@ -124,7 +145,7 @@ describe("service-scoped configuration API", () => {
     });
   });
 
-  it("rejects a NoxFeed project scope that is not an active organization project", async () => {
+  it("rejects the removed nested NoxFeed project selector", async () => {
     const initial = context({ service: "noxfeed" });
     const etag = (await onRequestGet(initial.ctx as never)).headers.get("ETag")!;
     const invalid = context({
@@ -137,7 +158,7 @@ describe("service-scoped configuration API", () => {
     const response = await onRequestPatch(invalid.ctx as never);
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({
-      error: { code: "project_not_found", details: { field: "projectScope" } },
+      error: { code: "validation_failed" },
     });
     expect(invalid.db.calls.runs).toHaveLength(0);
   });

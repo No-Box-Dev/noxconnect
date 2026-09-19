@@ -92,7 +92,6 @@ export interface NoxSpotSite {
   dailySummaryEnabled: boolean;
   issueCount: number;
   openIssueCount: number;
-  externalShare: { id: string; slug: string; enabled: boolean } | null;
   createdAt: string;
   updatedAt: string;
 }

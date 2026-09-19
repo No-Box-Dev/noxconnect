@@ -17,7 +17,7 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; userLogin: string };
+  data: { orgId: number; projectId?: string | null; userLogin: string };
   request: Request;
   params: { id: string };
 }
@@ -27,26 +27,26 @@ interface Ctx {
 // manual refetch after upload/delete when a full spec refetch is
 // overkill.)
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
 
   const specId = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(specId) || specId <= 0) return errorResponse("Invalid spec id", 400);
 
-  const delegated = await callNoxTicket(context.env, (service) => service.listAttachments(
-    { orgId, userLogin: context.data.userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.listAttachments(
+    { orgId, projectId, userLogin: context.data.userLogin },
     specId,
-  ));
+  )) : null;
   if (delegated) return delegated;
 
   const { results } = await context.env.DB.prepare(
-    `SELECT id, org_id, spec_id, filename, content_type, size, r2_key,
+    `SELECT id, org_id, project_id, spec_id, filename, content_type, size, r2_key,
             uploaded_by, uploaded_at
        FROM spec_attachments
-      WHERE org_id = ? AND spec_id = ?
+      WHERE org_id = ?${projectId ? " AND project_id = ?" : ""} AND spec_id = ?
       ORDER BY uploaded_at DESC`,
   )
-    .bind(orgId, specId)
+    .bind(orgId, ...(projectId ? [projectId] : []), specId)
     .all<SpecAttachmentRow>();
 
   return jsonResponse({ attachments: (results ?? []).map(rowToDto) });
@@ -56,7 +56,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // Field name: `file`. Server enforces the extension allowlist, size cap,
 // and a per-spec attachment count so a stray script can't fill R2.
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, userLogin } = getCtx(context) as { orgId: number; userLogin: string };
+  const { orgId, projectId, userLogin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!userLogin) return errorResponse("Missing user context", 400);
 
@@ -94,12 +94,12 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     );
   }
 
-  const delegated = await callNoxTicket(context.env, async (service) => service.putAttachment(
-    { orgId, userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, async (service) => service.putAttachment(
+    { orgId, projectId, userLogin },
     specId,
     filename,
     await new Response(file.stream()).arrayBuffer(),
-  ));
+  )) : null;
   if (delegated) return delegated;
 
   if (!context.env.SPEC_ATTACHMENTS) {
@@ -109,14 +109,16 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     );
   }
 
-  const spec = await context.env.DB.prepare(
-    "SELECT id FROM specs WHERE id = ? AND org_id = ?",
-  ).bind(specId, orgId).first<{ id: number }>();
+  const spec = await context.env.DB.prepare(projectId
+    ? "SELECT id FROM specs WHERE id = ? AND org_id = ? AND project_id = ?"
+    : "SELECT id FROM specs WHERE id = ? AND org_id = ?")
+    .bind(...(projectId ? [specId, orgId, projectId] : [specId, orgId])).first<{ id: number }>();
   if (!spec) return errorResponse(`Unknown spec ${specId}`, 404);
 
-  const countRow = await context.env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM spec_attachments WHERE org_id = ? AND spec_id = ?",
-  ).bind(orgId, specId).first<{ n: number }>();
+  const countRow = await context.env.DB.prepare(projectId
+    ? "SELECT COUNT(*) AS n FROM spec_attachments WHERE org_id = ? AND project_id = ? AND spec_id = ?"
+    : "SELECT COUNT(*) AS n FROM spec_attachments WHERE org_id = ? AND spec_id = ?")
+    .bind(...(projectId ? [orgId, projectId, specId] : [orgId, specId])).first<{ n: number }>();
   if ((countRow?.n ?? 0) >= MAX_ATTACHMENTS_PER_SPEC) {
     return errorResponse(`Spec already has ${MAX_ATTACHMENTS_PER_SPEC} attachments (the cap)`, 409);
   }
@@ -125,12 +127,13 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   // with a key derived from that id. If the R2 write fails we roll back
   // the D1 row so an orphan row never surfaces in list()/download().
   const inserted = await context.env.DB.prepare(
-    `INSERT INTO spec_attachments (org_id, spec_id, filename, content_type, size, r2_key, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     RETURNING id, org_id, spec_id, filename, content_type, size, r2_key, uploaded_by, uploaded_at`,
+    `INSERT INTO spec_attachments (org_id, project_id, spec_id, filename, content_type, size, r2_key, uploaded_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING id, org_id, project_id, spec_id, filename, content_type, size, r2_key, uploaded_by, uploaded_at`,
   )
     .bind(
       orgId,
+      projectId ?? null,
       specId,
       filename,
       contentTypeFromFilename(filename),

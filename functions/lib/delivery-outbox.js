@@ -10,13 +10,15 @@ const SLACK_CONFIGURATION_ERRORS = new Set([
   "app_mismatch",
 ]);
 
-export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, connectionId, channelId, payload }) {
+export async function stageSlackDelivery(db, { orgId, projectId, source, sourceId, siteId, connectionId, channelId, payload }) {
+  if (!projectId) throw new Error("Project is required to stage a delivery");
   const id = crypto.randomUUID();
   return db.prepare(
     `INSERT INTO delivery_outbox
-       (id, org_id, source, source_id, destination, site_id, slack_connection_id, channel_id, payload_json, status)
-     VALUES (?, ?, ?, ?, 'slack', ?, ?, ?, ?, 'pending')
+       (id, org_id, project_id, source, source_id, destination, site_id, slack_connection_id, channel_id, payload_json, status)
+     VALUES (?, ?, ?, ?, ?, 'slack', ?, ?, ?, ?, 'pending')
      ON CONFLICT(source, destination, source_id) DO UPDATE SET
+       project_id = excluded.project_id,
        site_id = excluded.site_id,
        slack_connection_id = excluded.slack_connection_id,
        channel_id = excluded.channel_id,
@@ -28,7 +30,7 @@ export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, 
        next_attempt_at = NULL,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      RETURNING id, status`,
-  ).bind(id, orgId, source, sourceId, siteId ?? null, connectionId || null, channelId, JSON.stringify(payload)).first();
+  ).bind(id, orgId, projectId, source, sourceId, siteId ?? null, connectionId || null, channelId, JSON.stringify(payload)).first();
 }
 
 export async function queueOutboxDelivery(env, deliveryId, ownerId = /** @type {string | null} */ (null)) {
@@ -103,7 +105,7 @@ export async function deliverSlackOutbox(env, deliveryId) {
     return { blocked: "stream_consolidated" };
   }
   const appId = appForDeliverySource(delivery.source);
-  if (appId && !(await isAppEnabled(env.DB, delivery.org_id, appId))) {
+  if (appId && !(await isAppEnabled(env.DB, delivery.org_id, appId, delivery.project_id))) {
     await markOutboxServiceDisabled(env.DB, deliveryId, appId);
     return { blocked: "service_disabled", service: appId };
   }

@@ -43,8 +43,8 @@ Content-Type: application/json
 ```
 
 NoxConnect owns service toggles and repository-discovery policy. NoxTicket owns
-its feature repository and workflow stages. NoxFeed owns project scope and its
-release-notes prompt. NoxSpot site settings and NoxCue source settings stay on
+its feature repository and workflow stages. NoxFeed owns its release-notes
+prompt. NoxSpot site settings and NoxCue source settings stay on
 their dedicated resource APIs, linked from each service config response. Slack
 workspace connections and delivery routes remain shared NoxConnect resources.
 
@@ -74,12 +74,15 @@ response, including authentication, organization, rate-limit, and service
 availability failures raised by middleware, uses this envelope. Existing
 unversioned `/api/*` product routes retain their legacy `{ "error": "..." }`
 responses for older deployed clients while first-party clients use `/api/v1`.
+Compatibility responses include `Deprecation: true` and an OpenAPI link. No
+`Sunset` date is set yet; removal will be scheduled only after usage confirms
+that supported clients have migrated.
 
 ## Authentication
 
 Use the credential class that matches the client:
 
-- The web app authenticates with an opaque HttpOnly NoxConnect session cookie.
+- The web app authenticates with an opaque HttpOnly NoxHere session cookie.
   Browser mutations also send the matching CSRF proof. JavaScript never reads
   the session or the encrypted GitHub provider token behind it.
 - First-party native apps use a short-lived `nox_at_…` bearer token and rotate it
@@ -98,6 +101,14 @@ Authorization: Bearer <nox_at_… or nox_sk_…>
 X-Org: <GitHub organization login>  # required for native; optional for nox_sk
 ```
 
+For browser and native organization requests, `X-Project-ID` is optional: omit
+it to work across the organization, or provide an active project ID to narrow
+the request. A project ID in the URL or `project_id` query parameter is also a
+selector, and multiple selectors must agree. Automation tokens are the
+exception: every `nox_sk_…` token is bound to one project, so any explicit
+selector may only repeat that project. Project-restricted guests must select one
+of their grants; organization-wide guests may omit the selector.
+
 The user must belong to the organization. Setup mutations require a Nox
 organization admin browser session. Never place GitHub credentials or Slack bot
 tokens in request bodies; Nox stores provider credentials server-side.
@@ -107,9 +118,9 @@ automation. It does not issue third-party OAuth client credentials. Create an
 automation token from an authenticated organization-admin browser session and
 pass it to an agent only through the user's approved secret manager or runtime
 environment. Never extract a browser cookie, ask a user to paste a credential
-into chat, or print or persist it in logs. Direct GitHub bearer authentication is
-a temporary compatibility path for existing local clients; it is not the
-supported hosted API integration model.
+into chat, or print or persist it in logs. Raw GitHub bearer tokens are rejected
+as `unsupported_credential`; they are not part of the hosted API authentication
+model.
 
 ## Resumable workflow
 
@@ -178,7 +189,7 @@ An optional `channelId` tests a candidate channel before saving it.
 
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
-- NoxSpot sites: `GET`/`POST /api/v1/spots/sites` and `PATCH /api/v1/spots/sites/{siteId}`.
+- NoxSpot sites: `GET`/`POST /api/v1/spots/sites` and `PATCH /api/v1/spots/sites/{siteId}`. Creating a site returns an anonymous-by-default install snippet; it does not grant NoxSpot access to the host website's login session or signup database. To prefill the signed-in reporter, the website owner must call `NoxSpot.identify({ name, email })` after the widget loads and whenever the account changes, then call `NoxSpot.identify(null)` on sign-out. A manually initialized widget may instead use `NoxSpot.init({ siteId, getReporter: () => ({ name, email }) })`. Set `notifyOnResolution: true` only when the host has already obtained consent; otherwise omit it so the reporter controls the widget checkbox. Reporter email is excluded from GitHub and retained encrypted only with that consent.
 - NoxCue sources: `GET/POST /api/v1/cues/sources`, project metrics: `GET/PUT /api/v1/cues/projects/{projectId}/metrics`, GitHub incident policy: `GET/PUT /api/v1/cues/github-issues`, keys: `POST /api/v1/cues/sources/{sourceId}/keys`, custom feature health under `/features`, and custom activity statistics under `/custom-metrics`. Register every `custom.*` name before ingest; linked staging and production sources share the project catalog, while an unlinked source stays isolated. Feature failures retain their actual technical error. Each custom activity event is idempotent and NoxCue derives total plus total per registered user. Unknown or paused names become bounded unregistered errors instead of creating definitions. GitHub incident routing additionally requires NoxConnect's GitHub connection and a repository linked to the selected project. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
 - Public NoxCue clients submit events to the stable same-origin gateway `POST /api/v1/cues/public/events`; it forwards to NoxCue through a private service binding. Put the source key in `X-Nox-Ingest-Key`, not the Nox bearer-token headers. Configure each source's workspace, channel, IANA timezone, and local delivery time through its source API. Reusing the same event identity is idempotent.
 - NoxFeed resolves each GitHub repository through NoxConnect project routing before using the organization `noxfeed_posts` or `noxfeed_release_notes` route.

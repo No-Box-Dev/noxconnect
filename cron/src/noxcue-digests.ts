@@ -30,7 +30,7 @@ interface DigestSource {
   id: string;
   org_id: number;
   owner_id: string;
-  project_id: string | null;
+  project_id: string;
   name: string;
   environment: string;
   timezone: string;
@@ -122,6 +122,7 @@ async function createDigest(
   );
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: source.org_id,
+    projectId: source.project_id,
     source: "noxcue",
     sourceId: `digest:${source.id}:${period}`,
     siteId: null,
@@ -162,7 +163,8 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
             NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') AS fallback_channel_id,
             NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '') AS fallback_connection_id
        FROM cue_sources source
-       LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
+       JOIN project_config config
+         ON config.org_id = source.org_id AND config.project_id = source.project_id AND config.key = 'settings'
        LEFT JOIN project_slack_routes project_route
          ON project_route.org_id = source.org_id
         AND project_route.project_id = source.project_id
@@ -173,7 +175,7 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
              AND routing_settings.project_id = source.project_id
              AND routing_settings.enabled = 1
         )
-      WHERE source.enabled = 1 AND source.digest_enabled = 1
+      WHERE source.enabled = 1 AND source.digest_enabled = 1 AND source.project_id IS NOT NULL
         AND COALESCE(json_extract(config.data, '$.apps.noxcue'), 1) != 0
       ORDER BY source.id LIMIT ?`,
   ).bind(MAX_SOURCES_PER_TICK).all<DigestSource>();

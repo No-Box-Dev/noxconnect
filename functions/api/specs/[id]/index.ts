@@ -11,13 +11,13 @@ interface Env extends NoxTicketEnvironment {
 
 interface Ctx {
   env: Env;
-  data: { orgId: number; userLogin: string };
+  data: { orgId: number; projectId?: string | null; userLogin: string };
   request: Request;
   params: { id: string };
 }
 
 const SPEC_COLUMNS =
-  "id, org_id, feature_number, is_primary, title, description, " +
+  "id, org_id, project_id, feature_number, is_primary, title, description, " +
   "links_json, archived, archived_at, created_by, created_at, updated_at";
 
 const SpecLinkSchema = z.object({
@@ -46,22 +46,22 @@ const UpdateSpecBody = z
 
 // GET /api/specs/:id — fetch a single spec.
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
 
   const id = Number.parseInt(context.params.id, 10);
   if (!Number.isFinite(id) || id <= 0) return errorResponse("Invalid spec id", 400);
 
-  const delegated = await callNoxTicket(context.env, (service) => service.getSpec(
-    { orgId, userLogin: context.data.userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.getSpec(
+    { orgId, projectId, userLogin: context.data.userLogin },
     id,
-  ));
+  )) : null;
   if (delegated) return delegated;
 
-  const row = await context.env.DB.prepare(
-    `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ?`,
-  )
-    .bind(id, orgId)
+  const row = await context.env.DB.prepare(projectId
+    ? `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ? AND project_id = ?`
+    : `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ?`)
+    .bind(...(projectId ? [id, orgId, projectId] : [id, orgId]))
     .first<SpecRow>();
 
   if (!row) return errorResponse(`Unknown spec ${id}`, 404);
@@ -71,7 +71,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // PATCH /api/specs/:id — partial update. featureNumber: null moves to Unfiled;
 // omit to leave unchanged.
 export async function onRequestPatch(context: Ctx): Promise<Response> {
-  const { orgId } = getCtx(context) as { orgId: number };
+  const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
 
   const id = Number.parseInt(context.params.id, 10);
@@ -83,28 +83,28 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   } catch {
     return errorResponse("Invalid JSON body", 400);
   }
-  const delegated = await callNoxTicket(context.env, (service) => service.updateSpec(
-    { orgId, userLogin: context.data.userLogin },
+  const delegated = projectId ? await callNoxTicket(context.env, (service) => service.updateSpec(
+    { orgId, projectId, userLogin: context.data.userLogin },
     id,
     rawBody,
-  ));
+  )) : null;
   if (delegated) return delegated;
   const parsed = validate(UpdateSpecBody, rawBody);
   if (!parsed.ok) return parsed.response;
   const patch = parsed.data;
 
-  const current = await context.env.DB.prepare(
-    "SELECT feature_number, archived FROM specs WHERE id = ? AND org_id = ?",
-  )
-    .bind(id, orgId)
+  const current = await context.env.DB.prepare(projectId
+    ? "SELECT feature_number, archived FROM specs WHERE id = ? AND org_id = ? AND project_id = ?"
+    : "SELECT feature_number, archived FROM specs WHERE id = ? AND org_id = ?")
+    .bind(...(projectId ? [id, orgId, projectId] : [id, orgId]))
     .first<{ feature_number: number | null; archived: number }>();
   if (!current) return errorResponse(`Unknown spec ${id}`, 404);
 
   if (patch.featureNumber != null) {
-    const feature = await context.env.DB.prepare(
-      "SELECT 1 FROM features WHERE org_id = ? AND number = ?",
-    )
-      .bind(orgId, patch.featureNumber)
+    const feature = await context.env.DB.prepare(projectId
+      ? "SELECT 1 FROM features WHERE org_id = ? AND project_id = ? AND number = ?"
+      : "SELECT 1 FROM features WHERE org_id = ? AND number = ?")
+      .bind(...(projectId ? [orgId, projectId, patch.featureNumber] : [orgId, patch.featureNumber]))
       .first<{ 1: number }>();
     if (!feature) return errorResponse(`Unknown feature #${patch.featureNumber}`, 400);
   }
@@ -115,12 +115,10 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     if (targetFeatureNumber == null || current.archived === 1) {
       return errorResponse("Only an active spec attached to a feature can be primary", 422);
     }
-    const sibling = await context.env.DB.prepare(
-      `SELECT 1 FROM specs
-        WHERE org_id = ? AND feature_number = ? AND archived = 0 AND id != ?
-        LIMIT 1`,
-    )
-      .bind(orgId, targetFeatureNumber, id)
+    const sibling = await context.env.DB.prepare(projectId
+      ? `SELECT 1 FROM specs WHERE org_id = ? AND project_id = ? AND feature_number = ? AND archived = 0 AND id != ? LIMIT 1`
+      : `SELECT 1 FROM specs WHERE org_id = ? AND feature_number = ? AND archived = 0 AND id != ? LIMIT 1`)
+      .bind(...(projectId ? [orgId, projectId, targetFeatureNumber, id] : [orgId, targetFeatureNumber, id]))
       .first();
     if (!sibling) {
       return errorResponse("A primary spec can only be selected when a feature has multiple specs", 422);
@@ -156,28 +154,26 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   sets.push("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')");
 
   const updateStatement = context.env.DB.prepare(
-    `UPDATE specs
-        SET ${sets.join(", ")}
-      WHERE id = ? AND org_id = ?
+    `UPDATE specs SET ${sets.join(", ")}
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}
       RETURNING ${SPEC_COLUMNS}`,
-  )
-    .bind(...binds, id, orgId);
+  ).bind(...binds, id, orgId, ...(projectId ? [projectId] : []));
 
   let row: SpecRow | null;
   if (patch.isPrimary && targetFeatureNumber != null) {
     // D1 batches are transactional, so concurrent requests never leave a
     // feature with two primaries (also guarded by the partial unique index).
     await context.env.DB.batch([
-      context.env.DB.prepare(
-        `UPDATE specs SET is_primary = 0
-          WHERE org_id = ? AND feature_number = ? AND id != ? AND is_primary = 1`,
-      ).bind(orgId, targetFeatureNumber, id),
+      context.env.DB.prepare(projectId
+        ? `UPDATE specs SET is_primary = 0 WHERE org_id = ? AND project_id = ? AND feature_number = ? AND id != ? AND is_primary = 1`
+        : `UPDATE specs SET is_primary = 0 WHERE org_id = ? AND feature_number = ? AND id != ? AND is_primary = 1`)
+        .bind(...(projectId ? [orgId, projectId, targetFeatureNumber, id] : [orgId, targetFeatureNumber, id])),
       updateStatement,
     ]);
-    row = await context.env.DB.prepare(
-      `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ?`,
-    )
-      .bind(id, orgId)
+    row = await context.env.DB.prepare(projectId
+      ? `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ? AND project_id = ?`
+      : `SELECT ${SPEC_COLUMNS} FROM specs WHERE id = ? AND org_id = ?`)
+      .bind(...(projectId ? [id, orgId, projectId] : [id, orgId]))
       .first<SpecRow>();
   } else {
     row = await updateStatement.first<SpecRow>();

@@ -219,6 +219,7 @@ async function submitErrors(context: AppContext) {
       description: errorMessage,
       reporter: null,
       reporterEmail: null,
+      notifyOnResolution: false,
       environment,
       screenshot: null,
       metadata: {
@@ -400,7 +401,7 @@ export default class NoxSpotService extends WorkerEntrypoint<Env> {
     return buildTestResponse(orgLogin);
   }
 
-  buildDailyDigestResponse(siteName: string, period: string, filed: IssueInput[], solved: IssueInput[], totals: Record<string, unknown>, portalUrl: string | null = null) {
-    return buildDailyDigestResponse(siteName, period, filed, solved, totals, portalUrl);
+  buildDailyDigestResponse(siteName: string, period: string, filed: IssueInput[], solved: IssueInput[], totals: Record<string, unknown>) {
+    return buildDailyDigestResponse(siteName, period, filed, solved, totals);
   }
 }

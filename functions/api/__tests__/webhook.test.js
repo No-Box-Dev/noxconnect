@@ -44,11 +44,16 @@ vi.mock("../../lib/narrator.js", () => ({
 vi.mock("../../lib/noxticket-slack.js", () => ({
   stageNoxTicketActivity: vi.fn(async () => ({ queued: true })),
 }));
+vi.mock("../../lib/noxspot-resolution.js", () => ({
+  resolveNoxSpotReportFromIssue: vi.fn(async () => ({ status: "resolved" })),
+  reopenNoxSpotReportFromIssue: vi.fn(async () => ({ status: "open" })),
+}));
 
 import { onRequestPost } from "../webhook.js";
 import { upsertIssue, upsertPR, upsertMember, removeMember, touchRepoPushed } from "../../lib/github-sync.js";
 import { storeEvent } from "../../lib/events.js";
 import { stageNoxTicketActivity } from "../../lib/noxticket-slack.js";
+import { reopenNoxSpotReportFromIssue, resolveNoxSpotReportFromIssue } from "../../lib/noxspot-resolution.js";
 
 const SECRET = "shh";
 
@@ -210,6 +215,27 @@ describe("POST /api/webhook — event routing", () => {
     expect(upsertIssue).toHaveBeenCalledWith(expect.any(Object), 7, "api", expect.any(Object), "bob");
     expect(stageNoxTicketActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       orgId: 7, ownerId: "acme", repo: "api", action: "closed", actor: "bob",
+    }));
+    expect(resolveNoxSpotReportFromIssue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      orgId: 7, ownerId: "acme", repo: "api", issueNumber: 1, actor: "bob",
+    }));
+  });
+
+  it("issues.reopened restores the linked NoxSpot report", async () => {
+    const db = makeDb({ firstByFragment: { "SELECT id FROM orgs": { id: 7 } } });
+    const req = await makeRequest({
+      event: "issues",
+      payload: {
+        action: "reopened",
+        organization: { login: "acme" },
+        repository: { name: "api" },
+        issue: { number: 1, user: { login: "alice", type: "User" } },
+        sender: { login: "bob" },
+      },
+    });
+    expect((await onRequestPost(makeCtx({ db, request: req }))).status).toBe(200);
+    expect(reopenNoxSpotReportFromIssue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      orgId: 7, ownerId: "acme", repo: "api", issueNumber: 1, actor: "bob",
     }));
   });
 

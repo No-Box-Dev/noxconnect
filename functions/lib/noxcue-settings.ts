@@ -24,7 +24,7 @@ export const cueSourceInputSchema = z.object({
   environment: z.enum(["production", "staging", "development", "preview", "test", "local"]).default("production"),
   enabled: z.boolean().default(true),
   alertsEnabled: z.boolean().default(true),
-  projectId: z.string().trim().min(1).max(200).nullable().default(null),
+  projectId: z.string().trim().min(1).max(200).optional(),
   timezone: z.string().trim().min(1).max(100).refine((value) => {
     try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; }
     catch { return false; }

@@ -11,8 +11,6 @@ vi.mock("@/hooks/useNoxSpot", () => ({
   useNoxSpotSites: vi.fn(),
   useRetryNoxSpotDeliveries: vi.fn(),
   useTestNoxSpotSlack: vi.fn(),
-  useUpsertNoxSpotExternalShare: vi.fn(),
-  useDeleteNoxSpotExternalShare: vi.fn(),
 }));
 
 import { NoxSpotDailySummarySettings } from "../NoxSpotSiteManagement";

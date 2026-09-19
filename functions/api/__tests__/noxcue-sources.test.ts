@@ -7,7 +7,7 @@ const sourceInput = {
   environment: "production",
   enabled: true,
   alertsEnabled: true,
-  projectId: null,
+  projectId: "playnist",
   timezone: "UTC",
   digestEnabled: true,
   digestTimeLocal: "03:30",
@@ -37,7 +37,7 @@ function makeDb(projects = [{ id: "playnist", name: "Playnist", repo: "playnist"
           return { results: [] };
         },
         async first() {
-          if (sql.includes("SELECT source.environment")) return { environment: "production", has_events: 0 };
+          if (sql.includes("SELECT source.environment")) return { environment: "production", project_id: "playnist", has_events: 0 };
           return null;
         },
         async run() { writes.push({ sql, binds: this.binds }); return { success: true, meta: { changes: 1 } }; },
@@ -47,10 +47,10 @@ function makeDb(projects = [{ id: "playnist", name: "Playnist", repo: "playnist"
   };
 }
 
-function context(db: ReturnType<typeof makeDb>, method: "GET" | "POST" | "PUT", body?: unknown) {
+function context(db: ReturnType<typeof makeDb>, method: "GET" | "POST" | "PUT", body?: unknown, projectId: string | null = "playnist") {
   return {
     env: { DB: db },
-    data: { orgId: 7, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin: true },
+    data: { orgId: 7, orgLogin: "No-Box-Dev", projectId, userLogin: "jasper", isAdmin: true },
     params: { id: "source-1" },
     request: new Request("https://app.noxhere.com/api/cues/sources", {
       method,
@@ -75,7 +75,13 @@ describe("NoxCue source onboarding API", () => {
     });
   });
 
-  it("automatically links the only active project", async () => {
+  it("lists all organization sources when project scope is omitted", async () => {
+    const response = await onRequestGet(context(makeDb(), "GET", undefined, null) as never);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ sources: [{ id: "source-1", projectId: "playnist" }] });
+  });
+
+  it("links the authenticated project", async () => {
     const db = makeDb();
     const response = await onRequestPost(context(db, "POST", sourceInput) as never);
     expect(response.status).toBe(201);
@@ -83,17 +89,24 @@ describe("NoxCue source onboarding API", () => {
     expect(db.writes.find(({ sql }) => sql.includes("INSERT INTO cue_sources"))?.binds[3]).toBe("playnist");
   });
 
-  it("requires an explicit project when several are available", async () => {
+  it("accepts the resource project in the body for an organization-wide create", async () => {
+    const db = makeDb();
+    const response = await onRequestPost(context(db, "POST", sourceInput, null) as never);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ projectId: "playnist" });
+  });
+
+  it("uses the authenticated project when several are available", async () => {
     const db = makeDb([
       { id: "playnist", name: "Playnist", repo: "playnist" },
       { id: "noxconnect", name: "NoxConnect", repo: "noxconnect" },
     ]);
     const response = await onRequestPost(context(db, "POST", sourceInput) as never);
-    expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "Choose the project this NoxCue source belongs to" });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ projectId: "playnist" });
   });
 
-  it("keeps the only project attached when source settings are edited", async () => {
+  it("keeps the authenticated project attached when source settings are edited", async () => {
     const db = makeDb();
     const response = await onRequestPut(context(db, "PUT", sourceInput) as never);
     expect(response.status).toBe(200);

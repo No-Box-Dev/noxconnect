@@ -19,7 +19,7 @@ function makeDb({ allResult = [], firstResult = null } = {}) {
 }
 
 function makeCtx({ db, url = "http://x/api/events", params, orgLogin = "acme" } = {}) {
-  return { request: new Request(url), env: { DB: db }, data: { orgLogin }, params };
+  return { request: new Request(url), env: { DB: db }, data: { orgLogin, projectId: "p1" }, params };
 }
 
 describe("GET /api/events", () => {

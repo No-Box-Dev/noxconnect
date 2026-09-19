@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../lib/db";
 import { getInstallationIdForOrg, getInstallationToken } from "../lib/github-app";
 import { validate } from "../lib/validate";
+import { getActiveRepoNames } from "../lib/inactive-repos";
 
 interface Env {
   DB: D1Database;
@@ -28,7 +29,7 @@ const AssignBody = z.object({
 // permissions on the target repo. Matches the feature kanban auth model;
 // see the audit in functions/api/features/[number].js for the rationale.
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, orgLogin, projectId } = getCtx(context) as { orgId: number; orgLogin: string; projectId?: string | null };
   if (!orgLogin) return errorResponse("Missing org context", 400);
 
   let rawBody: unknown;
@@ -41,6 +42,8 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const parsed = validate(AssignBody, rawBody);
   if (!parsed.ok) return parsed.response;
   const { repo, issue_number, assignees } = parsed.data;
+  const projectRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
+  if (!projectRepos.includes(repo)) return errorResponse("Unknown repository", 404);
 
   const installationId = await getInstallationIdForOrg(context.env.DB, orgId);
   if (!installationId) return errorResponse("GitHub App not installed for this org", 412);

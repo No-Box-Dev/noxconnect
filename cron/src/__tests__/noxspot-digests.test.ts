@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { closingIssueNumbers, dailyDigestPeriod, externalProjectPortalUrl, runNoxSpotDailyDigests } from "../noxspot-digests.js";
+import { closingIssueNumbers, dailyDigestPeriod, runNoxSpotDailyDigests } from "../noxspot-digests.js";
 
 describe("NoxSpot daily Slack summaries", () => {
   it("selects the previous 24-hour UTC window only at midnight UTC", () => {
@@ -14,13 +14,6 @@ describe("NoxSpot daily Slack summaries", () => {
     expect(closingIssueNumbers(payload, "acme", "web")).toEqual([12, 13]);
   });
 
-  it("builds a safe portal URL only when an enabled share slug is available", () => {
-    expect(externalProjectPortalUrl("portal-token", "https://staging.example/old/path"))
-      .toBe("https://staging.example/share/portal-token");
-    expect(externalProjectPortalUrl(null)).toBeNull();
-    expect(externalProjectPortalUrl("portal-token", "javascript:alert(1)")).toBeNull();
-  });
-
   it("stages one retry-safe site summary and uses the captured submitter", async () => {
     const statements: Array<{ sql: string; statement: { args: unknown[] } }> = [];
     const prepare = (sql: string) => {
@@ -32,7 +25,6 @@ describe("NoxSpot daily Slack summaries", () => {
             id: "site-1", org_id: 7, project_id: "project-1", repo: "web", name: "Storefront",
             widget_config: JSON.stringify({ dailySummaryEnabled: true }),
             owner_id: "acme", slack_channel_id: "C123", slack_connection_id: "connection-1",
-            external_share_slug: "storefront-portal",
           }] };
           return { results: [] };
         },
@@ -88,7 +80,6 @@ describe("NoxSpot daily Slack summaries", () => {
       [expect.objectContaining({ number: 31, submittedBy: "Ada" })],
       [expect.objectContaining({ number: 30, submittedBy: "Lin", resolution: expect.objectContaining({ number: 55 }) })],
       { filed: 1, solved: 1 },
-      "https://app.noxhere.com/share/storefront-portal",
     );
     expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ outboxId: "delivery-1" }));
     expect(statements.some(({ sql }) => sql.includes("source_id = ?"))).toBe(true);

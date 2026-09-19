@@ -123,14 +123,6 @@ export interface NoxCueSourcesResponse {
   sources: NoxCueSource[];
 }
 
-export interface NoxCueDashboardShare {
-  id: string;
-  projectId: string;
-  slug: string;
-  enabled: boolean;
-  updatedAt?: string;
-}
-
 export interface NoxCueEventsResponse {
   events: Array<{
     id: string;

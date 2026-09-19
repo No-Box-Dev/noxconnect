@@ -39,6 +39,7 @@ describe("operational Slack alerts", () => {
   it("stages a retry-safe alert without putting credentials or URLs in Slack", async () => {
     const db = database({ failures: [{
       org_id: 7,
+      project_id: "project-1",
       org_login: "acme",
       kind: "operation_failure",
       source_id: "op_failure:42",
@@ -66,6 +67,7 @@ describe("operational Slack alerts", () => {
     resolveSlackChannels.mockResolvedValue({});
     const db = database({ deliveries: [{
       org_id: 7,
+      project_id: "project-1",
       org_login: "acme",
       kind: "delivery_failure",
       source_id: "delivery_failure:d-1",

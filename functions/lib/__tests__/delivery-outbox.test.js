@@ -40,22 +40,22 @@ describe("delivery outbox", () => {
   it("stages an idempotent source/destination row", async () => {
     const database = db({ first: { id: "delivery-1", status: "pending" } });
     const result = await stageSlackDelivery(database, {
-      orgId: 7, source: "noxspot", sourceId: "capture-1", siteId: "site-1",
+      orgId: 7, projectId: "project-1", source: "noxspot", sourceId: "capture-1", siteId: "site-1",
       connectionId: "conn-2", channelId: "C123", payload: { title: "Broken" },
     });
     expect(result).toEqual({ id: "delivery-1", status: "pending" });
     expect(database.calls[0].sql).toContain("ON CONFLICT(source, destination, source_id)");
-    expect(database.calls[0].binds.slice(1, 4)).toEqual([7, "noxspot", "capture-1"]);
+    expect(database.calls[0].binds.slice(1, 5)).toEqual([7, "project-1", "noxspot", "capture-1"]);
     expect(database.calls[0].binds).toContain("conn-2");
   });
 
   it("normalizes an empty connection id so legacy routes use the default workspace", async () => {
     const database = db({ first: { id: "delivery-1", status: "pending" } });
     await stageSlackDelivery(database, {
-      orgId: 7, source: "noxspot", sourceId: "capture-2", siteId: "site-1",
+      orgId: 7, projectId: "project-1", source: "noxspot", sourceId: "capture-2", siteId: "site-1",
       connectionId: "", channelId: "C123", payload: { title: "Broken" },
     });
-    expect(database.calls[0].binds[5]).toBeNull();
+    expect(database.calls[0].binds[6]).toBeNull();
   });
 
   it("blocks visibly instead of silently succeeding when Slack is disconnected", async () => {

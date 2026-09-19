@@ -7,9 +7,9 @@ const script = readFileSync(resolve("public/developers.js"), "utf8");
 const guide = readFileSync(resolve("public/docs/ai-setup.md"), "utf8");
 
 describe("developer documentation", () => {
-  it("uses a valid NoxFeed project scope example and the real conflict code", () => {
-    expect(html).toContain('{"projectScope":null}');
-    expect(html).not.toContain('{"projectScope":"all"}');
+  it("treats project selection as optional request context", () => {
+    expect(html).not.toContain("projectScope");
+    expect(html).toContain("Omit <code>X-Project-ID</code> for organization-wide data");
     expect(html).toContain("revision_conflict");
   });
 
@@ -28,6 +28,8 @@ describe("developer documentation", () => {
     expect(guide).toContain("does not issue third-party OAuth client credentials");
     expect(guide).toContain("POST /api/v1/cues/public/events");
     expect(guide).toContain("honor `Retry-After`");
+    expect(guide).toContain("Raw GitHub bearer tokens are rejected");
+    expect(guide).toContain("opaque HttpOnly NoxHere session cookie");
   });
 
   it("documents the minimal, environment-scoped NoxCue SDK flow", () => {
@@ -38,5 +40,15 @@ describe("developer documentation", () => {
     expect(html).toContain("await noxcue.auth.signup");
     expect(html).toContain("await noxcue.user.registered");
     expect(html).toContain("Never ship a <code>nox_secret_…</code> key to a browser");
+  });
+
+  it("makes the NoxSpot signed-in identity integration explicit", () => {
+    expect(html).toContain('id="noxspot-identity"');
+    expect(html).toContain("cannot read a host website's login session");
+    expect(html).toContain("NoxSpot.identify({");
+    expect(html).toContain("NoxSpot.identify(null)");
+    expect(html).toContain("getReporter");
+    expect(guide).toContain("anonymous-by-default install snippet");
+    expect(guide).toContain("Set `notifyOnResolution: true` only when the host has already obtained consent");
   });
 });

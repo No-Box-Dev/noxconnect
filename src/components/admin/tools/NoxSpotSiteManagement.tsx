@@ -1,17 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, Clipboard, Clock3, ExternalLink, KeyRound, Plus, Radar, RefreshCw, Send, Share2, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Clipboard, Clock3, Plus, Radar, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { useFeedProjects } from "@/hooks/useNoxlink";
 import {
   useCreateNoxSpotSite,
-  useDeleteNoxSpotExternalShare,
   useDeleteNoxSpotSite,
   useNoxSpotSites,
   useRetryNoxSpotDeliveries,
   useTestNoxSpotSlack,
-  useUpsertNoxSpotExternalShare,
   useUpdateNoxSpotSite,
 } from "@/hooks/useNoxSpot";
 import { fetchSlackChannels, fetchSlackStatus, type SlackConnection } from "@/lib/slack-api";
@@ -192,7 +190,9 @@ function SiteCard({
         </form>
       </details>
       <NoxSpotWidgetConfiguration site={site} />
-      <ExternalPortal site={site} confirm={confirm} />
+      <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs leading-5 text-stone-600">
+        External access now uses named, email-based guests. Manage access under Nox → People and choose this project plus NoxSpot.
+      </div>
       <details className="mt-3 rounded-lg border border-stone-200 p-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-stone-600">
           Slack delivery <SlackHealthBadge health={site.slackHealth} />
@@ -309,139 +309,6 @@ export function NoxSpotDailySummarySettings({ site }: { site: NoxSpotSite }) {
         </p>
       ) : null}
     </form>
-  );
-}
-
-export function ExternalPortal({
-  site,
-  confirm,
-}: {
-  site: NoxSpotSite;
-  confirm: ReturnType<typeof useConfirm>["confirm"];
-}) {
-  const [password, setPassword] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [validationError, setValidationError] = useState("");
-  const upsert = useUpsertNoxSpotExternalShare();
-  const remove = useDeleteNoxSpotExternalShare();
-  const activeShare = site.externalShare ?? upsert.data?.share ?? null;
-  const shareUrl = activeShare ? `${window.location.origin}/share/${activeShare.slug}` : "";
-
-  return (
-    <details className="mt-3 rounded-lg border border-stone-200 p-3">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-stone-600">
-        <Share2 size={13} /> External project portal
-        {activeShare ? <span className="ml-auto rounded-full bg-green-50 px-2 py-0.5 text-[10px] text-green-700">Protected</span> : null}
-      </summary>
-      <div className="mt-3 space-y-3">
-        <p className="text-xs leading-5 text-stone-500">
-          A password-protected, read-only page with this project's open and closed NoxSpot issues, merges, posts, and release notes.
-        </p>
-        {activeShare ? (
-          <div>
-            <p className="mb-1 text-xs font-medium text-stone-500">Portal link</p>
-            <div className="flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
-              <a href={shareUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-stone-200 hover:text-white">{shareUrl}</a>
-              <button
-                type="button"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(shareUrl);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1500);
-                }}
-                className="shrink-0 text-stone-400 hover:text-white"
-                title="Copy portal link"
-              >
-                <span className="inline-flex items-center gap-1.5">{copied ? <Check size={15} /> : <Clipboard size={15} />} {copied ? "Copied" : "Copy link"}</span>
-              </button>
-              <a href={shareUrl} target="_blank" rel="noreferrer" className="shrink-0 text-stone-400 hover:text-white" title="Open portal">
-                <ExternalLink size={15} />
-              </a>
-            </div>
-          </div>
-        ) : (
-          <p className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
-            The share link is generated after you create the portal.
-          </p>
-        )}
-        <form
-          noValidate
-          className="flex flex-col gap-2 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!site.projectId) return;
-            if (password.length < 12) {
-              setValidationError("Use at least 12 characters for the portal password.");
-              return;
-            }
-            setValidationError("");
-            upsert.mutate({ projectId: site.projectId, password }, {
-              onSuccess: () => {
-                setPassword("");
-                setValidationError("");
-              },
-            });
-          }}
-        >
-          <div className="min-w-0 flex-1">
-            <label htmlFor={`spot-share-password-${site.id}`} className="text-xs font-medium text-stone-500">
-              {activeShare ? "New password" : "Portal password"}
-            </label>
-            <input
-              id={`spot-share-password-${site.id}`}
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={200}
-              required
-              value={password}
-              aria-describedby={`spot-share-password-help-${site.id}`}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (validationError) setValidationError("");
-              }}
-              placeholder="At least 12 characters"
-              className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-xs"
-            />
-            <span id={`spot-share-password-help-${site.id}`} className="mt-1 block text-[11px] font-normal text-stone-400">
-              12 character minimum · {password.length} entered
-            </span>
-          </div>
-          <button
-            type="submit"
-            disabled={upsert.isPending || !site.projectId}
-            className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-stone-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-          >
-            {upsert.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />}
-            {upsert.isPending ? (activeShare ? "Changing…" : "Creating…") : (activeShare ? "Change password" : "Create portal")}
-          </button>
-        </form>
-        {validationError ? <p role="alert" className="text-xs text-red-600">{validationError}</p> : null}
-        {upsert.isError ? (
-          <p role="alert" className="text-xs text-red-600">
-            {upsert.error instanceof Error ? upsert.error.message : "The portal could not be created."}
-          </p>
-        ) : null}
-        {activeShare ? (
-          <button
-            type="button"
-            disabled={remove.isPending}
-            onClick={async () => {
-              const accepted = await confirm({
-                title: "Disable external portal?",
-                message: "The link and all active external sessions will stop working immediately. Project data is not deleted.",
-                confirmLabel: "Disable portal",
-                variant: "danger",
-              });
-              if (accepted) remove.mutate(activeShare.id, { onSuccess: () => upsert.reset() });
-            }}
-            className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-          >
-            Disable portal
-          </button>
-        ) : null}
-      </div>
-    </details>
   );
 }
 

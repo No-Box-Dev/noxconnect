@@ -14,7 +14,7 @@ interface ConnectionsResponse {
 
 interface Ctx {
   env: Record<string, unknown> & { DB: D1Database };
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; projectId?: string | null; isAdmin: boolean };
 }
 
 function apiAction(method: string, href: string, bodySchema?: Record<string, unknown>) {
@@ -25,7 +25,7 @@ function apiAction(method: string, href: string, bodySchema?: Record<string, unk
 // A resumable, machine-readable setup plan. Agents poll this endpoint after a
 // human completes either OAuth handoff and execute every available API action.
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context);
+  const { orgId, orgLogin, projectId, isAdmin } = getCtx(context);
   if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
 
   const connectionsResponse = await getConnections(context);
@@ -35,7 +35,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const githubComplete = byId.github?.connected === true;
   const slackComplete = byId.slack?.connected === true;
   let slack: Record<string, unknown>;
-  try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
+  try { slack = (await readSlackSettings(context.env.DB, orgId, projectId)).slack; }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
   const routeFields = ["fallbackChannelId", "noxCueChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId", "dailySummaryChannelId"];
   const configuredRouteCount = routeFields.filter((field) => {
@@ -44,9 +44,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   }).length;
   const hasRoute = (field: string) => Boolean(resolveSavedSlackChannel(slack, field));
   const [spotCount, cueCount, projectRouteCount] = await Promise.all([
-    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?", orgId),
-    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM cue_sources WHERE org_id = ? AND enabled = 1", orgId),
-    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM project_routing_settings WHERE org_id = ? AND enabled = 1", orgId),
+    countRows(context.env.DB, `SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?${projectId ? " AND project_id = ?" : ""}`, ...(projectId ? [orgId, projectId] : [orgId])),
+    countRows(context.env.DB, `SELECT COUNT(*) AS count FROM cue_sources WHERE org_id = ?${projectId ? " AND project_id = ?" : ""} AND enabled = 1`, ...(projectId ? [orgId, projectId] : [orgId])),
+    countRows(context.env.DB, `SELECT COUNT(*) AS count FROM project_routing_settings WHERE org_id = ?${projectId ? " AND project_id = ?" : ""} AND enabled = 1`, ...(projectId ? [orgId, projectId] : [orgId])),
   ]);
 
   const steps = {
@@ -132,7 +132,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     organization: { login: orgLogin },
     complete: githubComplete,
     documentation: { openapi: "/openapi.json", aiGuide: "/docs/ai-setup.md", discovery: "/llms.txt" },
-    authentication: { type: "bearer", organizationHeader: "X-Org" },
+    authentication: { type: "bearer", organizationHeader: "X-Org", projectHeader: "X-Project-ID", projectHeaderOptional: true },
     steps,
   });
   response.headers.set("Cache-Control", "no-store");
@@ -140,9 +140,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   return response;
 }
 
-async function countRows(db: D1Database, sql: string, orgId: number): Promise<{ count: number }> {
+async function countRows(db: D1Database, sql: string, ...binds: unknown[]): Promise<{ count: number }> {
   try {
-    const row = await db.prepare(sql).bind(orgId).first<{ count: number }>();
+    const row = await db.prepare(sql).bind(...binds).first<{ count: number }>();
     return { count: Number(row?.count || 0) };
   } catch (error) {
     console.error("[nox setup] optional readiness count failed", error);

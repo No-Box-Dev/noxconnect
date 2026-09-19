@@ -49,6 +49,7 @@ export function shouldNotRetry(error: unknown): boolean {
 function forceLogout() {
   localStorage.removeItem("ut_token"); // remove credentials left by pre-session releases
   localStorage.removeItem("ut_org");
+  localStorage.removeItem("ut_project");
   // Dispatch event so AuthProvider can react without circular imports
   window.dispatchEvent(new CustomEvent("ut:force-logout"));
 }

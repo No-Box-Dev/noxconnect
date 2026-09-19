@@ -6,7 +6,7 @@ import { readSlackSettings } from "../../../lib/slack-settings";
 
 interface Ctx {
   env: { DB: D1Database };
-  data: { orgId: number; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; isAdmin: boolean };
   request: Request;
   params?: Record<string, string>;
 }
@@ -44,10 +44,10 @@ function routingResponse(settings: Record<string, unknown>) {
 
 // GET /api/integrations/slack/routing
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context);
+  const { orgId, projectId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
-  try { return jsonResponse(routingResponse((await readSlackSettings(context.env.DB, orgId)).settings)); }
+  try { return jsonResponse(routingResponse((await readSlackSettings(context.env.DB, orgId, projectId)).settings)); }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
 }
 
@@ -56,7 +56,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 // Partial updates are merged so an agent cannot accidentally erase unrelated
 // organization settings by writing the generic config document.
 export async function onRequestPatch(context: Ctx): Promise<Response> {
-  const { orgId, isAdmin } = getCtx(context);
+  const { orgId, projectId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
@@ -70,7 +70,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   if (unknown.length) return errorResponse(`Unknown Slack route: ${unknown.join(", ")}`, 400);
 
   let stored;
-  try { stored = await readSlackSettings(context.env.DB, orgId); }
+  try { stored = await readSlackSettings(context.env.DB, orgId, projectId); }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
   const settings = stored.settings;
   const slack: Record<string, unknown> = { ...stored.slack };

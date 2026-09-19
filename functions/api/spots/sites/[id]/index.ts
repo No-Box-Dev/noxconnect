@@ -8,7 +8,7 @@ import { noxSpotAuditStatement } from "../../../../lib/noxspot-audit";
 
 interface Ctx {
   env: NoxDatabaseEnv & { ENCRYPTION_KEY?: string; TASK_QUEUE?: Queue; NOXSPOT_ASSETS?: R2Bucket };
-  data: { orgId: number; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
   request: Request;
   params: { id: string };
 }
@@ -73,7 +73,7 @@ const UpdateSite = z.object({
 }).refine((value) => Object.keys(value).length > 0, "No changes supplied");
 
 export async function onRequestPatch(context: Ctx): Promise<Response> {
-  const { orgId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -85,9 +85,11 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
 
   const existing = await db.prepare(
-    "SELECT id, slack_channel_id, slack_connection_id, widget_config FROM spot_sites WHERE id = ? AND org_id = ?",
-  ).bind(context.params.id, orgId).first<Record<string, unknown>>();
+    `SELECT id, project_id, slack_channel_id, slack_connection_id, widget_config
+       FROM spot_sites WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}`,
+  ).bind(...(projectId ? [context.params.id, orgId, projectId] : [context.params.id, orgId])).first<Record<string, unknown>>();
   if (!existing) return errorResponse("NoxSpot site not found", 404);
+  const resourceProjectId = String(existing.project_id);
 
   const input = parsed.data;
   if (input.slackChannelId) {
@@ -120,18 +122,20 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   const updateStatement = db.prepare(
     `UPDATE spot_sites SET slack_channel_id = ?, slack_connection_id = ?, widget_config = ?,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE id = ? AND org_id = ?`,
+      WHERE id = ? AND org_id = ? AND project_id = ?`,
   ).bind(
     input.slackChannelId !== undefined ? input.slackChannelId || null : existing.slack_channel_id,
     input.slackConnectionId !== undefined ? input.slackConnectionId || null : existing.slack_connection_id,
     JSON.stringify(config),
     context.params.id,
     orgId,
+    resourceProjectId,
   );
   await db.batch([
     updateStatement,
     noxSpotAuditStatement(db, {
       orgId,
+      projectId: resourceProjectId,
       siteId: context.params.id,
       actorLogin: userLogin,
       action: "site.updated",
@@ -149,7 +153,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       ).bind(input.slackChannelId, input.slackConnectionId ?? existing.slack_connection_id ?? null, orgId, context.params.id).run();
       await requeueBlockedForSite({ ...context.env, DB: db }, orgId, context.params.id);
     } else {
-      const channels = await resolveSlackChannels(db, orgId);
+      const channels = await resolveSlackChannels(db, orgId, resourceProjectId);
       if (channels.fallbackChannelId) {
         await db.prepare(
           `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
@@ -175,15 +179,16 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestDelete(context: Ctx): Promise<Response> {
-  const { orgId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   if (!context.env.NOXSPOT_ASSETS) return errorResponse("Screenshot storage is unavailable", 503);
   const db = getNoxDb(context.env);
 
   const site = await db.prepare(
-    "SELECT id FROM spot_sites WHERE id = ? AND org_id = ?",
-  ).bind(context.params.id, orgId).first<{ id: string }>();
+    `SELECT id, project_id FROM spot_sites
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}`,
+  ).bind(...(projectId ? [context.params.id, orgId, projectId] : [context.params.id, orgId])).first<{ id: string; project_id: string }>();
   if (!site) return errorResponse("NoxSpot site not found", 404);
 
   const prefix = `screenshots/${site.id}/`;
@@ -201,11 +206,12 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
     ).bind(orgId, site.id),
     noxSpotAuditStatement(db, {
       orgId,
+      projectId: site.project_id,
       siteId: site.id,
       actorLogin: userLogin,
       action: "site.deleted",
     }),
-    db.prepare("DELETE FROM spot_sites WHERE id = ? AND org_id = ?").bind(site.id, orgId),
+    db.prepare("DELETE FROM spot_sites WHERE id = ? AND org_id = ? AND project_id = ?").bind(site.id, orgId, site.project_id),
   ]);
   return jsonResponse({ ok: true });
 }

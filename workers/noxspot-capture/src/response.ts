@@ -111,7 +111,6 @@ export function buildDailyDigestResponse(
   filed: IssueInput[],
   solved: IssueInput[],
   totals: Record<string, unknown> = {},
-  portalUrl: string | null = null,
 ) {
   if (typeof siteName !== "string" || !siteName.trim() || siteName.length > 200) throw new Error("Invalid NoxSpot site name");
   if (typeof period !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(period)) throw new Error("Invalid NoxSpot digest period");
@@ -125,8 +124,6 @@ export function buildDailyDigestResponse(
   addDigestGroup(blocks, "Filed", filed, filedTotal, formatFiledIssue);
   addDigestGroup(blocks, "Solved", solved, solvedTotal, formatSolvedIssue);
   if (!filedTotal && !solvedTotal) blocks.push({ type: "section", text: { type: "mrkdwn", text: "No NoxSpot issues were filed or solved this day." } });
-  const safePortalUrl = safeHttpUrl(portalUrl);
-  if (safePortalUrl) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: `🔗 <${safePortalUrl}|Open the external project portal>` }] });
   return {
     contract: CONTRACT,
     version: VERSION,
@@ -185,7 +182,7 @@ function buildIssueBody(capture: CaptureInput, marker: string) {
   if (capture.environment) lines.push(`- **Environment:** ${capture.environment}`);
   if (capture.reporterGithubLogin) lines.push(`- **Reporter:** @${capture.reporterGithubLogin}`);
   else if (capture.reporter) lines.push(`- **Reporter:** ${capture.reporter}`);
-  if (capture.reporterEmail) lines.push(`- **Contact:** ${capture.reporterEmail}`);
+  if (capture.notifyOnResolution && capture.reporterEmail) lines.push("- **Resolution updates:** Requested (contact kept private in NoxConnect)");
   if (capture.rating) lines.push(`- **Rating:** ${capture.rating}/5`);
   addJson(lines, "Custom fields", capture.blockValues);
   addJson(lines, "Browser context", capture.metadata);

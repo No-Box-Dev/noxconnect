@@ -7,7 +7,7 @@ describe("NoxSpot service manifest", () => {
     expect(NOXSPOT_SERVICE_MANIFEST.version).toBe(1);
     expect(NOXSPOT_SERVICE_MANIFEST.service.id).toBe("noxspot");
     expect(NOXSPOT_SERVICE_MANIFEST.service.capabilities.map(({ id }) => id)).toEqual([
-      "sites", "widget", "reports", "spot_sharing", "spot_delivery",
+      "sites", "widget", "reports", "spot_delivery",
     ]);
   });
 });

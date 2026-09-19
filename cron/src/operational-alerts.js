@@ -11,14 +11,19 @@ export async function runOperationalAlerts(env) {
   let skipped = 0;
 
   for (const candidate of candidates) {
-    let route = routes.get(candidate.org_id);
+    if (!candidate.project_id) {
+      skipped += 1;
+      continue;
+    }
+    const routeKey = `${candidate.org_id}:${candidate.project_id}`;
+    let route = routes.get(routeKey);
     if (!route) {
-      const channels = await resolveSlackChannels(env.DB, candidate.org_id);
+      const channels = await resolveSlackChannels(env.DB, candidate.org_id, candidate.project_id);
       route = {
         channelId: resolveSlackRoute(channels, "operations"),
         connectionId: resolveSlackConnectionId(channels, "operations"),
       };
-      routes.set(candidate.org_id, route);
+      routes.set(routeKey, route);
     }
 
     if (!route.channelId) {
@@ -34,6 +39,7 @@ export async function runOperationalAlerts(env) {
 
     const delivery = await stageSlackDelivery(env.DB, {
       orgId: candidate.org_id,
+      projectId: candidate.project_id,
       source: "operations",
       sourceId: candidate.source_id,
       siteId: null,
@@ -59,7 +65,7 @@ export async function runOperationalAlerts(env) {
 async function loadCandidates(db) {
   const [failures, deliveries] = await Promise.all([
     db.prepare(
-      `SELECT org.id AS org_id, org.github_login AS org_login,
+      `SELECT org.id AS org_id, org.github_login AS org_login, failure.project_id,
               'operation_failure' AS kind,
               'op_failure:' || CAST(failure.id AS TEXT) AS source_id,
               failure.op AS subject, failure.error AS detail,
@@ -67,6 +73,7 @@ async function loadCandidates(db) {
          FROM op_failures failure
          JOIN orgs org ON lower(org.github_login) = lower(failure.owner_id)
         WHERE failure.occurred_at >= datetime('now', ?)
+          AND failure.project_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM delivery_outbox alert
              WHERE alert.source = 'operations'
@@ -76,7 +83,7 @@ async function loadCandidates(db) {
         LIMIT ?`,
     ).bind(LOOKBACK, ALERT_LIMIT).all(),
     db.prepare(
-      `SELECT org.id AS org_id, org.github_login AS org_login,
+      `SELECT org.id AS org_id, org.github_login AS org_login, delivery.project_id,
               'delivery_failure' AS kind,
               'delivery_failure:' || delivery.id AS source_id,
               delivery.source AS subject,
@@ -87,6 +94,7 @@ async function loadCandidates(db) {
         WHERE delivery.source != 'operations'
           AND delivery.status IN ('failed', 'blocked_configuration')
           AND delivery.updated_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)
+          AND delivery.project_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM delivery_outbox alert
              WHERE alert.source = 'operations'

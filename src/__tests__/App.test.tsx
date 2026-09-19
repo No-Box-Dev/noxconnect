@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 
 vi.mock("@/lib/auth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/hooks/useGitHub", () => ({ useOrgs: vi.fn() }));
+vi.mock("@/lib/project", () => ({ ProjectProvider: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/pages/LoginPage", () => ({
   LoginPage: () => <div data-testid="login-page" />,
 }));

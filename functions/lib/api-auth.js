@@ -26,6 +26,32 @@ export async function apiTokenProjectResource(db, pathname, orgId, searchParams 
     return { kind: "resource", projectId: row?.project_id ?? null };
   }
 
+  match = pathname.match(/^\/api\/features\/([^/]+)/);
+  if (match) {
+    const number = Number.parseInt(decodeURIComponent(match[1]), 10);
+    const row = Number.isInteger(number) ? await db.prepare(
+      "SELECT project_id FROM features WHERE org_id = ? AND number = ?",
+    ).bind(orgId, number).first() : null;
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/specs\/([^/]+)/);
+  if (match) {
+    const id = Number.parseInt(decodeURIComponent(match[1]), 10);
+    const row = Number.isInteger(id) ? await db.prepare(
+      "SELECT project_id FROM specs WHERE org_id = ? AND id = ?",
+    ).bind(orgId, id).first() : null;
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/events\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM events WHERE org_id = ? AND id = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
   match = pathname.match(/^\/api\/spots\/sites\/([^/]+)/);
   if (match) {
     const row = await db.prepare(
@@ -34,10 +60,10 @@ export async function apiTokenProjectResource(db, pathname, orgId, searchParams 
     return { kind: "resource", projectId: row?.project_id ?? null };
   }
 
-  match = pathname.match(/^\/api\/spots\/shares\/([^/]+)/);
+  match = pathname.match(/^\/api\/spots\/reports\/([^/]+)/);
   if (match) {
     const row = await db.prepare(
-      "SELECT project_id FROM external_project_shares WHERE org_id = ? AND id = ?",
+      "SELECT project_id FROM spot_reports WHERE org_id = ? AND id = ?",
     ).bind(orgId, decodeURIComponent(match[1])).first();
     return { kind: "resource", projectId: row?.project_id ?? null };
   }
@@ -53,13 +79,6 @@ export async function apiTokenProjectResource(db, pathname, orgId, searchParams 
     return { kind: "resource", projectId: row?.project_id ?? null };
   }
 
-  match = pathname.match(/^\/api\/cues\/shares\/([^/]+)/);
-  if (match) {
-    const row = await db.prepare(
-      "SELECT project_id FROM cue_dashboard_shares WHERE org_id = ? AND id = ?",
-    ).bind(orgId, decodeURIComponent(match[1])).first();
-    return { kind: "resource", projectId: row?.project_id ?? null };
-  }
   return null;
 }
 
@@ -71,6 +90,7 @@ export function projectScopedApiTokenPathSupported(pathname, method) {
   if (verb === "GET" && /^\/api\/(?:issues|prs)(?:\/|$)/.test(pathname)) return true;
   if (verb === "POST" && /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return true;
   if (/^\/api\/spots\/sites(?:\/|$)/.test(pathname)) return true;
+  if (verb === "PATCH" && /^\/api\/spots\/reports\/[^/]+$/.test(pathname)) return true;
   if (/^\/api\/cues\/sources(?:\/|$)/.test(pathname)) return true;
   if (verb === "GET" && (pathname === "/api/cues/events" || pathname === "/api/cues/metrics")) return true;
   if (/^\/api\/cues\/projects\/[^/]+\/metrics$/.test(pathname)) return true;

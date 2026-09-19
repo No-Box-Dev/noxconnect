@@ -5,39 +5,39 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 ## Overview
 
 ```
-┌─────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│ React SPA / │────▶│ NoxConnect Pages API │────▶│ D1 + R2      │
-│ API clients │     │ auth + control plane │     │ shared state │
-└─────────────┘     └──────┬───────┬───────┘     └──────▲───────┘
-                           │       │ private bindings    │
-                  provider │       ├────────▶ NoxFeed response
-                  access   │       ├────────▶ NoxSpot response/capture
- GitHub + Slack ◀──────────┘       └────────▶ NoxCue response/ingest
+┌─────────────┐     ┌──────────────────┐     ┌───────────────────┐     ┌──────────┐
+│ React SPA / │────▶│ NoxHere gateway  │────▶│ NoxConnect Worker │────▶│ D1 + R2  │
+│ API clients │     │ public auth      │     │ provider access   │     │ state    │
+└─────────────┘     └──────────────────┘     └──────┬───────┬────┘     └────▲─────┘
+                                                    │       │ private bindings │
+                                           provider │       ├────▶ NoxFeed response
+                                           access   │       ├────▶ NoxSpot response/capture
+                          GitHub + Slack ◀───────────┘       └────▶ NoxCue response/ingest
        │                                      │
        └── webhooks ──▶ Queue + cron Worker ──┘
 ```
 
 - **Frontend** — React 19 + TypeScript + Vite SPA. TanStack Query reads NoxConnect APIs; browser code does not receive GitHub or Slack tokens or call provider APIs directly. Tailwind provides styling and product/admin views are lazy-loaded.
-- **API** — Cloudflare Pages Functions under `functions/api/`. New code is TypeScript with zod validation at the boundary; data access uses the native D1 binding (`DB.prepare().bind()`, `DB.batch()`).
+- **API** — NoxHere is the public authority and forwards a short-lived signed assertion over a private binding. NoxConnect handlers live under `functions/api/`; new code is TypeScript with zod validation at the boundary and native D1 access (`DB.prepare().bind()`, `DB.batch()`).
 - **Database** — Cloudflare D1 (SQLite). Schema in `migrations/`, applied with `wrangler d1 migrations apply`.
 - **Cron Worker** — a sibling Worker in `cron/` that imports shared helpers from `functions/lib/`. It reconciles GitHub state every 30 minutes and consumes the background-work queue.
 - **Queue + R2** — durable background work (narration, bootstrap, repo sync) runs on a Cloudflare Queue with retries and a dead-letter queue; the `events` table is archived to R2 after 90 days.
 
 ## Multi-tenancy
 
-NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves and verifies the caller's organization and scopes every query by `org_id`. An unconfigured organization can be bootstrapped only by a caller GitHub verifies as an active organization owner; membership alone never grants the NoxConnect admin role.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. NoxHere resolves the caller and signs the bounded context; NoxConnect middleware (`functions/_middleware.js`) verifies that assertion and scopes every query by `org_id`. A project selector is optional for user sessions: omission is organization-wide and a supplied header, query value, URL project, or signed token project narrows the request. Multiple selectors must agree. The browser's project selection is UI state only: the shared API client never attaches it automatically, so project-scoped requests must identify their project explicitly.
 
 ## Authentication and credentials
 
 Credentials are separated by caller and cannot be substituted for one another:
 
-- **Browser users** — GitHub OAuth creates an opaque, hashed-at-rest NoxConnect session in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie. GitHub access and refresh tokens remain encrypted server-side. Browser mutations require a separate CSRF cookie/header proof.
-- **Native users** — NoxConnect brokers GitHub device approval, stores provider credentials encrypted, and returns a 15-minute `nox_at_…` access token plus a rotating 30-day `nox_rt_…` refresh token. Only hashes of those NoxConnect credentials are stored. Native sign-out revokes the server session.
+- **Browser users** — NoxHere creates an opaque, hashed-at-rest session in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie after GitHub OAuth or an email magic link. Browser mutations require a separate CSRF cookie/header proof.
+- **Native users** — NoxHere brokers GitHub device approval and returns a 15-minute `nox_at_…` access token plus a rotating 30-day `nox_rt_…` refresh token. Provider credentials remain encrypted in NoxConnect. Native sign-out revokes the NoxHere session.
 - **Native abuse control** — provider-facing device-start and legacy-exchange operations fail closed behind an atomic, per-IP D1 rate-limit window before they call GitHub. A native Cloudflare rate-limit binding can replace the D1 path when the API moves from Pages to a Worker. Device polling also enforces GitHub's per-code interval atomically.
 - **Automation** — expiring `nox_sk_live_…` or `nox_sk_test_…` secrets are bound to one organization, exactly one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Values are shown once, stored only as hashes, audited, rotatable, and revocable.
 - **Public capture** — NoxCue source keys and origin-bound NoxSpot capture are limited to their ingestion contracts; they do not grant management access.
 - **Internal services** — Workers use private versioned service bindings and receive bounded product data, never provider tokens.
-- **Legacy local compatibility** — a GitHub bearer can temporarily authenticate local development and one-time native upgrades. Supported native releases immediately exchange it for a NoxConnect session; it is deprecated and is not the public automation contract.
+- **Unsupported bearer formats** — the public NoxHere gateway rejects raw GitHub bearer tokens as `unsupported_credential`. A narrowly scoped migration exchange may consume an existing installed credential once, but it is not API authentication.
 
 ## Data freshness: three redundant paths
 

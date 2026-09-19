@@ -34,6 +34,7 @@
         <a href="#overview">Overview</a>
         <a href="#quickstart">Quickstart</a>
         <a href="#authentication">Authentication</a>
+        <a href="#noxspot-identity">NoxSpot identity</a>
       </div>
       <div class="nav-group">
         <p class="nav-label">Platform</p>
@@ -129,15 +130,15 @@
           </article>
           <article class="callout">
             <h3>Native session</h3>
-            <p>NoxConnect brokers GitHub device approval and gives first-party apps a 15-minute <code>nox_at_…</code> access token plus a rotating <code>nox_rt_…</code> refresh token. Provider credentials remain encrypted in NoxConnect.</p>
+            <p>NoxHere brokers GitHub device approval and gives first-party apps a 15-minute <code>nox_at_…</code> access token plus a rotating <code>nox_rt_…</code> refresh token. Provider credentials remain encrypted in NoxConnect.</p>
           </article>
           <article class="callout">
             <h3>Automation token</h3>
             <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, one project, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
           </article>
         </div>
-        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by the NoxHere gateway on every automation request. A resource outside the token's project returns <code>resource_not_found</code>. A disabled product returns <code>409 service_not_enabled</code> with an enable-service remediation link; an enabled but unreachable Worker returns <code>503 service_unavailable</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
-        <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
+        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>native_session</code>, <code>native_refresh</code>, <code>public</code>, or <code>ingest_key</code> authentication. Browser and native requests may omit <code>X-Project-ID</code> for organization-wide data or supply it to narrow results. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery; every automation token remains bound to one project. A resource outside that project returns <code>resource_not_found</code>. NoxTicket and organization-level control-plane operations currently require a browser or native user session.</p>
+        <p class="field-note">A NoxHere <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
         <p class="field-note">A raw GitHub token is not a NoxConnect API credential. Unsupported bearer formats return <code>unsupported_credential</code> without being sent to GitHub.</p>
         <div class="callouts">
           <article class="callout"><h3>Lifecycle and audit</h3><p>Automation tokens expire within 1–365 days, are shown once, and expose only a prefix afterward. Create, rotate, and revoke actions are audited. Browser provider-token refresh occurs only on the server.</p></article>
@@ -152,7 +153,7 @@
               <tr><td><span class="method write">POST</span>/api/v1/api-tokens/{id}/rotate</td><td>Revoke and replace a secret atomically.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">DELETE</span>/api/v1/api-tokens/{id}</td><td>Immediately revoke future API access.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/start</td><td>Start GitHub device approval without embedding a provider client secret.</td><td>First-party native client</td></tr>
-              <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/poll</td><td>Complete approval server-side and return only NoxConnect credentials.</td><td>Opaque device handle</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/poll</td><td>Complete approval server-side and return only NoxHere credentials.</td><td>Opaque device handle</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/refresh</td><td>Rotate the access and refresh credentials.</td><td><code>nox_rt_…</code> refresh token</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/revoke</td><td>Revoke the current native session on sign-out, including after access expiry.</td><td><code>nox_rt_…</code> rotating refresh credential</td></tr>
               <tr><td><span class="method">GET</span>/api/v1/auth/profile</td><td>Resolve the approved GitHub identity and organizations without exposing the provider credential.</td><td>Browser or <code>nox_at_…</code> session; no organization required</td></tr>
@@ -170,6 +171,44 @@
               <tr><td>NoxSpot, NoxCue, and NoxFeed Workers</td><td>Private Cloudflare service bindings</td><td>No public bearer token and no provider credential between Workers</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section class="section" id="noxspot-identity">
+        <p class="section-kicker">NoxSpot widget identity</p>
+        <h2>Pass signed-in users explicitly</h2>
+        <p class="section-intro">NoxSpot cannot read a host website's login session, cookies, or signup database. The website owner must pass the current user's name and email after the widget has loaded and repeat the call when the signed-in account changes.</p>
+        <div class="callout caution standalone-callout">
+          <h3>The install snippet is anonymous by default</h3>
+          <p>Adding a NoxSpot site and pasting its one-line snippet does not expose user identity. Without the integration below, the widget still works and reporters enter their own details.</p>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>browser · site-specific embed</span><button class="copy-button" type="button" data-copy="noxspot-identify">Copy</button></div>
+          <pre id="noxspot-identify"><code><span class="token-comment">// The site-specific script auto-initializes NoxSpot.</span>
+<span class="token-comment">// Run this after it loads and whenever the signed-in user changes.</span>
+NoxSpot.identify({
+  <span class="token-key">name</span>: currentUser.name,
+  <span class="token-key">email</span>: currentUser.email,
+  <span class="token-comment">// Set true only if your site already obtained consent:</span>
+  <span class="token-key">notifyOnResolution</span>: true,
+});
+
+<span class="token-comment">// Clear cached identity on sign-out.</span>
+NoxSpot.identify(null);</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>browser · manual initialization</span><button class="copy-button" type="button" data-copy="noxspot-get-reporter">Copy</button></div>
+          <pre id="noxspot-get-reporter"><code>NoxSpot.init({
+  <span class="token-key">siteId</span>: <span class="token-string">"your-site-id"</span>,
+  <span class="token-key">getReporter</span>: () =&gt; ({
+    <span class="token-key">name</span>: currentUser.name,
+    <span class="token-key">email</span>: currentUser.email,
+  }),
+});</code></pre>
+        </div>
+        <div class="callouts">
+          <article class="callout"><h3>Privacy boundary</h3><p>The reporter email is not copied into GitHub. NoxConnect encrypts and retains it only when <code>notifyOnResolution</code> is true.</p></article>
+          <article class="callout"><h3>Consent boundary</h3><p>Omit <code>notifyOnResolution</code> to leave the widget checkbox under the reporter's control. A host may set it to true only when it has already obtained permission for that transactional update.</p></article>
         </div>
       </section>
 
@@ -347,16 +386,18 @@ await noxcue.flush();</code></pre>
           <div class="code-head"><span>terminal · compare-and-swap update</span><button class="copy-button" type="button" data-copy="curl-config">Copy</button></div>
           <pre id="curl-config"><code><span class="token-comment"># 1. Read the current config and response ETag</span>
 curl -i https://app.noxhere.com/api/v1/services/noxfeed/config \
-  -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span>
+  -H <span class="token-string">"Authorization: Bearer $NOXHERE_ACCESS_TOKEN"</span> \
+  -H <span class="token-string">"X-Org: $NOX_ORG"</span>
 
 <span class="token-comment"># 2. Patch only owned fields using that revision</span>
 curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
-  -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span> \
+  -H <span class="token-string">"Authorization: Bearer $NOXHERE_ACCESS_TOKEN"</span> \
+  -H <span class="token-string">"X-Org: $NOX_ORG"</span> \
   -H <span class="token-string">'If-Match: "current-revision"'</span> \
   -H <span class="token-string">"Content-Type: application/json"</span> \
-  --data <span class="token-string">'{"projectScope":null}'</span></code></pre>
+  --data <span class="token-string">'{"releaseNotesPrompt":"Keep release notes concise."}'</span></code></pre>
         </div>
-        <p class="field-note"><code>projectScope: null</code> means all projects. Otherwise supply an active project ID returned by <code>GET /api/v1/projects</code>; arbitrary strings are rejected.</p>
+        <p class="field-note">Project selection is request context, not NoxFeed configuration. Omit <code>X-Project-ID</code> for organization-wide data or supply an active project ID to narrow a browser or native request.</p>
         <div class="callouts">
           <article class="callout safe"><h3>Service-scoped</h3><p>NoxConnect, NoxTicket, and NoxFeed expose strict writable fields in their service config response.</p></article>
           <article class="callout caution"><h3>Resource-scoped</h3><p>NoxSpot sites and NoxCue sources remain authoritative. Their service config is read-only and links to the correct child resources.</p></article>
@@ -374,10 +415,10 @@ curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
   <span class="token-key">"method"</span>: <span class="token-string">"PATCH"</span>,
   <span class="token-key">"path"</span>: <span class="token-string">"/api/v1/services/noxfeed/config"</span>,
   <span class="token-key">"authentication"</span>: <span class="token-string">"admin"</span>,
-  <span class="token-key">"description"</span>: <span class="token-string">"Update project scope or release-notes prompt with If-Match."</span>
+  <span class="token-key">"description"</span>: <span class="token-string">"Update the release-notes prompt with If-Match."</span>
 }</code></pre>
         </div>
-        <p>The supported API reference below is rendered directly from <a href="/openapi.json">OpenAPI 3.1</a>, so routes, methods, access levels, server overrides, and change-safety labels do not have to be copied into this page by hand. It includes the complete first-party client surface and excludes private provider callbacks, signed webhooks, runner endpoints, and password-protected share sessions. Older supported compatibility endpoints may still expose loosely typed response bodies; those are labelled as legacy JSON in the schema.</p>
+        <p>The supported API reference below is rendered directly from <a href="/openapi.json">OpenAPI 3.1</a>, so routes, methods, access levels, server overrides, and change-safety labels do not have to be copied into this page by hand. It includes the complete first-party client surface and excludes private provider callbacks, signed webhooks, and runner endpoints. Older supported compatibility endpoints may still expose loosely typed response bodies; those are labelled as legacy JSON in the schema.</p>
         <div class="reference-tools">
           <label for="operation-search">Find an operation</label>
           <div class="reference-controls">

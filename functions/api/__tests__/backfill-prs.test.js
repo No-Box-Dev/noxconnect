@@ -11,12 +11,13 @@ afterEach(() => vi.restoreAllMocks());
 describe("pull-request post backfill dependencies", () => {
   it("returns a sanitized dependency error when NoxFeed generation info is unreachable", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    const recent = new Date().toISOString();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify([{
       number: 42,
       title: "Improve login",
       user: { login: "alex" },
-      created_at: "2026-09-11T10:00:00Z",
-      updated_at: "2026-09-11T10:00:00Z",
+      created_at: recent,
+      updated_at: recent,
       merged_at: null,
       closed_at: null,
     }]), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -43,7 +44,7 @@ describe("pull-request post backfill dependencies", () => {
           async generationInfo() { throw new Error("secret internal binding detail"); },
         },
       },
-      data: { orgLogin: "acme", isAdmin: true },
+      data: { orgId: 1, orgLogin: "acme", isAdmin: true },
       params: { id: "project-1" },
       request: new Request("https://example.com/api/v1/projects/project-1/backfill-prs", {
         method: "POST",

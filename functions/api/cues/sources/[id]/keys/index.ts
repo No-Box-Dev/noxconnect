@@ -5,13 +5,13 @@ import { validate } from "../../../../../lib/validate";
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; userLogin: string; isAdmin: boolean };
   params: { id: string };
   request: Request;
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -22,8 +22,9 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
 
   const source = await db.prepare(
-    "SELECT id FROM cue_sources WHERE id = ? AND org_id = ?",
-  ).bind(context.params.id, orgId).first<{ id: string }>();
+    `SELECT id FROM cue_sources
+      WHERE id = ? AND org_id = ?${projectId ? " AND project_id = ?" : ""}`,
+  ).bind(...(projectId ? [context.params.id, orgId, projectId] : [context.params.id, orgId])).first<{ id: string }>();
   if (!source) return errorResponse("Cue source not found", 404);
 
   const value = createCueKey(parsed.data.kind);

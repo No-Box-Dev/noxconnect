@@ -3,13 +3,18 @@ import { buildServiceCatalog } from "../../lib/service-capabilities";
 import openapiDocument from "../../../public/openapi.json";
 
 type Operation = {
+  parameters?: Array<{ $ref?: string }>;
   responses?: Record<string, { $ref?: string; content?: unknown }>;
+  security?: Array<Record<string, unknown>>;
   "x-authentication"?: string;
+  "x-automation-scope"?: string;
   "x-change-safety"?: string;
+  "x-project-scope"?: string;
 };
 
 const methods = ["get", "post", "put", "patch", "delete"] as const;
-const openapi = openapiDocument as {
+const openapi = openapiDocument as unknown as {
+  components: { parameters: { projectContext: { required: boolean } }; schemas: Record<string, { properties?: Record<string, unknown> }> };
   paths: Record<string, Partial<Record<(typeof methods)[number], Operation>>>;
 };
 
@@ -70,6 +75,23 @@ describe("capability discovery and OpenAPI stay aligned", () => {
         if (!operation) continue;
         expect(operation["x-authentication"], `${method.toUpperCase()} ${path}`).toBeTruthy();
         expect(operation["x-change-safety"], `${method.toUpperCase()} ${path}`).toBeTruthy();
+      }
+    }
+  });
+
+  it("documents optional project context and exact automation support", () => {
+    expect(openapi.components.parameters.projectContext.required).toBe(false);
+    expect(openapi.components.schemas.NoxFeedConfigPatch.properties).not.toHaveProperty("projectScope");
+    for (const [path, pathItem] of Object.entries(openapi.paths)) {
+      for (const method of methods) {
+        const operation = pathItem[method];
+        if (!operation) continue;
+        expect(operation["x-project-scope"], `${method.toUpperCase()} ${path}`).not.toBe("required");
+        const acceptsAutomation = operation.security?.some((requirement) => "noxApiToken" in requirement) ?? false;
+        expect(Boolean(operation["x-automation-scope"]), `${method.toUpperCase()} ${path}`).toBe(acceptsAutomation);
+        if (operation["x-project-scope"] === "optional") {
+          expect(operation.parameters).toContainEqual({ $ref: "#/components/parameters/projectContext" });
+        }
       }
     }
   });

@@ -25,7 +25,7 @@ const BACKFILL_MAX_FALLBACKS = 25;
 
 export async function onRequestPost(context) {
   try {
-    const { orgLogin, isAdmin } = getCtx(context);
+    const { orgId, orgLogin, isAdmin } = getCtx(context);
     if (!orgLogin) return errorResponse("Missing org context", 400);
     if (!isAdmin) return errorResponse("Admin required", 403);
     const { id } = context.params;
@@ -43,8 +43,8 @@ export async function onRequestPost(context) {
     const db = context.env.DB;
 
     const project = await db.prepare(
-      "SELECT id, name, org, repo, owner_id FROM projects WHERE id = ? AND owner_id = ?"
-    ).bind(id, orgLogin).first();
+      "SELECT id, name, org, repo, owner_id FROM projects WHERE id = ? AND org_id = ?"
+    ).bind(id, orgId).first();
     if (!project) return errorResponse(`Unknown project ${id}`, 404);
     if (!project.org || !project.repo) return errorResponse("Project has no org/repo", 400);
 

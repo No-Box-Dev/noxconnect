@@ -50,7 +50,7 @@ export async function narrateEvent(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
-  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed", row.project_id))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -114,7 +114,7 @@ export async function narrateEvent(env, eventId) {
         created_at: row.created_at,
       },
     };
-    const aiMode = await resolveAiMode(env, orgId);
+    const aiMode = await resolveAiMode(env, orgId, row.project_id);
     const generation = aiMode.status === "enabled"
       ? await generateNoxFeedContent(env, "actor", input)
       : unavailableGeneration(aiMode);
@@ -197,7 +197,7 @@ export async function narrateReleaseNotes(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
-  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed", row.project_id))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -254,8 +254,8 @@ export async function narrateReleaseNotes(env, eventId) {
     };
 
     const [aiMode, systemOverride] = await Promise.all([
-      resolveAiMode(env, orgId),
-      resolveReleaseNotesPrompt(env.DB, orgId),
+      resolveAiMode(env, orgId, row.project_id),
+      resolveReleaseNotesPrompt(env.DB, orgId, row.project_id),
     ]);
     const generation = aiMode.status === "enabled"
       ? await generateNoxFeedContent(env, "release_notes", promptInput, systemOverride)
@@ -340,7 +340,7 @@ export async function narratePrOpened(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES_OPENED.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
-  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed", row.project_id))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -387,7 +387,7 @@ export async function narratePrOpened(env, eventId) {
   };
 
   const orgId = await resolveOrgId(env.DB, row.owner_id);
-  const aiMode = await resolveAiMode(env, orgId);
+  const aiMode = await resolveAiMode(env, orgId, row.project_id);
   const generation = aiMode.status === "enabled"
     ? await generateNoxFeedContent(env, "pr_opened", input)
     : unavailableGeneration(aiMode);
@@ -543,7 +543,7 @@ function releaseEnvironment(explicit, baseRef) {
 async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, postSummary, rawEvent } = args;
   try {
-    const channels = await resolveSlackChannels(env.DB, orgId);
+    const channels = await resolveSlackChannels(env.DB, orgId, rawEvent.project_id);
     const service = kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts";
     const projectDestination = await resolveNoxFeedDestination(env.DB, orgId, rawEvent.repo, kind);
     const channelId = projectDestination
@@ -591,6 +591,7 @@ async function maybePostToSlack(env, args) {
     }
     const delivery = await stageSlackDelivery(env.DB, {
       orgId,
+      projectId: rawEvent.project_id,
       source: kind === "release_notes" ? "release_notes" : "posts",
       sourceId: `${triggerEventId}:${kind}`,
       siteId: null,
@@ -647,12 +648,12 @@ async function fetchActorAvatar(db, actorId, ownerId) {
 // Per-org override of the release-notes system prompt, stored in
 // config.settings.releaseNotesPrompt. A null response tells the NoxFeed
 // response service to use its product-owned default prompt.
-async function resolveReleaseNotesPrompt(db, orgId) {
-  if (!db || !orgId) return null;
+async function resolveReleaseNotesPrompt(db, orgId, projectId) {
+  if (!db || !orgId || !projectId) return null;
   try {
     const row = await db
-      .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
-      .bind(orgId)
+      .prepare("SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'")
+      .bind(orgId, projectId)
       .first();
     if (!row?.data) return null;
     const settings = JSON.parse(row.data);

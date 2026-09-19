@@ -39,7 +39,10 @@ function unavailable(error: unknown) {
 }
 
 export async function delegateFeatureList(env: Environment, scope: NoxTicketScope, state: string): Promise<Response | null> {
-  if (!env.NOXTICKET_SERVICE) return null;
+  // The split service is project-native. Organization-wide compatibility is
+  // served by NoxConnect's local projection until that RPC supports an
+  // optional project boundary too.
+  if (!env.NOXTICKET_SERVICE || !scope.projectId) return null;
   try { return serviceResultResponse(await env.NOXTICKET_SERVICE.listFeatures(scope, state)); }
   catch (error) { return unavailable(error); }
 }
@@ -53,7 +56,7 @@ export async function delegateFeatureMutation(
   input?: unknown,
 ): Promise<Response | null> {
   const service = env.NOXTICKET_SERVICE;
-  if (!service) return null;
+  if (!service || !scope.projectId) return null;
   try {
     let prepared: NoxTicketServiceResult;
     if (operation === "create") prepared = await service.prepareFeatureCreate(scope, input);
@@ -64,7 +67,9 @@ export async function delegateFeatureMutation(
     if (data.noop) return Response.json(data.feature);
     if (!data.repository || !data.issue || !data.projection) throw new Error("NoxTicket returned an incomplete feature intent");
     const projectId = await projectIdForRepository(env.DB, scope.orgId, data.repository);
-    if (!projectId) return Response.json({ error: `Feature repository ${data.repository} is not an active project` }, { status: 412 });
+    if (!projectId || projectId !== scope.projectId) {
+      return Response.json({ error: `Feature repository ${data.repository} does not belong to the selected project` }, { status: 412 });
+    }
     const idempotencyKey = key(request);
     const commandId = crypto.randomUUID();
     const receipt = await executeConnectionCapability(env, {

@@ -12,16 +12,16 @@ describe("NoxCue settings contracts", () => {
     expect(cueSourceInputSchema.parse({
       name: "Checkout",
       enabled: true,
-      projectId: null,
+      projectId: "project-1",
       slackChannelId: "C123",
       slackConnectionId: "connection-1",
     })).toMatchObject({
-      name: "Checkout", projectId: null, timezone: "UTC",
+      name: "Checkout", projectId: "project-1", timezone: "UTC",
       digestEnabled: true, digestTimeLocal: "00:30",
       slackChannelId: "C123", slackConnectionId: "connection-1",
     });
     expect(cueSourceInputSchema.safeParse({
-      name: "Checkout", enabled: true, projectId: null,
+      name: "Checkout", enabled: true, projectId: "project-1",
       timezone: "Not/A_Zone", digestTimeLocal: "25:00",
     }).success).toBe(false);
   });

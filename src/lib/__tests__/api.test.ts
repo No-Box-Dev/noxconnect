@@ -37,6 +37,7 @@ describe("apiFetch", () => {
   it("uses the HttpOnly session and injects only the selected organization", async () => {
     storage.ut_token = "tok123";
     storage.ut_org = "my-org";
+    storage.ut_project = "project-1";
     const fn = mockFetch(200, {});
 
     await apiFetch("/api/test");
@@ -47,6 +48,36 @@ describe("apiFetch", () => {
       }),
       credentials: "same-origin",
     }));
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBeUndefined();
+  });
+
+  it("does not copy a resource project into a header", async () => {
+    storage.ut_project = "project-1";
+    const fn = mockFetch(200, {});
+
+    await apiFetch("/api/v1/projects/project-2/archive", { method: "POST" });
+
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBeUndefined();
+  });
+
+  it("does not copy a JSON body project into a header", async () => {
+    storage.ut_project = "project-1";
+    const fn = mockFetch(200, {});
+
+    await apiFetch("/api/v1/spots/sites", {
+      method: "POST",
+      body: JSON.stringify({ projectId: "project-2", name: "Portal" }),
+    });
+
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBeUndefined();
+  });
+
+  it("forwards an explicitly provided project header", async () => {
+    const fn = mockFetch(200, {});
+
+    await apiFetch("/api/v1/issues", { headers: { "X-Project-ID": "project-1" } });
+
+    expect(fn.mock.calls[0][1].headers["X-Project-ID"]).toBe("project-1");
   });
 
   it("uses empty strings when localStorage is empty", async () => {

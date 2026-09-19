@@ -41,21 +41,21 @@ describe("managedLlmConfig", () => {
 
 describe("resolveLlmConfig", () => {
   it("defaults an organization to managed AI", async () => {
-    await expect(resolveLlmConfig({ DB: dbResult(null), ANTHROPIC_API_KEY: "secret" }, 7))
+    await expect(resolveLlmConfig({ DB: dbResult(null), ANTHROPIC_API_KEY: "secret" }, 7, "project-1"))
       .resolves.toMatchObject({ status: "ready", source: "managed" });
   });
 
   it("honors an explicit disabled mode", async () => {
-    await expect(resolveLlmConfig({ DB: dbResult({ mode: "disabled" }) }, 7))
+    await expect(resolveLlmConfig({ DB: dbResult({ mode: "disabled" }) }, 7, "project-1"))
       .resolves.toEqual({ status: "disabled", mode: AI_MODE_DISABLED });
   });
 
   it("fails closed for invalid context, state, or database errors", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(resolveLlmConfig({}, 7)).resolves.toMatchObject({ errorCode: "routing_context_missing" });
-    await expect(resolveLlmConfig({ DB: dbResult({ mode: "byok" }), ANTHROPIC_API_KEY: "secret" }, 7))
+    await expect(resolveLlmConfig({ DB: dbResult({ mode: "byok" }), ANTHROPIC_API_KEY: "secret" }, 7, "project-1"))
       .resolves.toMatchObject({ errorCode: "routing_mode_invalid" });
-    await expect(resolveLlmConfig({ DB: dbResult(new Error("down")), ANTHROPIC_API_KEY: "secret" }, 7))
+    await expect(resolveLlmConfig({ DB: dbResult(new Error("down")), ANTHROPIC_API_KEY: "secret" }, 7, "project-1"))
       .resolves.toMatchObject({ errorCode: "routing_lookup_failed" });
     spy.mockRestore();
   });
@@ -63,14 +63,14 @@ describe("resolveLlmConfig", () => {
 
 describe("resolveAiMode", () => {
   it("enables product-owned generation without requiring a provider key in NoxConnect", async () => {
-    await expect(resolveAiMode({ DB: dbResult(null) }, 7)).resolves.toEqual({
+    await expect(resolveAiMode({ DB: dbResult(null) }, 7, "project-1")).resolves.toEqual({
       status: "enabled",
       mode: AI_MODE_MANAGED,
     });
   });
 
   it("preserves the organization disable switch", async () => {
-    await expect(resolveAiMode({ DB: dbResult({ mode: "disabled" }) }, 7)).resolves.toEqual({
+    await expect(resolveAiMode({ DB: dbResult({ mode: "disabled" }) }, 7, "project-1")).resolves.toEqual({
       status: "disabled",
       mode: AI_MODE_DISABLED,
     });

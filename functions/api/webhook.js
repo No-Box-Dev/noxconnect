@@ -24,6 +24,7 @@ import { startRepoTracking } from "../lib/repo-tracking";
 import { stageNoxTicketActivity } from "../lib/noxticket-slack.js";
 import { enqueueReviewJob, cancelReviewJobs } from "../lib/review-jobs.js";
 import { isAppEnabled } from "../lib/apps.js";
+import { reopenNoxSpotReportFromIssue, resolveNoxSpotReportFromIssue } from "../lib/noxspot-resolution.js";
 
 // Every `waitUntil` handler that logs a failure runs after the webhook
 // response has already been returned — a plain console.error is invisible
@@ -213,6 +214,40 @@ export async function onRequestPost(context) {
 
       const closedBy = (action === "closed" && payload.sender?.login) ? payload.sender.login : null;
       await upsertIssue(db, orgId, repo, payload.issue, closedBy);
+
+      if (action === "closed") {
+        try {
+          await resolveNoxSpotReportFromIssue(context.env, {
+            orgId,
+            ownerId: orgLogin,
+            repo,
+            issueNumber: payload.issue.number,
+            actor: payload.sender?.login ?? "github",
+            summary: "The linked GitHub issue was closed.",
+          });
+        } catch (err) {
+          await reportWebhookFailure(db, orgLogin, "noxspot_resolution", deliveryId, err, {
+            repo,
+            number: payload.issue?.number,
+          });
+        }
+      }
+      if (action === "reopened") {
+        try {
+          await reopenNoxSpotReportFromIssue(context.env, {
+            orgId,
+            ownerId: orgLogin,
+            repo,
+            issueNumber: payload.issue.number,
+            actor: payload.sender?.login ?? "github",
+          });
+        } catch (err) {
+          await reportWebhookFailure(db, orgLogin, "noxspot_reopen", deliveryId, err, {
+            repo,
+            number: payload.issue?.number,
+          });
+        }
+      }
 
       try {
         await stageNoxTicketActivity(context.env, {

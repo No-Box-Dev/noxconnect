@@ -203,9 +203,9 @@ export async function storeEvent(db, ghEvent, deliveryId, payload, ownerId) {
   if (repo && org) {
     projectId = `proj_${org}_${repo}`.toLowerCase();
     await db.prepare(
-      `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, updated_at)
-       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
-    ).bind(projectId, repo, org, repo, ownerId).run();
+      `INSERT OR IGNORE INTO projects (id, name, org, repo, owner_id, org_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, (SELECT id FROM orgs WHERE github_login = ? COLLATE NOCASE), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
+    ).bind(projectId, repo, org, repo, ownerId, ownerId).run();
   }
 
   // Keep commit statistics current between repository syncs. Push payloads

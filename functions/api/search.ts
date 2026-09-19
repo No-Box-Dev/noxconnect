@@ -94,7 +94,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const parsed = validate(QuerySchema, Object.fromEntries(new URL(context.request.url).searchParams.entries()));
   if (!parsed.ok) return parsed.response;
 
-  const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
+  const { orgId, orgLogin, projectId } = getCtx(context) as { orgId: number; orgLogin: string; projectId?: string | null };
   const { q, limit } = parsed.data;
   const needle = q.toLocaleLowerCase().replace(/^@/, "");
   if (!needle) {
@@ -105,10 +105,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const like = `%${escapeLike(needle)}%`;
   const numberMatch = needle.match(/^#?(\d+)$/);
   const issueNumber = numberMatch ? Number(numberMatch[1]) : null;
-  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
+  const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin, projectId);
   const repoSql = activeRepos.length ? `repo IN (${activeRepos.map(() => "?").join(",")})` : "0";
   const perKind = Math.min(20, Math.max(6, Math.ceil(limit / 3)));
   const db = context.env.DB;
+  const featureProjectFilter = projectId ? " AND project_id = ?" : "";
+  const featureProjectBinds = projectId ? [projectId] : [];
 
   const [people, prs, issues, features, events] = await db.batch([
     db.prepare(
@@ -144,13 +146,13 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     db.prepare(
       `SELECT CAST(id AS TEXT) AS id, number, title, state, html_url, updated_at
        FROM features
-       WHERE org_id = ?
+       WHERE org_id = ?${featureProjectFilter}
          AND (LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(body, '')) LIKE ? ESCAPE '\\'
               OR (? IS NOT NULL AND number = ?))
        ORDER BY CASE WHEN (? IS NOT NULL AND number = ?) THEN 0 WHEN LOWER(title) LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END,
                 updated_at DESC
        LIMIT ?`,
-    ).bind(orgId, like, like, issueNumber, issueNumber, issueNumber, issueNumber, `${escapeLike(needle)}%`, perKind),
+    ).bind(orgId, ...featureProjectBinds, like, like, issueNumber, issueNumber, issueNumber, issueNumber, `${escapeLike(needle)}%`, perKind),
     db.prepare(
       `SELECT CAST(id AS TEXT) AS id, repo, type, SUBSTR(summary, 1, 280) AS summary, payload_json, created_at
        FROM events

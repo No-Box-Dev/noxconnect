@@ -187,14 +187,14 @@ export async function onRequestPost(context) {
     await context.env.DB
       .prepare(
         `INSERT INTO projects
-           (id, name, org, repo, owner_id, archived, archived_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+           (id, name, org, repo, owner_id, org_id, archived, archived_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            archived = 1,
            archived_at = COALESCE(projects.archived_at, excluded.archived_at),
            updated_at = excluded.updated_at`,
       )
-      .bind(projectId, cursor, orgLogin, cursor, orgLogin, stamp, stamp)
+      .bind(projectId, cursor, orgLogin, cursor, orgLogin, orgId, stamp, stamp)
       .run();
   }
 

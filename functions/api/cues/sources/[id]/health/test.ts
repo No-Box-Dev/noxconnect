@@ -18,18 +18,21 @@ interface NoxCueEndpointService {
 
 interface Ctx {
   env: NoxDatabaseEnv & { NOXCUE_RESPONSE?: NoxCueEndpointService };
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; projectId?: string | null; isAdmin: boolean };
   params: { id: string };
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, projectId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
   const source = await getNoxDb(context.env).prepare(
-    "SELECT id FROM cue_sources WHERE id = ? AND org_id = ? AND owner_id = ?",
-  ).bind(context.params.id, orgId, orgLogin).first<{ id: string }>();
+    `SELECT id FROM cue_sources
+      WHERE id = ? AND org_id = ? AND owner_id = ?${projectId ? " AND project_id = ?" : ""}`,
+  ).bind(...(projectId
+    ? [context.params.id, orgId, orgLogin, projectId]
+    : [context.params.id, orgId, orgLogin])).first<{ id: string }>();
   if (!source) return errorResponse("Cue source not found", 404);
 
   const service = context.env.NOXCUE_RESPONSE;

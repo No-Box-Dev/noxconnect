@@ -13,15 +13,31 @@ interface Ctx {
     SLACK_APP_ID?: string;
     SLACK_ACCEPT_LEGACY_INSTALLS?: string;
   };
-  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+  data: { orgId: number; orgLogin: string; projectId?: string | null; isAdmin: boolean };
 }
 
 // Organization-level integration overview. This is the only status contract
 // the UI needs for external systems; it deliberately returns no credentials.
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, projectId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
   const db = getNoxDb(context.env);
+
+  const slackDeliveriesStatement = projectId
+    ? db.prepare(
+      `SELECT
+         SUM(CASE WHEN status IN ('pending','queued','processing','retrying') THEN 1 ELSE 0 END) AS pending_count,
+         SUM(CASE WHEN status IN ('blocked_configuration','failed') THEN 1 ELSE 0 END) AS blocked_count,
+         MAX(delivered_at) AS last_delivered_at
+       FROM delivery_outbox WHERE org_id = ? AND project_id = ? AND destination = 'slack'`,
+    ).bind(orgId, projectId)
+    : db.prepare(
+      `SELECT
+         SUM(CASE WHEN status IN ('pending','queued','processing','retrying') THEN 1 ELSE 0 END) AS pending_count,
+         SUM(CASE WHEN status IN ('blocked_configuration','failed') THEN 1 ELSE 0 END) AS blocked_count,
+         MAX(delivered_at) AS last_delivered_at
+       FROM delivery_outbox WHERE org_id = ? AND destination = 'slack'`,
+    ).bind(orgId);
 
   const [org, installation, slackInstall, slackChannels, slackMetadata, slackDeliveries] = await Promise.all([
     db.prepare(
@@ -32,18 +48,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
          FROM installations WHERE owner_id = ? AND account_login = ? LIMIT 1`,
     ).bind(orgLogin, orgLogin).first<Record<string, unknown>>(),
     resolveSlackInstall(context.env, orgId),
-    resolveSlackChannels(db, orgId),
+    resolveSlackChannels(db, orgId, projectId),
     db.prepare(
       `SELECT health_status, last_checked_at, last_error FROM slack_connections
         WHERE org_id = ? ORDER BY is_default DESC, installed_at LIMIT 1`,
     ).bind(orgId).first<Record<string, unknown>>(),
-    db.prepare(
-      `SELECT
-         SUM(CASE WHEN status IN ('pending','queued','processing','retrying') THEN 1 ELSE 0 END) AS pending_count,
-         SUM(CASE WHEN status IN ('blocked_configuration','failed') THEN 1 ELSE 0 END) AS blocked_count,
-         MAX(delivered_at) AS last_delivered_at
-       FROM delivery_outbox WHERE org_id = ? AND destination = 'slack'`,
-    ).bind(orgId).first<Record<string, unknown>>(),
+    slackDeliveriesStatement.first<Record<string, unknown>>(),
   ]);
 
   const installationId = installation?.installation_id ?? org?.installation_id ?? null;

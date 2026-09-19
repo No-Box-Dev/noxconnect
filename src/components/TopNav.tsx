@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsAdmin, useMe, useRateLimit, useUnacknowledgedRepos } from "@/hooks/useGitHub";
 import { getDefaultEnabledTab, type NoxAppId } from "@/lib/apps";
 import { cn } from "@/lib/cn";
+import { useOptionalProject } from "@/lib/project";
 import type { TabId } from "@/lib/types";
 
 const ALL_APP_IDS: readonly NoxAppId[] = ["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"];
@@ -26,6 +27,7 @@ interface TopNavProps {
 
 export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enabledApps = ALL_APP_IDS }: TopNavProps) {
   const { user, setSelectedOrg, logout } = useAuth();
+  const projectContext = useOptionalProject();
   const { data: rateLimit } = useRateLimit();
   const isRateLimited = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2;
   const isAdmin = useIsAdmin();
@@ -87,6 +89,17 @@ export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enable
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
+          {projectContext ? <label className="hidden items-center sm:flex">
+            <span className="sr-only">Active project</span>
+            <select
+              aria-label="Active project"
+              value={projectContext.project.id}
+              onChange={(event) => projectContext.setProjectId(event.target.value)}
+              className="max-w-40 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-600"
+            >
+              {projectContext.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label> : null}
           <button
             type="button"
             onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}

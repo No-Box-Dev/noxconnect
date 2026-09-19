@@ -27,14 +27,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                  ON delivery.source = 'noxcue' AND delivery.source_id = event.delivery_id
               WHERE event.org_id = ? AND event.source = 'noxcue'`;
   const binds: Array<string | number> = [orgId];
-  if (projectId) {
-    sql += ` AND EXISTS (
+  sql += ` AND EXISTS (
       SELECT 1 FROM cue_sources source
        WHERE source.id = json_extract(event.payload_json, '$.sourceId')
-         AND source.org_id = ? AND source.project_id = ?
+         AND source.org_id = ?${projectId ? " AND source.project_id = ?" : ""}
     )`;
-    binds.push(orgId, projectId);
-  }
+  binds.push(...(projectId ? [orgId, projectId] : [orgId]));
   if (parsed.data.sourceId) {
     sql += " AND json_extract(event.payload_json, '$.sourceId') = ?";
     binds.push(parsed.data.sourceId);

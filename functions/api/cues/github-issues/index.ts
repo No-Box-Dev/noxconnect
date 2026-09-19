@@ -15,7 +15,7 @@ const UpdateSchema = z.object({
 
 interface Ctx {
   env: NoxDatabaseEnv;
-  data: { orgId: number; orgLogin: string; userLogin: string; isAdmin: boolean };
+  data: { orgId: number; projectId?: string | null; orgLogin: string; userLogin: string; isAdmin: boolean };
   request: Request;
 }
 
@@ -26,7 +26,7 @@ interface ProjectRow {
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -42,11 +42,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
            ON setting.org_id = routing.org_id AND setting.project_id = project.id
          LEFT JOIN cue_github_incidents incident
            ON incident.org_id = routing.org_id AND incident.project_id = project.id
-        WHERE project.owner_id = ? AND COALESCE(project.archived, 0) = 0
+        WHERE project.org_id = ?${projectId ? " AND project.id = ?" : ""} AND COALESCE(project.archived, 0) = 0
         GROUP BY project.id, project.name, project.repo, setting.enabled, setting.environments_json,
                  setting.comment_on_repeat, setting.repeat_interval_minutes
         ORDER BY project.name`,
-    ).bind(orgId, orgLogin).all<ProjectRow>(),
+    ).bind(...(projectId ? [orgId, orgId, projectId] : [orgId, orgId])).all<ProjectRow>(),
     db.prepare("SELECT installation_id FROM orgs WHERE id = ?").bind(orgId)
       .first<{ installation_id: number | null }>(),
   ]);
@@ -57,20 +57,22 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPut(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, projectId, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   let raw: unknown;
   try { raw = await context.request.json(); } catch { return errorResponse("Invalid JSON body", 400); }
   const parsed = validate(UpdateSchema, raw);
   if (!parsed.ok) return parsed.response;
+  if (projectId && parsed.data.projectId !== projectId) return errorResponse("The requested resource was not found", 404);
+  const targetProjectId = projectId || parsed.data.projectId;
   const db = getNoxDb(context.env);
   const project = await db.prepare(
     `SELECT project.id, project.name, project.repo
        FROM projects project JOIN project_routing_settings routing ON routing.project_id = project.id
-      WHERE project.id = ? AND project.owner_id = ? AND routing.org_id = ? AND routing.enabled = 1
+      WHERE project.id = ? AND project.org_id = ? AND routing.org_id = ? AND routing.enabled = 1
         AND COALESCE(project.archived, 0) = 0`,
-  ).bind(parsed.data.projectId, orgLogin, orgId).first<{ id: string; name: string; repo: string | null }>();
+  ).bind(targetProjectId, orgId, orgId).first<{ id: string; name: string; repo: string | null }>();
   if (!project) return errorResponse("Active project not found", 404);
   if (parsed.data.enabled && !project.repo) return errorResponse("Link a GitHub repository to this project first", 409);
   await db.prepare(

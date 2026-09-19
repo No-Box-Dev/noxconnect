@@ -121,7 +121,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
               source.created_at
          FROM cue_sources source
          LEFT JOIN projects project ON project.id = source.project_id
-         LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
+         LEFT JOIN project_config config
+           ON config.org_id = source.org_id AND config.project_id = source.project_id AND config.key = 'settings'
          LEFT JOIN cue_endpoint_monitors monitor ON monitor.source_id = source.id
          LEFT JOIN project_slack_routes project_route
            ON project_route.org_id = source.org_id
@@ -143,28 +144,27 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                AND alert_routing_settings.project_id = source.project_id
                AND alert_routing_settings.enabled = 1
           )
-        WHERE source.org_id = ? AND source.owner_id = ?
-          AND (? IS NULL OR source.project_id = ?)
+        WHERE source.org_id = ? AND source.owner_id = ?${projectId ? " AND source.project_id = ?" : ""}
         ORDER BY source.created_at DESC`,
-    ).bind(orgId, orgLogin, projectId ?? null, projectId ?? null).all<SourceRow>(),
+    ).bind(...(projectId ? [orgId, orgLogin, projectId] : [orgId, orgLogin])).all<SourceRow>(),
     db.prepare(
       `SELECT id, source_id, name, kind, key_prefix, created_at, last_used_at, revoked_at
          FROM cue_source_keys source_key
         WHERE source_key.org_id = ?
-          AND (? IS NULL OR EXISTS (
+          AND EXISTS (
             SELECT 1 FROM cue_sources source
-             WHERE source.id = source_key.source_id AND source.project_id = ?
-          ))
+             WHERE source.id = source_key.source_id${projectId ? " AND source.project_id = ?" : ""}
+          )
         ORDER BY source_key.created_at DESC`,
-    ).bind(orgId, projectId ?? null, projectId ?? null).all<KeyRow>(),
+    ).bind(...(projectId ? [orgId, projectId] : [orgId])).all<KeyRow>(),
     db.prepare(
       `SELECT project.id, project.name, project.repo FROM projects project
         JOIN project_routing_settings routing ON routing.project_id = project.id
        WHERE routing.org_id = ? AND routing.enabled = 1
-         AND project.owner_id = ? AND COALESCE(project.archived, 0) = 0
-         AND (? IS NULL OR project.id = ?)
+         AND project.org_id = ? AND COALESCE(project.archived, 0) = 0
+         ${projectId ? "AND project.id = ?" : ""}
        ORDER BY project.name`,
-    ).bind(orgId, orgLogin, projectId ?? null, projectId ?? null).all<{ id: string; name: string; repo: string | null }>(),
+    ).bind(...(projectId ? [orgId, orgId, projectId] : [orgId, orgId])).all<{ id: string; name: string; repo: string | null }>(),
   ]);
 
   const keysBySource = new Map<string, KeyRow[]>();
@@ -217,7 +217,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, userLogin, isAdmin, projectId: tokenProjectId } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, userLogin, isAdmin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -226,29 +226,27 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   catch { return errorResponse("Invalid JSON body", 400); }
   const parsed = validate(cueSourceInputSchema, raw);
   if (!parsed.ok) return parsed.response;
+  if (projectId && parsed.data.projectId && parsed.data.projectId !== projectId) {
+    return errorResponse("The requested resource was not found", 404);
+  }
+  const targetProjectId = projectId || parsed.data.projectId;
+  if (!targetProjectId) return errorResponse("Choose a project for the new source", 422);
 
   const activeProjects = await db.prepare(
     `SELECT project.id FROM projects project
       JOIN project_routing_settings routing ON routing.project_id = project.id
-     WHERE project.owner_id = ? AND routing.org_id = ?
+     WHERE project.org_id = ? AND routing.org_id = ? AND project.id = ?
        AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0
      ORDER BY project.name`,
-  ).bind(orgLogin, orgId).all<{ id: string }>();
+  ).bind(orgId, orgId, targetProjectId).all<{ id: string }>();
   const projects = activeProjects.results ?? [];
-  let projectId = parsed.data.projectId;
-  if (tokenProjectId && projectId && projectId !== tokenProjectId) return errorResponse("The requested resource was not found", 404);
-  if (tokenProjectId) projectId = tokenProjectId;
-  if (!projectId && projects.length === 1) projectId = projects[0]!.id;
-  if (!projectId && projects.length > 1) {
-    return errorResponse("Choose the project this NoxCue source belongs to", 409);
-  }
-  if (projectId && !projects.some((project) => project.id === projectId)) {
+  if (!projects.some((project) => project.id === targetProjectId)) {
     return errorResponse("Active project not found in this organization", 404);
   }
 
   let slackConnectionId: string | null = null;
   try {
-    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, projectId, {
+    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, targetProjectId, {
       connectionId: parsed.data.slackConnectionId,
       channelId: parsed.data.slackChannelId,
     });
@@ -264,7 +262,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
         slack_connection_id, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 15, ?, ?, ?)`,
   ).bind(
-    id, orgId, orgLogin, projectId, parsed.data.name, parsed.data.environment,
+    id, orgId, orgLogin, targetProjectId, parsed.data.name, parsed.data.environment,
     parsed.data.enabled ? 1 : 0, parsed.data.alertsEnabled ? 1 : 0,
     JSON.stringify(parsed.data.allowedOrigins), parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal,
@@ -274,5 +272,5 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     `INSERT INTO cue_endpoint_monitors (org_id, source_id, enabled, url, updated_at)
      VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
   ).bind(orgId, id, parsed.data.healthEnabled ? 1 : 0, parsed.data.healthUrl).run();
-  return jsonResponse({ id, projectId }, 201);
+  return jsonResponse({ id, projectId: targetProjectId }, 201);
 }
