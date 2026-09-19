@@ -47,6 +47,7 @@ service = "noxfeed-response"
 binding = "DB"
 database_name = "noxconnect"
 database_id = "c94084e6-d0be-423c-8de6-249e7cf8bf25"
+migrations_dir = "../migrations"
 
 # Reconciliation tick. Webhooks are the running source of truth; this
 # cron exists to catch the cases webhooks structurally miss: deletes
@@ -147,6 +148,7 @@ service = "noxfeed-response-staging"
 binding = "DB"
 database_name = "noxconnect-staging"
 database_id = "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+migrations_dir = "../migrations"
 
 [[env.staging.queues.consumers]]
 queue = "noxconnect-tasks-staging"
