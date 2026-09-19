@@ -41,4 +41,14 @@ describe("developer documentation", () => {
     expect(html).toContain("await noxcue.user.registered");
     expect(html).toContain("Never ship a <code>nox_secret_…</code> key to a browser");
   });
+
+  it("makes the NoxSpot signed-in identity integration explicit", () => {
+    expect(html).toContain('id="noxspot-identity"');
+    expect(html).toContain("cannot read a host website's login session");
+    expect(html).toContain("NoxSpot.identify({");
+    expect(html).toContain("NoxSpot.identify(null)");
+    expect(html).toContain("getReporter");
+    expect(guide).toContain("anonymous-by-default install snippet");
+    expect(guide).toContain("Set `notifyOnResolution: true` only when the host has already obtained consent");
+  });
 });

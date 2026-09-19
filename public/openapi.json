@@ -84,6 +84,7 @@
       "post": {
         "operationId": "submitPublicNoxSpotReport",
         "summary": "Submit a public NoxSpot capture",
+        "description": "Submit feedback from an origin-bound widget. NoxSpot cannot inspect a host website's login session: the host must explicitly pass its signed-in user through NoxSpot.identify(...) or NoxSpot.init({ getReporter }). reporterEmail is retained for resolution mail only when notifyOnResolution is true.",
         "security": [],
         "servers": [
           {
@@ -8751,7 +8752,13 @@
               "null"
             ],
             "format": "email",
-            "maxLength": 254
+            "maxLength": 254,
+            "description": "Reporter email supplied explicitly by the host or reporter. It is never inferred from the website session and is not copied into GitHub."
+          },
+          "notifyOnResolution": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicit consent to retain the reporter email and send a transactional update when the report is resolved. Must not be true without reporter consent and requires reporterEmail."
           },
           "type": {
             "type": "string",

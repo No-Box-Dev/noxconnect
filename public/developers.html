@@ -34,6 +34,7 @@
         <a href="#overview">Overview</a>
         <a href="#quickstart">Quickstart</a>
         <a href="#authentication">Authentication</a>
+        <a href="#noxspot-identity">NoxSpot identity</a>
       </div>
       <div class="nav-group">
         <p class="nav-label">Platform</p>
@@ -170,6 +171,44 @@
               <tr><td>NoxSpot, NoxCue, and NoxFeed Workers</td><td>Private Cloudflare service bindings</td><td>No public bearer token and no provider credential between Workers</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section class="section" id="noxspot-identity">
+        <p class="section-kicker">NoxSpot widget identity</p>
+        <h2>Pass signed-in users explicitly</h2>
+        <p class="section-intro">NoxSpot cannot read a host website's login session, cookies, or signup database. The website owner must pass the current user's name and email after the widget has loaded and repeat the call when the signed-in account changes.</p>
+        <div class="callout caution standalone-callout">
+          <h3>The install snippet is anonymous by default</h3>
+          <p>Adding a NoxSpot site and pasting its one-line snippet does not expose user identity. Without the integration below, the widget still works and reporters enter their own details.</p>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>browser · site-specific embed</span><button class="copy-button" type="button" data-copy="noxspot-identify">Copy</button></div>
+          <pre id="noxspot-identify"><code><span class="token-comment">// The site-specific script auto-initializes NoxSpot.</span>
+<span class="token-comment">// Run this after it loads and whenever the signed-in user changes.</span>
+NoxSpot.identify({
+  <span class="token-key">name</span>: currentUser.name,
+  <span class="token-key">email</span>: currentUser.email,
+  <span class="token-comment">// Set true only if your site already obtained consent:</span>
+  <span class="token-key">notifyOnResolution</span>: true,
+});
+
+<span class="token-comment">// Clear cached identity on sign-out.</span>
+NoxSpot.identify(null);</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-head"><span>browser · manual initialization</span><button class="copy-button" type="button" data-copy="noxspot-get-reporter">Copy</button></div>
+          <pre id="noxspot-get-reporter"><code>NoxSpot.init({
+  <span class="token-key">siteId</span>: <span class="token-string">"your-site-id"</span>,
+  <span class="token-key">getReporter</span>: () =&gt; ({
+    <span class="token-key">name</span>: currentUser.name,
+    <span class="token-key">email</span>: currentUser.email,
+  }),
+});</code></pre>
+        </div>
+        <div class="callouts">
+          <article class="callout"><h3>Privacy boundary</h3><p>The reporter email is not copied into GitHub. NoxConnect encrypts and retains it only when <code>notifyOnResolution</code> is true.</p></article>
+          <article class="callout"><h3>Consent boundary</h3><p>Omit <code>notifyOnResolution</code> to leave the widget checkbox under the reporter's control. A host may set it to true only when it has already obtained permission for that transactional update.</p></article>
         </div>
       </section>
 
