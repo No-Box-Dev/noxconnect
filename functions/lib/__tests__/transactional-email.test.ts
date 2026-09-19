@@ -78,6 +78,9 @@ describe("NoxConnect transactional email", () => {
     expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
     expect(body.TextBody).toContain("Reopen the ticket");
     expect(body.TextBody).not.toContain("Thank you for reporting this issue");
+    const closing = "Thank you again for helping us improve Storefront.";
+    expect(body.HtmlBody).toContain(closing);
+    expect(body.TextBody.endsWith(closing)).toBe(true);
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {

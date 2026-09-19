@@ -125,13 +125,14 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
       : "";
     const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
     const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
+    const closing = `Thank you again for helping us improve ${command.model.siteName}.`;
     return {
       from: `NoxSpot <${from}>`,
       subject: `Resolved: ${command.model.reportTitle}`,
-      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${summary}${action}\n\n— The ${command.model.siteName} team, via NoxSpot`,
+      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${summary}${action}\n\n${closing}`,
       html: layout(
         `Resolved: ${command.model.reportTitle}`,
-        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(summary)}${actionHtml}<p style="font-size:13px;color:#78716c">— The ${escapeHtml(command.model.siteName)} team, via NoxSpot</p>`,
+        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(summary)}${actionHtml}<p>${escapeHtml(closing)}</p>`,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
