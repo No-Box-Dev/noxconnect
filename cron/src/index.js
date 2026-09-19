@@ -18,6 +18,10 @@ import { recordFailure } from "../../functions/lib/op-failures.js";
 import { runNextStatsAudit } from "./stats-audit.js";
 import { runDatabaseRecoveryStep } from "./database-recovery.js";
 import { createNoxSpotGitHubIssue } from "../../functions/lib/noxspot.js";
+import {
+  deliverNoxSpotResolutionEmail,
+  recoverNoxSpotResolutionEmails,
+} from "../../functions/lib/noxspot-resolution.js";
 import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueBlockedForOrg } from "../../functions/lib/delivery-outbox.js";
 import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
 import { runNoxCueDigests } from "./noxcue-digests.js";
@@ -166,6 +170,8 @@ async function handleTask(env, body) {
     }
     case TASK.SPOT_CREATE_GITHUB_ISSUE:
       return createNoxSpotGitHubIssue(env, body);
+    case TASK.SPOT_SEND_RESOLUTION_EMAIL:
+      return deliverNoxSpotResolutionEmail(env, body.reportId);
     case TASK.NOXCUE_GITHUB_ISSUE:
       return createOrUpdateNoxCueGitHubIssue(env, body);
     case TASK.DELIVER_SLACK:
@@ -179,6 +185,7 @@ async function runTick(env, nowMs = Date.now()) {
   const db = env.DB;
 
   await recoverOutboxDeliveries(env);
+  await recoverNoxSpotResolutionEmails(env);
   try {
     await recoverNoxCueGithubIncidents(env);
   } catch (err) {

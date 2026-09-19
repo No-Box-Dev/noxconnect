@@ -80,6 +80,7 @@ function db(site = {}) {
   };
   return {
     _calls: calls,
+    async batch(statements) { return Promise.all(statements.map((statement) => statement.run())); },
     prepare(sql) {
       const statement = {
         bind(...binds) { statement.binds = binds; return statement; },
@@ -143,8 +144,9 @@ describe("createNoxSpotGitHubIssue", () => {
     expect(upsertIssue).toHaveBeenCalledWith(database, 7, "web", expect.objectContaining({ number: 12 }));
     const createCall = globalThis.fetch.mock.calls.find(([, init]) => init?.method === "POST" && String(init.body).includes("Checkout is broken"));
     expect(JSON.parse(createCall[1].body)).toMatchObject({ labels: ["noxspot", "bug"] });
-    expect(database._calls[0].sql).toContain("INSERT INTO events");
-    expect(JSON.parse(database._calls[0].binds[6])).toMatchObject({
+    const eventCall = database._calls.find((call) => call.sql.includes("INSERT INTO events"));
+    expect(eventCall.sql).toContain("INSERT INTO events");
+    expect(JSON.parse(eventCall.binds[6])).toMatchObject({
       githubIssueNumber: 12,
       githubIssueUrl: "https://github.com/acme/web/issues/12",
       siteId: "site-1",
@@ -192,7 +194,8 @@ describe("createNoxSpotGitHubIssue", () => {
 
     const createCall = globalThis.fetch.mock.calls.find(([, init]) => init?.method === "POST" && String(init.body).includes("Checkout is broken"));
     expect(JSON.parse(createCall[1].body).body).toContain("**Reporter:** @Ada-Lovelace");
-    expect(database._calls[0].binds[1]).toBe("Ada-Lovelace");
+    const eventCall = database._calls.find((call) => call.sql.includes("INSERT INTO events"));
+    expect(eventCall.binds[1]).toBe("Ada-Lovelace");
   });
 
   it("stages Slack separately after GitHub succeeds", async () => {

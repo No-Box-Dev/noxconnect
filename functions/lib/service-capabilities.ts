@@ -219,6 +219,7 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
         { id: "submit_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/reports", authentication: "public", description: "Submit bounded website feedback from an allowed origin." },
         { id: "submit_browser_errors", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/errors", authentication: "public", description: "Submit a bounded batch of automatic browser errors." },
         { id: "get_spot_project_overview", method: "GET", path: "/api/v1/spots/project-overview", authentication: "member", description: "Read the selected project's guest-safe feedback overview." },
+        { id: "update_spot_report", method: "PATCH", path: "/api/v1/spots/reports/{reportId}", authentication: "admin", description: "Investigate, resolve, reopen, or retry notification for a report." },
       ] },
       { id: "spot_delivery", name: "Slack delivery", description: "Route each site's feedback to its own Slack destination or the shared fallback.", access: "admin", requires: ["github", "slack"], operations: [
         { id: "update_site_delivery", method: "PATCH", path: "/api/v1/spots/sites/{siteId}", authentication: "admin", description: "Set a site's Slack workspace and channel override." },

@@ -19,6 +19,10 @@ binding = "NOXSPOT_RESPONSE"
 service = "noxspot-api"
 
 [[services]]
+binding = "NOXCONNECT_EMAIL"
+service = "noxconnect-capabilities"
+
+[[services]]
 binding = "NOXCUE_RESPONSE"
 service = "noxcue"
 
@@ -105,12 +109,17 @@ binding = "CF_VERSION_METADATA"
 crons = ["*/5 * * * *"]
 
 [env.staging.vars]
+GITHUB_APP_ID = "3652510"
 SLACK_ACCEPT_LEGACY_INSTALLS = "false"
 NOXCONNECT_PUBLIC_URL = "https://noxhere-staging.jasper-414.workers.dev"
 
 [[env.staging.services]]
 binding = "NOXSPOT_RESPONSE"
 service = "noxspot-api-staging"
+
+[[env.staging.services]]
+binding = "NOXCONNECT_EMAIL"
+service = "noxconnect-capabilities-staging"
 
 [[env.staging.services]]
 binding = "NOXCUE_RESPONSE"

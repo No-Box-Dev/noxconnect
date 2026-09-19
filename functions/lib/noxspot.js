@@ -12,6 +12,7 @@ import {
 import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "./slack.js";
 import { getNoxSpotIssueResponse, getNoxSpotSlackResponse } from "./noxspot-response.js";
 import { isAppEnabled } from "./apps.js";
+import { storeNoxSpotReport } from "./noxspot-resolution.js";
 
 export async function createNoxSpotGitHubIssue(env, capture) {
   requireCapture(capture);
@@ -36,6 +37,7 @@ export async function createNoxSpotGitHubIssue(env, capture) {
   }
 
   await upsertIssue(env.DB, resolvedCapture.orgId, resolvedCapture.repo, issue);
+  await storeNoxSpotReport(env, resolvedCapture, issue);
   await storeEvent(env.DB, resolvedCapture, issue);
   const slackChannels = await resolveSlackChannels(env.DB, resolvedCapture.orgId, resolvedCapture.projectId);
   const slackChannelId = resolveSlackRoute(
@@ -142,6 +144,8 @@ async function storeEvent(db, capture, issue) {
       issueType: capture.issueType,
       description: capture.description ?? null,
       reporter: capture.reporterGithubLogin || capture.reporter || null,
+      captureId: capture.captureId,
+      notificationRequested: capture.notifyOnResolution === true && Boolean(capture.reporterEmail),
       screenshotUrl: capture.screenshotUrl ?? null,
       shareUrl: issue.html_url,
     }),

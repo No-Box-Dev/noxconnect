@@ -182,7 +182,7 @@ function buildIssueBody(capture: CaptureInput, marker: string) {
   if (capture.environment) lines.push(`- **Environment:** ${capture.environment}`);
   if (capture.reporterGithubLogin) lines.push(`- **Reporter:** @${capture.reporterGithubLogin}`);
   else if (capture.reporter) lines.push(`- **Reporter:** ${capture.reporter}`);
-  if (capture.reporterEmail) lines.push(`- **Contact:** ${capture.reporterEmail}`);
+  if (capture.notifyOnResolution && capture.reporterEmail) lines.push("- **Resolution updates:** Requested (contact kept private in NoxConnect)");
   if (capture.rating) lines.push(`- **Rating:** ${capture.rating}/5`);
   addJson(lines, "Custom fields", capture.blockValues);
   addJson(lines, "Browser context", capture.metadata);

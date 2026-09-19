@@ -219,6 +219,7 @@ async function submitErrors(context: AppContext) {
       description: errorMessage,
       reporter: null,
       reporterEmail: null,
+      notifyOnResolution: false,
       environment,
       screenshot: null,
       metadata: {

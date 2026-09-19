@@ -21,17 +21,24 @@ describe("capture validation", () => {
       title: "Broken button",
       reporter: " Ada ",
       reporterEmail: "ada@example.com",
+      notifyOnResolution: true,
       blockValues: { impact: "Checkout blocked" },
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.params.reporter).toBe("Ada");
+    expect(result.params.notifyOnResolution).toBe(true);
     expect(result.params.blockValues).toEqual({ impact: "Checkout blocked" });
   });
 
   it("rejects oversized nested context", () => {
     const result = validateReportInput({ siteId: "site-1", title: "Bug", context: { state: "x".repeat(25_000) } });
     expect(result.ok).toBe(false);
+  });
+
+  it("requires an email when resolution notifications are requested", () => {
+    expect(validateReportInput({ siteId: "site-1", title: "Broken", notifyOnResolution: true }))
+      .toMatchObject({ ok: false, status: 400 });
   });
 
   it("rejects unsafe or oversized attempt IDs", () => {
@@ -47,6 +54,7 @@ describe("capture validation", () => {
       description: null,
       reporter: null,
       reporterEmail: null,
+      notifyOnResolution: false,
       environment: "Production",
       screenshot: null,
       metadata: null,

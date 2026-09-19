@@ -15,6 +15,7 @@ export interface ReportParams {
   description: string | null;
   reporter: string | null;
   reporterEmail: string | null;
+  notifyOnResolution: boolean;
   environment: string | null;
   screenshot: string | null;
   metadata: Record<string, unknown> | null;
@@ -42,6 +43,7 @@ export interface CaptureTask {
   description: string | null;
   reporter: string | null;
   reporterEmail: string | null;
+  notifyOnResolution: boolean;
   environment: string | null;
   screenshotUrl: string | null;
   metadata: Record<string, unknown> | null;
@@ -72,7 +74,7 @@ function plainObject(value: unknown): value is Record<string, unknown> {
 
 export function validateReportInput(body: unknown): ValidationError | ValidationSuccess {
   if (!plainObject(body)) return { ok: false, error: "Invalid JSON object", status: 400 };
-  const { attemptId, siteId, title, description, reporter, reporterEmail, environment, screenshot, metadata, elements, context, type, rating, blockValues } = body;
+  const { attemptId, siteId, title, description, reporter, reporterEmail, notifyOnResolution, environment, screenshot, metadata, elements, context, type, rating, blockValues } = body;
 
   if (typeof siteId !== "string" || !siteId || typeof title !== "string" || !title) {
     return { ok: false, error: "Missing required fields: siteId, title", status: 400 };
@@ -108,6 +110,7 @@ export function validateReportInput(body: unknown): ValidationError | Validation
   if (type != null && !["bug", "feature", "feedback"].includes(String(type))) return { ok: false, error: "Invalid report type", status: 400 };
   if (reporter != null && typeof reporter !== "string") return { ok: false, error: "Invalid reporter", status: 400 };
   if (reporterEmail != null && typeof reporterEmail !== "string") return { ok: false, error: "Invalid reporter email", status: 400 };
+  if (notifyOnResolution != null && typeof notifyOnResolution !== "boolean") return { ok: false, error: "Invalid notification preference", status: 400 };
   if (environment != null && (typeof environment !== "string" || environment.length > 60)) return { ok: false, error: "Invalid environment", status: 400 };
 
   const reporterValue = typeof reporter === "string" ? reporter.trim() : "";
@@ -116,6 +119,7 @@ export function validateReportInput(body: unknown): ValidationError | Validation
   if (emailValue.length > 254 || (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue))) {
     return { ok: false, error: "Invalid reporter email", status: 400 };
   }
+  if (notifyOnResolution === true && !emailValue) return { ok: false, error: "Resolution notifications require an email address", status: 400 };
 
   return {
     ok: true,
@@ -126,6 +130,7 @@ export function validateReportInput(body: unknown): ValidationError | Validation
       description: typeof description === "string" ? description : null,
       reporter: reporterValue || null,
       reporterEmail: emailValue || null,
+      notifyOnResolution: notifyOnResolution === true,
       environment: typeof environment === "string" ? environment : null,
       screenshot: typeof screenshot === "string" ? screenshot : null,
       metadata: plainObject(metadata) ? metadata : null,
@@ -185,6 +190,7 @@ export function buildCaptureTask(args: {
     description: params.description,
     reporter: params.reporter,
     reporterEmail: params.reporterEmail,
+    notifyOnResolution: params.notifyOnResolution,
     environment: params.environment,
     screenshotUrl,
     metadata: params.metadata,

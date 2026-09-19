@@ -16,6 +16,7 @@ function context(options: { secret?: string; ip?: string; auth?: string; body?: 
   const run = vi.fn(async () => ({ success: true, meta: { changes: 1 } }));
   const bind = vi.fn(() => ({ run }));
   const prepare = vi.fn(() => ({ bind }));
+  const batch = vi.fn(async (statements: Array<{ run: () => Promise<unknown> }>) => Promise.all(statements.map((statement) => statement.run())));
   const headers = new Headers({
     "CF-Connecting-IP": options.ip ?? ALLOWED_IP,
     Authorization: options.auth ?? `Basic ${btoa(`postmark:${options.secret ?? SECRET}`)}`,
@@ -29,11 +30,12 @@ function context(options: { secret?: string; ip?: string; auth?: string; body?: 
         headers,
         body: JSON.stringify(options.body ?? delivery),
       }),
-      env: { DB: { prepare }, POSTMARK_WEBHOOK_SECRET: SECRET },
+      env: { DB: { prepare, batch }, POSTMARK_WEBHOOK_SECRET: SECRET },
     } as never,
     prepare,
     bind,
     run,
+    batch,
   };
 }
 
@@ -56,6 +58,7 @@ describe("Postmark webhook", () => {
       null,
     );
     expect(JSON.stringify(input.bind.mock.calls)).not.toContain("Person@Example.com");
+    expect(input.batch).toHaveBeenCalledOnce();
   });
 
   it("rejects requests outside Postmark's webhook network", async () => {

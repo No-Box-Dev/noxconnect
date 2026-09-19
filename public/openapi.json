@@ -7900,6 +7900,111 @@
         "x-project-scope": "optional"
       }
     },
+    "/api/v1/spots/reports/{reportId}": {
+      "patch": {
+        "operationId": "updateNoxSpotReport",
+        "summary": "Update a NoxSpot report status",
+        "description": "Mark a report open, investigating, or resolved and optionally send or retry the reporter's consented resolution email.",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "$ref": "#/components/parameters/projectContext"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "investigating",
+                      "resolved"
+                    ]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "notify": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "retryNotification": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-required-role": "admin",
+        "x-authentication": "admin",
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": [],
+            "csrfProof": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          }
+        ],
+        "x-project-scope": "optional"
+      }
+    },
     "/api/v1/spots/project-overview": {
       "get": {
         "operationId": "getNoxSpotProjectOverview",

@@ -133,6 +133,17 @@ issue body/label and Block Kit presentation contracts,
 resolves authoritative credentials/routes, and owns delivery/retry receipts.
 A daily scheduled handler deletes screenshots older than 90 days.
 
+Accepted captures also create a first-class `spot_reports` row (migration
+`0085_noxspot_report_resolution.sql`) with an auditable open → investigating →
+resolved activity stream. A reporter email is stored only with explicit
+resolution-notification consent, encrypted with the shared AES-GCM key, and is
+never copied into the GitHub issue or feed event. Admins and project-scoped API
+tokens update reports through `PATCH /api/v1/spots/reports/{id}`. Closing the
+linked GitHub issue resolves the report automatically. Resolution mail is
+queued through the durable task consumer, sent through the private NoxConnect
+email capability, recovered by cron after transient failures, and reconciled
+with Postmark delivery, bounce, and complaint webhooks.
+
 The Worker has its own `package.json`, generated `worker-configuration.d.ts`,
 Wrangler JSONC config, Workers-runtime tests, CI job, and deploy step. Run it
 with `npm --prefix workers/noxspot-capture test` and validate deployment with

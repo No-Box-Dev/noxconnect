@@ -71,23 +71,49 @@ export async function onRequestPost(context: WebhookContext): Promise<Response> 
     ? event.Type ?? null
     : String(event.TypeCode);
 
-  await context.env.DB.prepare(
-    `INSERT INTO transactional_email_events
+  const reportNotificationStatus = eventType === "delivery"
+    ? "delivered"
+    : eventType === "bounce" ? "bounced" : "complained";
+  const reportActivityKind = eventType === "delivery"
+    ? "notification_delivered"
+    : eventType === "bounce" ? "notification_bounced" : "notification_complained";
+
+  await context.env.DB.batch([
+    context.env.DB.prepare(
+      `INSERT INTO transactional_email_events
        (id, event_type, message_id, message_stream, tag, recipient_hash,
         status, provider_event_at, detail_code)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO NOTHING`,
-  ).bind(
-    providerEventId,
-    eventType,
-    event.MessageID,
-    event.MessageStream,
-    event.Tag ?? null,
-    recipientHash,
-    eventType === "delivery" ? "delivered" : eventType,
-    providerEventAt,
-    detailCode,
-  ).run();
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO NOTHING`,
+    ).bind(
+      providerEventId,
+      eventType,
+      event.MessageID,
+      event.MessageStream,
+      event.Tag ?? null,
+      recipientHash,
+      eventType === "delivery" ? "delivered" : eventType,
+      providerEventAt,
+      detailCode,
+    ),
+    context.env.DB.prepare(
+      `UPDATE spot_reports
+          SET notification_status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+        WHERE notification_message_id = ?`,
+    ).bind(reportNotificationStatus, event.MessageID),
+    context.env.DB.prepare(
+      `INSERT INTO spot_report_activity (id, report_id, kind, actor, summary, created_at)
+       SELECT ?, id, ?, 'postmark', ?, ? FROM spot_reports
+        WHERE notification_message_id = ?
+       ON CONFLICT(id) DO NOTHING`,
+    ).bind(
+      `postmark:${providerEventId}`,
+      reportActivityKind,
+      eventType === "delivery" ? "Resolution email delivered." : `Resolution email ${reportNotificationStatus}.`,
+      providerEventAt,
+      event.MessageID,
+    ),
+  ]);
 
   return Response.json({ accepted: true }, {
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
