@@ -22,7 +22,7 @@ export class RateLimiter extends DurableObject<Env> {
   }
 }
 
-export async function checkRateLimit(env: Env, key: string, limit: number, windowMs = 60_000): Promise<boolean> {
+export async function checkRateLimit(env: Pick<Env, "RATE_LIMITER">, key: string, limit: number, windowMs = 60_000): Promise<boolean> {
   try {
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
     const hash = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");

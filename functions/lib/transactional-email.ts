@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+  NoxSpotResolutionTemplateSchema,
+  renderResolutionTemplate,
+} from "./noxspot-resolution-template.js";
 
 const Email = z.string().trim().email().max(254);
 const HttpUrl = z.string().url().max(3_000).refine((value) => {
@@ -29,7 +34,10 @@ const NoxSpotResolutionCommand = BaseCommand.extend({
     siteName: z.string().trim().min(1).max(200),
     reportTitle: z.string().trim().min(1).max(300),
     summary: z.string().trim().min(1).max(4_000),
-    statusUrl: HttpUrl.optional(),
+    reporterName: z.string().trim().min(1).max(100).optional(),
+    responseUrl: HttpUrl.optional(),
+    // Optional for backward compatibility with already-running internal callers.
+    presentation: NoxSpotResolutionTemplateSchema.optional(),
   }).strict(),
 }).strict();
 
@@ -81,6 +89,7 @@ export async function sendTransactionalEmail(
     body: JSON.stringify({
       From: rendered.from,
       To: command.recipient,
+      ...(rendered.replyTo ? { ReplyTo: rendered.replyTo } : {}),
       Subject: rendered.subject,
       TextBody: rendered.text,
       HtmlBody: rendered.html,
@@ -115,19 +124,30 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   if (command.template === "noxspot.resolution") {
     const from = env.NOXSPOT_EMAIL_FROM;
     if (!from) throw new Error("NoxSpot email sender is not configured");
-    const action = command.model.statusUrl
-      ? `\n\nView the update: ${command.model.statusUrl}`
+    const summary = resolutionSummary(command.model.summary);
+    const presentation = renderResolutionTemplate(
+      command.model.presentation ?? DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+      {
+      report_title: command.model.reportTitle,
+      site_name: command.model.siteName,
+      },
+    );
+    const action = command.model.responseUrl
+      ? `\n\n${presentation.reopenText}\n${command.model.responseUrl}`
       : "";
-    const actionHtml = command.model.statusUrl
-      ? `<p style="margin:28px 0"><a href="${escapeHtml(command.model.statusUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">View update</a></p>`
+    const actionHtml = command.model.responseUrl
+      ? `<p>${escapeHtml(presentation.reopenText)}</p><p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">${escapeHtml(presentation.buttonLabel)}</a></p>`
       : "";
+    const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
+    const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
     return {
       from: `NoxSpot <${from}>`,
-      subject: `Resolved: ${command.model.reportTitle}`,
-      text: `${command.model.reportTitle}\n\nThis report for ${command.model.siteName} has been resolved.\n\n${command.model.summary}${action}`,
+      replyTo: presentation.replyTo,
+      subject: presentation.subject,
+      text: `${greeting}${presentation.acknowledgement}\n\n${summary}${action}\n\n${presentation.closing}`,
       html: layout(
-        `Resolved: ${command.model.reportTitle}`,
-        `<p>Your report for <strong>${escapeHtml(command.model.siteName)}</strong> has been resolved.</p><p>${escapeHtml(command.model.summary)}</p>${actionHtml}`,
+        presentation.subject,
+        `${greetingHtml}<p>${escapeHtml(presentation.acknowledgement)}</p>${paragraphs(summary)}${actionHtml}<p>${escapeHtml(presentation.closing)}</p>`,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
@@ -139,6 +159,7 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   const actionLabel = command.template === "platform.email-login" ? "Sign in to Nox" : "Continue to Nox";
   return {
     from: `Nox <${from}>`,
+    replyTo: null,
     subject: command.model.subject,
     text: `${command.model.heading}\n\n${command.model.detail}\n\n${command.model.actionUrl}\n\nIf you did not expect this email, you can ignore it.`,
     html: layout(
@@ -150,8 +171,22 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   };
 }
 
+function resolutionSummary(value: string): string {
+  // The template owns the greeting. Strip common AI-generated acknowledgements
+  // as a final safeguard so reporters are never thanked twice.
+  const withoutDuplicateThanks = value.replace(
+    /^\s*(?:thank you|thanks) for reporting(?: this issue)?[.!]\s*/i,
+    "",
+  ).trim();
+  return withoutDuplicateThanks || value.trim();
+}
+
 function layout(heading: string, body: string): string {
   return `<main style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#292524"><h1 style="font-size:24px">${escapeHtml(heading)}</h1>${body}</main>`;
+}
+
+function paragraphs(value: string): string {
+  return value.split(/\n\s*\n/).filter(Boolean).map((part) => `<p>${escapeHtml(part)}</p>`).join("");
 }
 
 function escapeHtml(value: string): string {

@@ -114,6 +114,36 @@ export interface NoxSpotBlock {
   environments?: string[];
 }
 
+export type NoxSpotResolutionEmailTone = "default" | "warm" | "formal" | "concise";
+
+export interface NoxSpotResolutionTemplate {
+  tone: NoxSpotResolutionEmailTone;
+  subject: string;
+  acknowledgement: string;
+  reopenText: string;
+  buttonLabel: string;
+  closing: string;
+  replyTo: string | null;
+}
+
+export interface NoxSpotResolutionTemplateDocument {
+  template: NoxSpotResolutionTemplate;
+  defaults: NoxSpotResolutionTemplate;
+  usingDefault: boolean;
+  revision: string;
+}
+
+export interface NoxSpotResolutionPreview {
+  subject: string;
+  greeting: string;
+  acknowledgement: string;
+  summary: string;
+  reopenText: string;
+  buttonLabel: string;
+  closing: string;
+  replyTo: string | null;
+}
+
 export interface NavFilter {
   person?: string;
   view?: string;

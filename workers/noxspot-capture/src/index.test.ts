@@ -1,5 +1,11 @@
 import { env, SELF } from "cloudflare:test";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { app } from "./index";
+
+async function tokenHash(token: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 beforeAll(async () => {
   await env.DB.batch([
@@ -14,6 +20,13 @@ beforeAll(async () => {
       widget_config TEXT NOT NULL,
       slack_channel_id TEXT,
       slack_connection_id TEXT
+    )`),
+    env.DB.prepare(`CREATE TABLE spot_report_response_tokens (
+      token_hash TEXT PRIMARY KEY, token_encrypted TEXT NOT NULL, resolution_key TEXT NOT NULL UNIQUE,
+      report_id TEXT, org_id INTEGER NOT NULL, project_id TEXT NOT NULL, site_id TEXT NOT NULL,
+      repo TEXT NOT NULL, issue_number INTEGER NOT NULL, report_title TEXT NOT NULL, reporter_name TEXT,
+      expires_at TEXT NOT NULL, claimed_at TEXT, used_at TEXT, response_id TEXT, response_text TEXT,
+      screenshot_url TEXT, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     )`),
     env.DB.prepare("INSERT INTO orgs (id, github_login) VALUES (1, 'acme')"),
     env.DB.prepare(`INSERT INTO spot_sites
@@ -49,6 +62,68 @@ describe("public capture Worker", () => {
       headers: { Origin: "https://evil.example" },
     });
     expect(denied.status).toBe(403);
+  });
+
+  it("opens a valid reporter response page without mutating the issue", async () => {
+    const token = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+    const hash = await tokenHash(token);
+    const now = new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO spot_report_response_tokens
+      (token_hash, token_encrypted, resolution_key, org_id, project_id, site_id, repo,
+       issue_number, report_title, expires_at, created_at, updated_at)
+      VALUES (?, 'encrypted', 'report:resolved', 1, 'project-1', 'site-1', 'web', 42,
+              'Checkout is stuck', ?, ?, ?)`)
+      .bind(hash, new Date(Date.now() + 86_400_000).toISOString(), now, now).run();
+
+    const response = await app.request(`/resolution/${token}`, {}, env as never);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+    const html = await response.text();
+    expect(html).toContain("Tell us what is still happening");
+    expect(html).toContain("Reopen issue");
+  });
+
+  it("adds the reporter response and reopens the existing issue", async () => {
+    const token = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefg";
+    const hash = await tokenHash(token);
+    const now = new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO spot_report_response_tokens
+      (token_hash, token_encrypted, resolution_key, org_id, project_id, site_id, repo,
+       issue_number, report_title, expires_at, created_at, updated_at)
+      VALUES (?, 'encrypted', 'report:resolved:second', 1, 'project-1', 'site-1', 'web', 43,
+              'Drag position is wrong', ?, ?, ?)`)
+      .bind(hash, new Date(Date.now() + 86_400_000).toISOString(), now, now).run();
+    const execute = vi.fn<(command: unknown) => Promise<{ status: string }>>(async () => ({ status: "completed" }));
+    const form = new FormData();
+    form.set("message", "The card still lands one place too far right.");
+    form.set("screenshot", new File([new Uint8Array([137, 80, 78, 71])], "proof.png", { type: "image/png" }));
+
+    const response = await app.request(`/api/spots/public/v1/resolution-responses/${token}`, {
+      method: "POST",
+      body: form,
+    }, { ...env, NOXCONNECT: { execute } } as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Issue reopened");
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[0][0]).toMatchObject({
+      capability: "github.issue.comment",
+      input: { repository: "web", issueNumber: 43 },
+    });
+    expect(execute.mock.calls[1][0]).toMatchObject({
+      capability: "github.issue.update",
+      input: { repository: "web", issueNumber: 43, issue: { state: "open" } },
+    });
+    const stored = await env.DB.prepare(
+      "SELECT used_at, response_text, screenshot_url FROM spot_report_response_tokens WHERE token_hash = ?",
+    ).bind(hash).first<{ used_at: string; response_text: string; screenshot_url: string }>();
+    expect(stored?.used_at).toBeTruthy();
+    expect(stored?.response_text).toContain("too far right");
+    expect(stored?.screenshot_url).toContain("responses/site-1/");
+    const screenshotPath = new URL(stored!.screenshot_url).pathname;
+    const screenshotResponse = await app.request(screenshotPath, {}, { ...env, NOXCONNECT: { execute } } as never);
+    expect(screenshotResponse.status).toBe(200);
+    expect(screenshotResponse.headers.get("Content-Type")).toBe("image/png");
   });
 
   it("accepts diagnostic screenshot failures and keeps successful telemetry origin-scoped", async () => {

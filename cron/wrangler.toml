@@ -11,6 +11,7 @@ binding = "CF_VERSION_METADATA"
 GITHUB_APP_ID = "3652510"
 SLACK_ACCEPT_LEGACY_INSTALLS = "true"
 NOXCONNECT_PUBLIC_URL = "https://app.noxhere.com"
+NOXSPOT_PUBLIC_URL = "https://api.noxspot.dev"
 
 # NoxSpot owns issue/Slack presentation. This private service binding exposes
 # its versioned renderer without sending product data over the public Internet.
@@ -20,6 +21,10 @@ service = "noxspot-api"
 
 [[services]]
 binding = "NOXCONNECT_EMAIL"
+service = "noxconnect-capabilities"
+
+[[services]]
+binding = "NOXCONNECT"
 service = "noxconnect-capabilities"
 
 [[services]]
@@ -42,6 +47,7 @@ service = "noxfeed-response"
 binding = "DB"
 database_name = "noxconnect"
 database_id = "c94084e6-d0be-423c-8de6-249e7cf8bf25"
+migrations_dir = "../migrations"
 
 # Reconciliation tick. Webhooks are the running source of truth; this
 # cron exists to catch the cases webhooks structurally miss: deletes
@@ -112,6 +118,7 @@ crons = ["*/5 * * * *"]
 GITHUB_APP_ID = "3652510"
 SLACK_ACCEPT_LEGACY_INSTALLS = "false"
 NOXCONNECT_PUBLIC_URL = "https://noxhere-staging.jasper-414.workers.dev"
+NOXSPOT_PUBLIC_URL = "https://noxspot-api-staging.jasper-414.workers.dev"
 
 [[env.staging.services]]
 binding = "NOXSPOT_RESPONSE"
@@ -119,6 +126,10 @@ service = "noxspot-api-staging"
 
 [[env.staging.services]]
 binding = "NOXCONNECT_EMAIL"
+service = "noxconnect-capabilities-staging"
+
+[[env.staging.services]]
+binding = "NOXCONNECT"
 service = "noxconnect-capabilities-staging"
 
 [[env.staging.services]]
@@ -137,6 +148,7 @@ service = "noxfeed-response-staging"
 binding = "DB"
 database_name = "noxconnect-staging"
 database_id = "3a9d9857-c26d-4421-9fbd-b81f474864d3"
+migrations_dir = "../migrations"
 
 [[env.staging.queues.consumers]]
 queue = "noxconnect-tasks-staging"

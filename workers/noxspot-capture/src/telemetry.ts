@@ -1,8 +1,9 @@
 import type { Context } from "hono";
 import { checkRateLimit } from "./rate-limiter";
 import { getCaptureSite, originAllowed, parseWidgetConfig, requestOrigin } from "./site-config";
+import type { NoxSpotEnv } from "./resolution-response";
 
-type TelemetryContext = Context<{ Bindings: Env }>;
+type TelemetryContext = Context<{ Bindings: NoxSpotEnv }>;
 
 const NOXCUE_EVENT_URL = "https://noxcue.internal/v1/events";
 const RATE_LIMIT_WINDOW_MS = 60_000;

@@ -40,8 +40,9 @@ import {
   receiveWidgetFailure,
   receiveWidgetInstall,
 } from "./telemetry";
+import { resolutionResponsePage, submitResolutionResponse, type NoxSpotEnv } from "./resolution-response";
 
-type AppContext = Context<{ Bindings: Env }>;
+type AppContext = Context<{ Bindings: NoxSpotEnv }>;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const REPORT_IP_LIMIT = 10;
@@ -53,12 +54,12 @@ const MAX_ERROR_TITLE_LENGTH = 200;
 // redacted metadata. Keep this below the NoxCue event body ceiling (32 KiB).
 const MAX_TELEMETRY_BODY_BYTES = 16_384;
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: NoxSpotEnv }>();
 
 app.use("*", async (context, next) => {
   await next();
-  context.header("X-Content-Type-Options", "nosniff");
-  context.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (!context.res.headers.has("X-Content-Type-Options")) context.header("X-Content-Type-Options", "nosniff");
+  if (!context.res.headers.has("Referrer-Policy")) context.header("Referrer-Policy", "strict-origin-when-cross-origin");
 });
 
 app.use("*", cors({
@@ -170,6 +171,8 @@ async function submitReport(context: AppContext) {
 
 app.post("/api/spots/public/v1/reports", submitReport);
 app.post("/report", submitReport);
+app.get("/resolution/:token", resolutionResponsePage);
+app.post("/api/spots/public/v1/resolution-responses/:token", submitResolutionResponse);
 
 function plainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -322,6 +325,10 @@ app.get("/api/spots/public/v1/screenshots/:siteId/:objectId", (context) => {
   const siteId = context.req.param("siteId");
   return serveSiteScreenshot(context, siteId, `screenshots/${siteId}/${context.req.param("objectId")}`);
 });
+app.get("/responses/:siteId/:objectId", (context) => {
+  const siteId = context.req.param("siteId");
+  return serveSiteScreenshot(context, siteId, `responses/${siteId}/${context.req.param("objectId")}`);
+});
 
 app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   const siteId = context.req.param("siteId").replace(/\.js$/, "");
@@ -371,7 +378,7 @@ function message(error: unknown): string {
 
 export { RateLimiter };
 
-export default class NoxSpotService extends WorkerEntrypoint<Env> {
+export default class NoxSpotService extends WorkerEntrypoint<NoxSpotEnv> {
   describe() {
     return NOXSPOT_SERVICE_MANIFEST;
   }

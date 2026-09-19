@@ -41,7 +41,7 @@ export interface CapabilityOperation {
   id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
-  authentication: "member" | "admin" | "public" | "ingest_key";
+  authentication: "member" | "admin" | "public" | "ingest_key" | "reporter_token";
   description: string;
 }
 
@@ -218,6 +218,11 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
       { id: "reports", name: "Reports and screenshots", description: "Turn captured feedback and browser context into actionable reports.", access: "member", requires: ["github"], operations: [
         { id: "submit_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/reports", authentication: "public", description: "Submit bounded website feedback from an allowed origin." },
         { id: "submit_browser_errors", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/errors", authentication: "public", description: "Submit a bounded batch of automatic browser errors." },
+        { id: "reopen_resolved_report", method: "POST", path: "https://api.noxspot.dev/api/spots/public/v1/resolution-responses/{token}", authentication: "reporter_token", description: "Add an optional note or screenshot and reopen the original issue through a single-use resolution link." },
+        { id: "get_resolution_template", method: "GET", path: "/api/v1/spots/sites/{siteId}/resolution-template", authentication: "admin", description: "Read the site's resolved-ticket email presentation." },
+        { id: "update_resolution_template", method: "PATCH", path: "/api/v1/spots/sites/{siteId}/resolution-template", authentication: "admin", description: "Update or reset the site's resolved-ticket email presentation with If-Match." },
+        { id: "preview_resolution_template", method: "POST", path: "/api/v1/spots/sites/{siteId}/resolution-template/preview", authentication: "admin", description: "Render a safe sample without sending email." },
+        { id: "test_resolution_template", method: "POST", path: "/api/v1/spots/sites/{siteId}/resolution-template/test", authentication: "admin", description: "Send a rendered template test through NoxConnect and Postmark." },
         { id: "get_spot_project_overview", method: "GET", path: "/api/v1/spots/project-overview", authentication: "member", description: "Read the selected project's guest-safe feedback overview." },
         { id: "update_spot_report", method: "PATCH", path: "/api/v1/spots/reports/{reportId}", authentication: "admin", description: "Investigate, resolve, reopen, or retry notification for a report." },
       ] },

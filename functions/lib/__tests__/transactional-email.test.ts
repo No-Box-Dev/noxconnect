@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sendTransactionalEmail } from "../transactional-email";
+import { DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE } from "../noxspot-resolution-template.js";
 
 const env = {
   POSTMARK_SERVER_TOKEN: "test-server-token",
@@ -62,8 +63,10 @@ describe("NoxConnect transactional email", () => {
       model: {
         siteName: "Storefront",
         reportTitle: "Checkout failed",
-        summary: "The checkout flow now completes normally.",
-        statusUrl: "https://app.noxhere.com/status/report-1",
+        summary: "Thank you for reporting this issue. We fixed the checkout flow, which now completes normally.",
+        reporterName: "Ada",
+        responseUrl: "https://api.noxspot.dev/resolution/token-one",
+        presentation: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
       },
     });
     const body = JSON.parse(String(request.mock.calls[0][1]?.body));
@@ -72,6 +75,37 @@ describe("NoxConnect transactional email", () => {
       MessageStream: "noxspot-resolutions",
       Tag: "noxspot-resolution",
     });
+    expect(body.HtmlBody).toContain("Reopen the ticket");
+    expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
+    expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
+    expect(body.TextBody).toContain("Reopen the ticket");
+    expect(body.TextBody).not.toContain("Thank you for reporting this issue");
+    const closing = "Thank you again for helping us improve Storefront.";
+    expect(body.HtmlBody).toContain(closing);
+    expect(body.TextBody.endsWith(closing)).toBe(true);
+  });
+
+  it("renders a safe custom NoxSpot presentation and Postmark reply-to", async () => {
+    const request = vi.fn<typeof fetch>(async () => Response.json({ ErrorCode: 0, MessageID: "custom-id" }));
+    vi.stubGlobal("fetch", request);
+    await sendTransactionalEmail(env, {
+      contract: "noxconnect.transactional-email", version: 1, requestId: "custom:one",
+      recipient: "reporter@example.com", template: "noxspot.resolution",
+      model: {
+        siteName: "Storefront", reportTitle: "Checkout failed", summary: "The checkout now works.",
+        responseUrl: "https://api.noxspot.dev/resolution/token-one",
+        presentation: {
+          ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+          subject: "Update from {{site_name}}: {{report_title}}",
+          buttonLabel: "Open this ticket again",
+          replyTo: "support@example.com",
+        },
+      },
+    });
+    const body = JSON.parse(String(request.mock.calls[0][1]?.body));
+    expect(body.Subject).toBe("Update from Storefront: Checkout failed");
+    expect(body.HtmlBody).toContain("Open this ticket again");
+    expect(body.ReplyTo).toBe("support@example.com");
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {
