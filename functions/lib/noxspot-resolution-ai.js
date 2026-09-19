@@ -51,7 +51,7 @@ export async function generateNoxSpotResolutionSummary(env, report) {
       responseFormat: "text",
     },
   });
-  const summary = validateResolutionSummary(receipt?.result?.text);
+  const summary = validateResolutionSummary(receipt?.result?.text, report.title);
   if (!summary) throw new Error("NoxConnect AI returned an invalid resolution summary");
   return {
     status: "ready",
@@ -119,7 +119,7 @@ export async function fetchNoxSpotResolutionEvidence(env, report) {
   return { closingPullRequests, maintainerComments };
 }
 
-export function validateResolutionSummary(value) {
+export function validateResolutionSummary(value, issueTitle = "") {
   if (typeof value !== "string") return null;
   const paragraphs = value.trim().split(/\n\s*\n/).map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
   if (paragraphs.length !== 2 || paragraphs.some((part) => !part || part.length > 700)) return null;
@@ -128,6 +128,9 @@ export function validateResolutionSummary(value) {
   const words = summary.split(/\s+/).length;
   if (words < 35 || words > 80) return null;
   if (!/^We found\b/.test(paragraphs[0]) || !/^You should now\b/.test(paragraphs[1])) return null;
+  const title = issueTitle.toLowerCase();
+  if (!/\b(?:sav|persist)/.test(title) && /\b(?:save|saved|saving|persist|persists|persisted|persistence)\b/i.test(summary)) return null;
+  if (!/\bopen/.test(title) && /\b(?:stay|stays|remain|remains|keep|keeps|keeping)\b.{0,30}\bopen\b/i.test(summary)) return null;
   if (/^(?:hi|hello|dear|thanks|thank you)\b/i.test(summary)) return null;
   if (/\b(?:github|pull request|release notes?|reopen (?:the|this) (?:ticket|issue|report))\b/i.test(summary)) return null;
   return summary;

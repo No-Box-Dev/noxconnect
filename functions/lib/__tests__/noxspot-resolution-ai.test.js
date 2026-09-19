@@ -75,6 +75,7 @@ describe("NoxSpot resolution AI", () => {
     expect(NOXSPOT_RESOLUTION_SYSTEM_PROMPT).toContain("State each fact once");
     expect(validateResolutionSummary("Hi Jasper,\n\nThis is fixed.")).toBeNull();
     const valid = "We found that the collection tray did not remove a selected collection when tapped. We updated the selection behavior so tapping it again removes the game from that collection.\n\nYou should now be able to change collection membership normally on mobile and desktop.";
-    expect(validateResolutionSummary(valid)).toBe(valid);
+    expect(validateResolutionSummary(valid, report.title)).toBe(valid);
+    expect(validateResolutionSummary(valid.replace("normally on mobile and desktop", "on mobile and your changes save automatically"), report.title)).toBeNull();
   });
 });
