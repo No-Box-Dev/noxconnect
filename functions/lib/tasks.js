@@ -15,6 +15,7 @@ export const TASK = {
   BOOTSTRAP: "bootstrap",             // { orgId, accountLogin, installationId }
   SYNC_REPO: "sync_repo",             // { orgId, accountLogin, installationId, repo }
   SPOT_CREATE_GITHUB_ISSUE: "spot_create_github_issue", // transient capture → GitHub issue
+  SPOT_PREPARE_RESOLUTION_EMAIL: "spot_prepare_resolution_email", // GitHub evidence → managed AI summary
   SPOT_SEND_RESOLUTION_EMAIL: "spot_send_resolution_email", // durable NoxSpot reporter notification
   NOXCUE_GITHUB_ISSUE: "noxcue_github_issue", // durable NoxCue incident → create/update GitHub issue
   DELIVER_SLACK: "deliver_slack",       // { outboxId } → durable delivery_outbox row

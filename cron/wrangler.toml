@@ -24,6 +24,10 @@ binding = "NOXCONNECT_EMAIL"
 service = "noxconnect-capabilities"
 
 [[services]]
+binding = "NOXCONNECT"
+service = "noxconnect-capabilities"
+
+[[services]]
 binding = "NOXCUE_RESPONSE"
 service = "noxcue"
 
@@ -121,6 +125,10 @@ service = "noxspot-api-staging"
 
 [[env.staging.services]]
 binding = "NOXCONNECT_EMAIL"
+service = "noxconnect-capabilities-staging"
+
+[[env.staging.services]]
+binding = "NOXCONNECT"
 service = "noxconnect-capabilities-staging"
 
 [[env.staging.services]]

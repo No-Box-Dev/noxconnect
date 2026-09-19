@@ -249,6 +249,89 @@
         "x-change-safety": "write_not_safe_to_retry"
       }
     },
+    "/api/spots/public/v1/resolution-responses/{token}": {
+      "post": {
+        "operationId": "reopenResolvedNoxSpotReport",
+        "summary": "Reopen a resolved report with optional reporter context",
+        "description": "Consumes the single-use token from a NoxSpot resolution email, adds an optional response and screenshot to the original GitHub issue, and reopens the issue.",
+        "security": [],
+        "servers": [
+          {
+            "url": "https://api.noxspot.dev"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "Opaque single-use reporter token from the resolution email.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "response": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "screenshot": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Optional PNG, JPEG, or WebP screenshot up to 7 MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The original ticket was reopened.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The response or screenshot is invalid.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The response link is invalid, expired, or already used.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "public",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
     "/api/v1/services": {
       "get": {
         "operationId": "listNoxServices",
