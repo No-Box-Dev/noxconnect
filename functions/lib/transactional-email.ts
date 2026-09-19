@@ -116,21 +116,22 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
   if (command.template === "noxspot.resolution") {
     const from = env.NOXSPOT_EMAIL_FROM;
     if (!from) throw new Error("NoxSpot email sender is not configured");
+    const summary = resolutionSummary(command.model.summary);
     const action = command.model.responseUrl
-      ? `\n\nStill seeing the problem? Reopen the issue: ${command.model.responseUrl}`
+      ? `\n\nStill seeing the problem? Reopen this report and add more details or a screenshot if helpful:\n${command.model.responseUrl}`
       : "";
     const actionHtml = command.model.responseUrl
-      ? `<p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">This is not fixed</a></p>`
+      ? `<p>Still seeing the problem? Reopen this report and add more details or a screenshot if helpful.</p><p style="margin:28px 0"><a href="${escapeHtml(command.model.responseUrl)}" style="background:#1c1917;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Reopen this report</a></p>`
       : "";
     const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
     const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
     return {
       from: `NoxSpot <${from}>`,
       subject: `Resolved: ${command.model.reportTitle}`,
-      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${command.model.summary}${action}\n\n— The ${command.model.siteName} team, via NoxSpot`,
+      text: `${greeting}Thanks for reporting “${command.model.reportTitle}”.\n\n${summary}${action}\n\n— The ${command.model.siteName} team, via NoxSpot`,
       html: layout(
         `Resolved: ${command.model.reportTitle}`,
-        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(command.model.summary)}${actionHtml}<p style="font-size:13px;color:#78716c">— The ${escapeHtml(command.model.siteName)} team, via NoxSpot</p>`,
+        `${greetingHtml}<p>Thanks for reporting “${escapeHtml(command.model.reportTitle)}”.</p>${paragraphs(summary)}${actionHtml}<p style="font-size:13px;color:#78716c">— The ${escapeHtml(command.model.siteName)} team, via NoxSpot</p>`,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
@@ -151,6 +152,16 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
     stream: "outbound",
     tag: command.template === "platform.guest-invitation" ? "guest-invitation" : "email-login",
   };
+}
+
+function resolutionSummary(value: string): string {
+  // The template owns the greeting. Strip common AI-generated acknowledgements
+  // as a final safeguard so reporters are never thanked twice.
+  const withoutDuplicateThanks = value.replace(
+    /^\s*(?:thank you|thanks) for reporting(?: this issue)?[.!]\s*/i,
+    "",
+  ).trim();
+  return withoutDuplicateThanks || value.trim();
 }
 
 function layout(heading: string, body: string): string {

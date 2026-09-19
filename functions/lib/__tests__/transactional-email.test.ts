@@ -62,7 +62,7 @@ describe("NoxConnect transactional email", () => {
       model: {
         siteName: "Storefront",
         reportTitle: "Checkout failed",
-        summary: "The checkout flow now completes normally.",
+        summary: "Thank you for reporting this issue. We fixed the checkout flow, which now completes normally.",
         reporterName: "Ada",
         responseUrl: "https://api.noxspot.dev/resolution/token-one",
       },
@@ -73,8 +73,11 @@ describe("NoxConnect transactional email", () => {
       MessageStream: "noxspot-resolutions",
       Tag: "noxspot-resolution",
     });
-    expect(body.HtmlBody).toContain("This is not fixed");
-    expect(body.TextBody).toContain("Reopen the issue");
+    expect(body.HtmlBody).toContain("Reopen this report");
+    expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
+    expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
+    expect(body.TextBody).toContain("Reopen this report");
+    expect(body.TextBody).not.toContain("Thank you for reporting this issue");
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {

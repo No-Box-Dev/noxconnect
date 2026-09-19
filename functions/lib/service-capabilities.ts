@@ -41,7 +41,7 @@ export interface CapabilityOperation {
   id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
-  authentication: "member" | "admin" | "public" | "ingest_key";
+  authentication: "member" | "admin" | "public" | "ingest_key" | "reporter_token";
   description: string;
 }
 
