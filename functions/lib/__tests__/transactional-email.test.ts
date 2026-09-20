@@ -89,6 +89,30 @@ describe("NoxConnect transactional email", () => {
     expect(body.TextBody.endsWith(closing)).toBe(true);
   });
 
+  it("bounds long request IDs for Postmark metadata without losing uniqueness", async () => {
+    const request = vi.fn<typeof fetch>(async () => Response.json({ ErrorCode: 0, MessageID: "bounded-id" }));
+    vi.stubGlobal("fetch", request);
+    const requestId = `noxspot-resolution:${"report-with-a-long-id-".repeat(4)}:2026-09-20T13:04:21.273Z`;
+
+    await sendTransactionalEmail(env, {
+      contract: "noxconnect.transactional-email",
+      version: 1,
+      requestId,
+      recipient: "reporter@example.com",
+      template: "noxspot.resolution",
+      model: {
+        siteName: "Storefront",
+        reportTitle: "Checkout failed",
+        summary: "The checkout now works.",
+      },
+    });
+
+    const body = JSON.parse(String(request.mock.calls[0][1]?.body));
+    expect(body.Metadata.request_id).toHaveLength(80);
+    expect(body.Metadata.request_id).toMatch(/^noxspot-resolution:report-with-a-long-id-.*:[0-9a-f]{16}$/);
+    expect(body.Metadata.request_id).not.toBe(requestId.slice(0, 80));
+  });
+
   it("renders a safe custom NoxSpot presentation and Postmark reply-to", async () => {
     const request = vi.fn<typeof fetch>(async () => Response.json({ ErrorCode: 0, MessageID: "custom-id" }));
     vi.stubGlobal("fetch", request);
