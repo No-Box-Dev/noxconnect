@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { onRequestGet } from "../../resolution/[token]";
+import { onRequestGet } from "../spots/public/v1/resolution/[token]";
 import { onRequestPost } from "../spots/public/v1/resolution-responses/[token]";
 
 function service() {
@@ -10,7 +10,7 @@ describe("NoxSpot public resolution proxy", () => {
   it("serves the resolution page on the NoxHere domain", async () => {
     const binding = service();
     const response = await onRequestGet({
-      request: new Request("https://app.noxhere.com/resolution/token_123"),
+      request: new Request("https://app.noxhere.com/api/spots/public/v1/resolution/token_123"),
       env: { NOXSPOT_RESPONSE: binding },
       params: { token: "token_123" },
     } as never);

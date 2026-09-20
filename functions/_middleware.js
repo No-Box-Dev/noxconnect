@@ -43,6 +43,9 @@ export async function onRequest(context) {
   if (url.pathname.startsWith("/api/spots/public/v1/resolution-responses/")) {
     return nextApiResponse(context, url);
   }
+  if (url.pathname.startsWith("/api/spots/public/v1/resolution/")) {
+    return nextApiResponse(context, url);
+  }
   if (url.pathname === "/api/slack/oauth/callback" || url.pathname === "/api/slack/oauth/handoff") {
     return context.next();
   }

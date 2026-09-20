@@ -11,7 +11,7 @@ binding = "CF_VERSION_METADATA"
 GITHUB_APP_ID = "3652510"
 SLACK_ACCEPT_LEGACY_INSTALLS = "true"
 NOXCONNECT_PUBLIC_URL = "https://app.noxhere.com"
-NOXSPOT_PUBLIC_URL = "https://app.noxhere.com"
+NOXSPOT_PUBLIC_URL = "https://app.noxhere.com/api/spots/public/v1"
 
 # NoxSpot owns issue/Slack presentation. This private service binding exposes
 # its versioned renderer without sending product data over the public Internet.
