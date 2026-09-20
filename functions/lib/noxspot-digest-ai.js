@@ -11,6 +11,9 @@ For each input, use only its description to decide whether it explains a concret
 Return only a JSON array with objects shaped exactly as {"prNumber":123,"summary":"..."}.
 Write one short plain-language sentence with a Flesch Reading Ease target of 80-90.
 Use active voice and simple words. Explain what changed, not that the pull request was merged.
+Write only the fix explanation. Never greet or thank the reporter, repeat the issue title, or add a sign-off.
+State each fact once. Do not restate the same problem, change, or expected result in different words.
+Only describe behavior supported by the source. Do not add related behavior merely to make the fix sound complete.
 If the description does not explain the fix, set summary to null. Do not infer or invent details.`;
 
 export async function summarizeNoxSpotResolutions(env, orgId, projectId, solved) {

@@ -1,4 +1,4 @@
-type NoxSpotAuditAction = "site.created" | "site.updated" | "site.deleted" | "site.migrated";
+type NoxSpotAuditAction = "site.created" | "site.updated" | "site.deleted" | "site.migrated" | "resolution_template.updated" | "resolution_template.reset" | "resolution_template.test_sent";
 
 export function noxSpotAuditStatement(
   db: D1Database,

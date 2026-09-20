@@ -14,6 +14,12 @@ vi.mock("../../../functions/lib/op-failures.js", () => ({ recordFailure: vi.fn()
 vi.mock("../../../functions/lib/noxspot.js", () => ({
   createNoxSpotGitHubIssue: vi.fn(),
 }));
+vi.mock("../../../functions/lib/noxspot-resolution.js", () => ({
+  deliverNoxSpotResolutionEmail: vi.fn(),
+  prepareNoxSpotResolutionEmail: vi.fn(),
+  recoverNoxSpotResolutionPreparations: vi.fn(),
+  recoverNoxSpotResolutionEmails: vi.fn(),
+}));
 vi.mock("../../../functions/lib/noxcue-github.js", () => ({
   createOrUpdateNoxCueGitHubIssue: vi.fn(), recoverNoxCueGithubIncidents: vi.fn(),
 }));
@@ -28,6 +34,7 @@ import { syncRepo } from "../../../functions/lib/github-sync.js";
 import { getInstallationToken } from "../../../functions/lib/github-app.js";
 import { recordFailure } from "../../../functions/lib/op-failures.js";
 import { createNoxSpotGitHubIssue } from "../../../functions/lib/noxspot.js";
+import { prepareNoxSpotResolutionEmail } from "../../../functions/lib/noxspot-resolution.js";
 import { createOrUpdateNoxCueGitHubIssue } from "../../../functions/lib/noxcue-github.js";
 import { deliverSlackOutbox, markOutboxFailed } from "../../../functions/lib/delivery-outbox.js";
 
@@ -61,6 +68,14 @@ describe("cron queue consumer", () => {
     const m = msg(capture);
     await worker.queue({ messages: [m] }, env);
     expect(createNoxSpotGitHubIssue).toHaveBeenCalledWith(env, capture);
+    expect(m.ack).toHaveBeenCalledOnce();
+  });
+
+  it("routes NoxSpot resolution preparation through the durable worker", async () => {
+    const task = { type: "spot_prepare_resolution_email", reportId: "spot-1" };
+    const m = msg(task);
+    await worker.queue({ messages: [m] }, env);
+    expect(prepareNoxSpotResolutionEmail).toHaveBeenCalledWith(env, "spot-1");
     expect(m.ack).toHaveBeenCalledOnce();
   });
 

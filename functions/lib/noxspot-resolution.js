@@ -1,5 +1,7 @@
 import { decryptToken, encryptToken } from "./crypto.js";
 import { TASK, enqueueTask } from "./tasks.js";
+import { generateNoxSpotResolutionSummary } from "./noxspot-resolution-ai.js";
+import { resolutionTemplateFromWidgetConfig, resolutionTemplateRevision } from "./noxspot-resolution-template.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,7 +56,8 @@ export async function updateNoxSpotReport(env, input) {
     `SELECT report.id, report.org_id, report.project_id, report.site_id, report.repo,
             report.issue_number, report.issue_url, report.title, report.status,
             report.notification_consent, report.reporter_email_encrypted,
-            report.notification_status, site.name AS site_name
+            report.notification_status, report.resolution_email_template_json,
+            report.resolution_email_template_revision, site.name AS site_name, site.widget_config
        FROM spot_reports report
        JOIN spot_sites site ON site.id = report.site_id
       WHERE report.id = ? AND report.org_id = ?
@@ -76,6 +79,15 @@ export async function updateNoxSpotReport(env, input) {
   const notificationStatus = queueNotification ? "pending" : reopening && eligible ? "not_requested" : report.notification_status;
   const source = ["platform", "api", "github"].includes(input.source) ? input.source : "platform";
   const summary = cleanSummary(input.summary, resolving ? "This report has been resolved." : null);
+  const resolvedTemplate = queueNotification
+    ? (report.resolution_email_template_json
+      ? resolutionTemplateFromSnapshot(report.resolution_email_template_json)
+      : resolutionTemplateFromWidgetConfig(report.widget_config).template)
+    : null;
+  const templateJson = resolvedTemplate ? JSON.stringify(resolvedTemplate) : null;
+  const templateRevision = resolvedTemplate
+    ? (report.resolution_email_template_revision || await resolutionTemplateRevision(resolvedTemplate))
+    : null;
 
   const statements = [
     env.DB.prepare(
@@ -88,6 +100,8 @@ export async function updateNoxSpotReport(env, input) {
               notification_status = ?,
               notification_message_id = CASE WHEN ? THEN NULL ELSE notification_message_id END,
               notification_last_error = CASE WHEN ? = 'pending' OR ? THEN NULL ELSE notification_last_error END,
+              resolution_email_template_json = CASE WHEN ? THEN NULL WHEN ? THEN ? ELSE resolution_email_template_json END,
+              resolution_email_template_revision = CASE WHEN ? THEN NULL WHEN ? THEN ? ELSE resolution_email_template_revision END,
               updated_at = ?
         WHERE id = ?`,
     ).bind(
@@ -100,6 +114,12 @@ export async function updateNoxSpotReport(env, input) {
       reopening ? 1 : 0,
       notificationStatus,
       reopening ? 1 : 0,
+      reopening ? 1 : 0,
+      queueNotification ? 1 : 0,
+      templateJson,
+      reopening ? 1 : 0,
+      queueNotification ? 1 : 0,
+      templateRevision,
       now,
       report.id,
     ),
@@ -147,12 +167,12 @@ export async function updateNoxSpotReport(env, input) {
 
 export async function resolveNoxSpotReportFromIssue(env, input) {
   const report = await env.DB.prepare(
-    `SELECT id, project_id FROM spot_reports
+    `SELECT id, project_id, notification_consent, reporter_email_encrypted FROM spot_reports
       WHERE org_id = ? AND repo = ? AND issue_number = ?
       LIMIT 1`,
   ).bind(input.orgId, input.repo, input.issueNumber).first();
   if (!report) return { skipped: "not_noxspot_report" };
-  return updateNoxSpotReport(env, {
+  const result = await updateNoxSpotReport(env, {
     reportId: report.id,
     orgId: input.orgId,
     projectId: report.project_id ?? null,
@@ -161,8 +181,23 @@ export async function resolveNoxSpotReportFromIssue(env, input) {
     source: "github",
     status: "resolved",
     summary: input.summary || "The linked GitHub issue was closed.",
-    notify: true,
+    notify: false,
   });
+  const eligible = report.notification_consent === 1 && Boolean(report.reporter_email_encrypted) && Boolean(report.project_id);
+  if (!eligible) return result;
+
+  await env.DB.prepare(
+    `UPDATE spot_reports
+        SET resolution_ai_status = 'pending', resolution_ai_evidence_source = NULL,
+            resolution_ai_model = NULL, resolution_ai_last_error = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+      WHERE id = ? AND status = 'resolved'`,
+  ).bind(report.id).run();
+  await enqueueTask(env, input.ownerId, `noxspot-resolution-prepare:${report.id}:${result.resolvedAt}`, {
+    type: TASK.SPOT_PREPARE_RESOLUTION_EMAIL,
+    reportId: report.id,
+  });
+  return { ...result, notification: { ...result.notification, requested: true, status: "preparing" } };
 }
 
 export async function reopenNoxSpotReportFromIssue(env, input) {
@@ -172,7 +207,7 @@ export async function reopenNoxSpotReportFromIssue(env, input) {
       LIMIT 1`,
   ).bind(input.orgId, input.repo, input.issueNumber).first();
   if (!report) return { skipped: "not_noxspot_report" };
-  return updateNoxSpotReport(env, {
+  const result = await updateNoxSpotReport(env, {
     reportId: report.id,
     orgId: input.orgId,
     projectId: report.project_id ?? null,
@@ -183,14 +218,102 @@ export async function reopenNoxSpotReportFromIssue(env, input) {
     summary: input.summary || "The linked GitHub issue was reopened.",
     notify: false,
   });
+  await env.DB.prepare(
+    `UPDATE spot_reports
+        SET resolution_ai_status = 'not_requested', resolution_ai_evidence_source = NULL,
+            resolution_ai_model = NULL, resolution_ai_last_error = NULL
+      WHERE id = ?`,
+  ).bind(report.id).run();
+  return result;
+}
+
+export async function prepareNoxSpotResolutionEmail(env, reportId) {
+  const report = await env.DB.prepare(
+    `SELECT report.id, report.org_id, report.project_id, report.repo, report.issue_number,
+            report.title, report.resolved_at, report.notification_consent,
+            report.reporter_email_encrypted, report.resolution_ai_status,
+            org.github_login AS owner_id, org.installation_id, site.widget_config
+       FROM spot_reports report
+       JOIN orgs org ON org.id = report.org_id
+       JOIN spot_sites site ON site.id = report.site_id
+      WHERE report.id = ? AND report.status = 'resolved'
+      LIMIT 1`,
+  ).bind(reportId).first();
+  if (!report || report.notification_consent !== 1 || !report.reporter_email_encrypted || !report.project_id) {
+    return { skipped: "not_eligible" };
+  }
+  if (report.resolution_ai_status === "ready") return { skipped: "already_prepared" };
+
+  const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const claim = await env.DB.prepare(
+    `UPDATE spot_reports
+        SET resolution_ai_status = 'generating', resolution_ai_last_error = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+      WHERE id = ? AND (resolution_ai_status IN ('pending', 'failed')
+             OR (resolution_ai_status = 'generating' AND updated_at < ?))`,
+  ).bind(report.id, stale).run();
+  if ((claim.meta?.changes ?? 0) === 0) return { skipped: "already_claimed" };
+
+  try {
+    const resolvedTemplate = resolutionTemplateFromWidgetConfig(report.widget_config);
+    const templateRevision = await resolutionTemplateRevision(resolvedTemplate.template);
+    const generated = await generateNoxSpotResolutionSummary(env, {
+      ...report,
+      resolution_email_tone: resolvedTemplate.template.tone,
+    });
+    if (generated.status === "insufficient_evidence") {
+      await env.DB.prepare(
+        `UPDATE spot_reports
+            SET resolution_ai_status = 'insufficient', resolution_ai_evidence_source = ?,
+                resolution_ai_last_error = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          WHERE id = ?`,
+      ).bind(generated.evidenceSource, "No closing pull request or maintainer resolution comment was available.", report.id).run();
+      return { status: "insufficient_evidence" };
+    }
+
+    const now = new Date().toISOString();
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE spot_reports
+            SET resolution_summary = ?, resolution_ai_status = 'ready',
+                resolution_ai_evidence_source = ?, resolution_ai_model = ?,
+                resolution_email_template_json = ?, resolution_email_template_revision = ?,
+                resolution_ai_last_error = NULL, notification_status = 'pending', updated_at = ?
+          WHERE id = ? AND status = 'resolved'`,
+      ).bind(
+        generated.summary, generated.evidenceSource, generated.model,
+        JSON.stringify(resolvedTemplate.template), templateRevision, now, report.id,
+      ),
+      env.DB.prepare(
+        `INSERT INTO spot_report_activity (id, report_id, kind, actor, summary, created_at)
+         VALUES (?, ?, 'notification_queued', 'noxconnect', ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      ).bind(`notification-queued:${report.id}:${report.resolved_at}`, report.id, generated.summary, now),
+    ]);
+    await enqueueTask(env, report.owner_id, `noxspot-resolution:${report.id}:${report.resolved_at}`, {
+      type: TASK.SPOT_SEND_RESOLUTION_EMAIL,
+      reportId: report.id,
+    });
+    return { status: "ready", summary: generated.summary, evidenceSource: generated.evidenceSource };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "Resolution summary generation failed";
+    await env.DB.prepare(
+      `UPDATE spot_reports SET resolution_ai_status = 'failed', resolution_ai_last_error = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+    ).bind(message, report.id).run();
+    throw error;
+  }
 }
 
 export async function deliverNoxSpotResolutionEmail(env, reportId) {
   const report = await env.DB.prepare(
     `SELECT report.id, report.title, report.issue_url, report.resolution_summary,
             report.resolved_at, report.reporter_email_encrypted,
+            report.reporter_email_hash,
             report.notification_consent, report.notification_status,
-            report.updated_at, site.name AS site_name
+            report.updated_at, report.reporter_name, report.org_id, report.project_id,
+            report.site_id, report.repo, report.issue_number,
+            report.resolution_email_template_json, site.name AS site_name, site.widget_config
        FROM spot_reports report
        JOIN spot_sites site ON site.id = report.site_id
       WHERE report.id = ? AND report.status = 'resolved'
@@ -202,6 +325,19 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
   if (["accepted", "delivered"].includes(String(report.notification_status))) {
     return { skipped: "already_sent" };
   }
+  if (report.reporter_email_hash) {
+    const suppression = await env.DB.prepare(
+      "SELECT reason FROM transactional_email_suppressions WHERE recipient_hash = ? LIMIT 1",
+    ).bind(report.reporter_email_hash).first();
+    if (suppression) {
+      const status = suppression.reason === "spam_complaint" ? "complained" : "bounced";
+      await env.DB.prepare(
+        `UPDATE spot_reports SET notification_status = ?, notification_last_error = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+      ).bind(status, `Recipient suppressed after ${String(suppression.reason).replace(/_/g, " ")}.`, report.id).run();
+      return { skipped: "recipient_suppressed" };
+    }
+  }
 
   const staleSendingBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const claim = await env.DB.prepare(
@@ -210,13 +346,17 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
             notification_attempts = notification_attempts + 1,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?
-        AND (notification_status IN ('pending', 'failed', 'bounced')
+        AND (notification_status IN ('pending', 'failed')
              OR (notification_status = 'sending' AND updated_at < ?))`,
   ).bind(report.id, staleSendingBefore).run();
   if ((claim.meta?.changes ?? 0) === 0) return { skipped: "already_claimed" };
 
   try {
     const recipient = await decryptToken(report.reporter_email_encrypted, env.ENCRYPTION_KEY);
+    const responseUrl = await ensureResolutionResponseUrl(env, report);
+    const presentation = report.resolution_email_template_json
+      ? resolutionTemplateFromSnapshot(report.resolution_email_template_json)
+      : resolutionTemplateFromWidgetConfig(report.widget_config).template;
     const receipt = await env.NOXCONNECT_EMAIL.sendEmail({
       contract: "noxconnect.transactional-email",
       version: 1,
@@ -227,7 +367,9 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
         siteName: report.site_name,
         reportTitle: report.title,
         summary: report.resolution_summary || "This report has been resolved.",
-        ...(report.issue_url ? { statusUrl: report.issue_url } : {}),
+        presentation,
+        ...(report.reporter_name ? { reporterName: report.reporter_name } : {}),
+        ...(responseUrl ? { responseUrl } : {}),
       },
     });
     const now = new Date().toISOString();
@@ -264,6 +406,52 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
   }
 }
 
+function resolutionTemplateFromSnapshot(value) {
+  try {
+    return resolutionTemplateFromWidgetConfig({ resolutionEmail: JSON.parse(String(value)) }).template;
+  } catch {
+    return resolutionTemplateFromWidgetConfig(null).template;
+  }
+}
+
+async function ensureResolutionResponseUrl(env, report) {
+  const baseUrl = typeof env.NOXSPOT_PUBLIC_URL === "string" ? env.NOXSPOT_PUBLIC_URL.replace(/\/$/, "") : "";
+  if (!baseUrl || !report.project_id || !report.resolved_at) return null;
+  const resolutionKey = `${report.id}:${report.resolved_at}`;
+  const existing = await env.DB.prepare(
+    "SELECT token_encrypted FROM spot_report_response_tokens WHERE resolution_key = ? LIMIT 1",
+  ).bind(resolutionKey).first();
+  if (existing?.token_encrypted) {
+    const token = await decryptToken(existing.token_encrypted, env.ENCRYPTION_KEY);
+    return `${baseUrl}/resolution/${encodeURIComponent(token)}`;
+  }
+
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const [tokenHash, tokenEncrypted] = await Promise.all([
+    sha256(token),
+    encryptToken(token, env.ENCRYPTION_KEY),
+  ]);
+  const expiresAt = new Date(Date.now() + 90 * 86_400_000).toISOString();
+  await env.DB.prepare(
+    `INSERT INTO spot_report_response_tokens
+       (token_hash, token_encrypted, resolution_key, report_id, org_id, project_id,
+        site_id, repo, issue_number, report_title, reporter_name, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(resolution_key) DO NOTHING`,
+  ).bind(
+    tokenHash, tokenEncrypted, resolutionKey, report.id, report.org_id, report.project_id,
+    report.site_id, report.repo, report.issue_number, report.title, report.reporter_name ?? null, expiresAt,
+  ).run();
+  const stored = await env.DB.prepare(
+    "SELECT token_encrypted FROM spot_report_response_tokens WHERE resolution_key = ? LIMIT 1",
+  ).bind(resolutionKey).first();
+  const resolvedToken = stored?.token_encrypted
+    ? await decryptToken(stored.token_encrypted, env.ENCRYPTION_KEY)
+    : token;
+  return `${baseUrl}/resolution/${encodeURIComponent(resolvedToken)}`;
+}
+
 export async function recoverNoxSpotResolutionEmails(env) {
   const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const result = await env.DB.prepare(
@@ -280,6 +468,28 @@ export async function recoverNoxSpotResolutionEmails(env) {
       reportId: row.id,
       ownerId: String(row.owner_id),
       deliveryId: `noxspot-resolution-recovery:${row.id}`,
+    });
+  }
+  return { queued: result.results?.length ?? 0 };
+}
+
+export async function recoverNoxSpotResolutionPreparations(env) {
+  const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const result = await env.DB.prepare(
+    `SELECT report.id, org.github_login AS owner_id
+       FROM spot_reports report
+       JOIN orgs org ON org.id = report.org_id
+      WHERE report.status = 'resolved' AND report.notification_consent = 1
+        AND (report.resolution_ai_status IN ('pending', 'failed')
+             OR (report.resolution_ai_status = 'generating' AND report.updated_at < ?))
+      ORDER BY report.updated_at ASC LIMIT 100`,
+  ).bind(stale).all();
+  for (const row of result.results ?? []) {
+    await env.TASK_QUEUE.send({
+      type: TASK.SPOT_PREPARE_RESOLUTION_EMAIL,
+      reportId: row.id,
+      ownerId: String(row.owner_id),
+      deliveryId: `noxspot-resolution-prepare-recovery:${row.id}`,
     });
   }
   return { queued: result.results?.length ?? 0 };

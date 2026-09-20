@@ -7,6 +7,7 @@ export default defineConfig({
     miniflare: {
       bindings: { NOXCUE_INGEST_KEY: "nox_test_key" },
       serviceBindings: {
+        NOXCONNECT: async () => Response.json({ error: "rpc_only" }, { status: 404 }),
         NOXCUE_INGEST: async (request) => {
           const body = await request.clone().json() as Record<string, unknown>;
           const data = body.data && typeof body.data === "object" ? body.data as Record<string, unknown> : {};

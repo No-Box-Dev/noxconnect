@@ -78,7 +78,9 @@ export async function onRequestPost(context: WebhookContext): Promise<Response> 
     ? "notification_delivered"
     : eventType === "bounce" ? "notification_bounced" : "notification_complained";
 
-  await context.env.DB.batch([
+  const shouldSuppress = event.RecordType === "SpamComplaint"
+    || (event.RecordType === "Bounce" && event.Type === "HardBounce");
+  const statements = [
     context.env.DB.prepare(
       `INSERT INTO transactional_email_events
        (id, event_type, message_id, message_stream, tag, recipient_hash,
@@ -113,7 +115,24 @@ export async function onRequestPost(context: WebhookContext): Promise<Response> 
       providerEventAt,
       event.MessageID,
     ),
-  ]);
+  ];
+  if (shouldSuppress) {
+    statements.push(context.env.DB.prepare(
+      `INSERT INTO transactional_email_suppressions
+       (recipient_hash, reason, message_stream, provider_event_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(recipient_hash) DO UPDATE SET
+         reason = excluded.reason,
+         message_stream = excluded.message_stream,
+         provider_event_at = excluded.provider_event_at`,
+    ).bind(
+      recipientHash,
+      event.RecordType === "SpamComplaint" ? "spam_complaint" : "hard_bounce",
+      event.MessageStream,
+      providerEventAt,
+    ));
+  }
+  await context.env.DB.batch(statements);
 
   return Response.json({ accepted: true }, {
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },

@@ -20,6 +20,8 @@ import { runDatabaseRecoveryStep } from "./database-recovery.js";
 import { createNoxSpotGitHubIssue } from "../../functions/lib/noxspot.js";
 import {
   deliverNoxSpotResolutionEmail,
+  prepareNoxSpotResolutionEmail,
+  recoverNoxSpotResolutionPreparations,
   recoverNoxSpotResolutionEmails,
 } from "../../functions/lib/noxspot-resolution.js";
 import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueBlockedForOrg } from "../../functions/lib/delivery-outbox.js";
@@ -170,6 +172,8 @@ async function handleTask(env, body) {
     }
     case TASK.SPOT_CREATE_GITHUB_ISSUE:
       return createNoxSpotGitHubIssue(env, body);
+    case TASK.SPOT_PREPARE_RESOLUTION_EMAIL:
+      return prepareNoxSpotResolutionEmail(env, body.reportId);
     case TASK.SPOT_SEND_RESOLUTION_EMAIL:
       return deliverNoxSpotResolutionEmail(env, body.reportId);
     case TASK.NOXCUE_GITHUB_ISSUE:
@@ -184,6 +188,7 @@ async function handleTask(env, body) {
 async function runTick(env, nowMs = Date.now()) {
   const db = env.DB;
 
+  await recoverNoxSpotResolutionPreparations(env);
   await recoverOutboxDeliveries(env);
   await recoverNoxSpotResolutionEmails(env);
   try {
