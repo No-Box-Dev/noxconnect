@@ -79,6 +79,7 @@ export async function sendTransactionalEmail(
   const command = TransactionalEmailCommand.parse(rawCommand);
   if (!env.POSTMARK_SERVER_TOKEN) throw new Error("Postmark delivery is not configured");
   const rendered = render(command, env);
+  const requestMetadata = await postmarkMetadataValue(command.requestId);
   const response = await fetch("https://api.postmarkapp.com/email", {
     method: "POST",
     headers: {
@@ -98,7 +99,7 @@ export async function sendTransactionalEmail(
       TrackLinks: "None",
       Tag: rendered.tag,
       Metadata: {
-        request_id: command.requestId,
+        request_id: requestMetadata,
         template: command.template,
       },
     }),
@@ -118,6 +119,16 @@ export async function sendTransactionalEmail(
     messageId: result.MessageID,
     submittedAt: typeof result.SubmittedAt === "string" ? result.SubmittedAt : null,
   };
+}
+
+async function postmarkMetadataValue(value: string): Promise<string> {
+  if (value.length <= 80) return value;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  const suffix = [...new Uint8Array(digest)]
+    .slice(0, 8)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `${value.slice(0, 63)}:${suffix}`;
 }
 
 function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
