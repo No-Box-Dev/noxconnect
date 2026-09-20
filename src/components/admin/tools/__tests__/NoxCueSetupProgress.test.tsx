@@ -101,7 +101,7 @@ describe("NoxCue setup progress", () => {
     />);
 
     expect(screen.getAllByText("Healthy")).toHaveLength(2);
-    expect(screen.getByText(/A signup only counts/)).toBeInTheDocument();
+    expect(screen.getByText(/unique user marked by a trusted server action/)).toBeInTheDocument();
   });
 
   it("posts a real test and surfaces a persisted delivery issue", async () => {

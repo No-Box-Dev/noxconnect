@@ -344,7 +344,7 @@ export function SetupProgress({
       <ol className="mt-4 space-y-2">{track.steps.map((step) => <li key={step.label} className="flex items-start gap-2 text-xs"><span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full ${step.complete ? "bg-green-600 text-white" : step.issue ? "bg-amber-500 text-white" : "border border-stone-300 bg-white text-stone-400"}`}>{step.complete ? <Check size={10} /> : step.issue ? <AlertTriangle size={10} /> : <CircleDashed size={10} />}</span><span><span className="font-medium text-stone-700">{step.label}</span><span className="ml-1 text-stone-500">· {step.detail}</span></span></li>)}</ol>
       {track.destinationReady ? <div className="mt-4"><button type="button" onClick={() => void testDelivery(track.key)} disabled={testingKind !== null || !track.connectionId || !track.channelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">{testingKind === track.key ? <Spinner size="sm" /> : <Send size={13} />} {track.ready ? "Send another test" : "Send end-to-end test"}</button>{testFeedback[track.key] ? <p role="status" className={`mt-2 text-xs ${testFeedback[track.key]?.ok ? "text-green-700" : "text-amber-800"}`}>{testFeedback[track.key]?.message}</p> : null}</div> : null}
     </section>)}</div>
-    <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><strong>DAU definition:</strong> a unique user for whom your app sends <code>user.active</code> during the local day. A signup only counts when your app also chooses to send <code>user.active</code>.</div>
+    <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800"><strong>DAU definition:</strong> a unique user marked by a trusted server action during the local day. Call <code>user.active</code> directly, or set a request-scoped identity with <code>forUser</code> and let an instrumented feature, activity, or error mark the user automatically.</div>
     {!eventAt && secretKeys.length ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -728,11 +728,11 @@ function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
 });`;
   return <div className="mt-3 space-y-2">
     <div className="flex items-center justify-between gap-2">
-      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">This counts the new account only. Send <code>user.active</code> wherever your product defines meaningful activity.</p></div>
+      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">This counts the new account. For later actions, create a request-scoped client with <code>noxcue.forUser(user.id)</code>; its instrumented feature, activity, and error events mark the user active automatically.</p></div>
       <button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button>
     </div>
     <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
-    <details className="text-xs text-amber-900"><summary className="cursor-pointer font-medium">Returning users</summary><p className="mt-1 leading-5 text-amber-800">Send the same request with <code>type: "user.active"</code> after a meaningful authenticated action. NoxCue deduplicates each user per local day.</p></details>
+    <details className="text-xs text-amber-900"><summary className="cursor-pointer font-medium">Returning users</summary><p className="mt-1 leading-5 text-amber-800">Use <code>noxcue.forUser(user.id)</code> for the request, then report the meaningful feature, activity, or error normally. NoxCue marks trusted server identities active and deduplicates each user per local day. Direct <code>user.active</code> remains available for actions that have no other NoxCue event.</p></details>
   </div>;
 }
 

@@ -5397,6 +5397,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/NoxCueError"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NoxCueFeatureResult"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NoxCueActivityEvent"
                   }
                 ]
               }
@@ -10498,6 +10504,126 @@
           }
         }
       },
+      "NoxCueActivityEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "eventId",
+          "metric",
+          "userId"
+        ],
+        "properties": {
+          "version": {
+            "const": 1,
+            "default": 1
+          },
+          "type": {
+            "const": "activity.occurred"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "environment": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string",
+            "pattern": "^custom\\."
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Stable app identifier; NoxCue stores only a source-scoped hash."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "context": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        }
+      },
+      "NoxCueFeatureResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "feature",
+          "outcome"
+        ],
+        "properties": {
+          "version": {
+            "const": 1,
+            "default": 1
+          },
+          "type": {
+            "const": "feature.result"
+          },
+          "feature": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "environment": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "success",
+              "rejected",
+              "failure"
+            ]
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Optional actor identity. NoxCue stores only a source-scoped hash; browser identity never contributes to authoritative active-user totals."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "error": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "context": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 120000
+          },
+          "test": {
+            "type": "boolean",
+            "default": false
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "NoxCueError": {
         "type": "object",
         "additionalProperties": false,
@@ -10556,7 +10682,7 @@
               "affectedUser": {
                 "type": "string",
                 "maxLength": 200,
-                "description": "Opaque identifier; NoxCue stores only its SHA-256 hash."
+                "description": "Opaque identifier; NoxCue stores only a source-scoped hash."
               },
               "fatal": {
                 "type": "boolean",

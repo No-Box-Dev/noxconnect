@@ -187,6 +187,7 @@
           <pre id="noxspot-identify"><code><span class="token-comment">// The site-specific script auto-initializes NoxSpot.</span>
 <span class="token-comment">// Run this after it loads and whenever the signed-in user changes.</span>
 NoxSpot.identify({
+  <span class="token-key">id</span>: currentUser.id, <span class="token-comment">// Shared with NoxCue; NoxSpot does not submit it</span>
   <span class="token-key">name</span>: currentUser.name,
   <span class="token-key">email</span>: currentUser.email,
   <span class="token-key">avatarUrl</span>: currentUser.avatarUrl, <span class="token-comment">// Optional HTTPS URL</span>
@@ -199,17 +200,21 @@ NoxSpot.identify(null);</code></pre>
         </div>
         <div class="code-block">
           <div class="code-head"><span>browser · manual initialization</span><button class="copy-button" type="button" data-copy="noxspot-get-reporter">Copy</button></div>
-          <pre id="noxspot-get-reporter"><code>NoxSpot.init({
+          <pre id="noxspot-get-reporter"><code><span class="token-comment">// Reuse this provider as NoxCue's getUser option.</span>
+const getUser = () =&gt; ({
+  <span class="token-key">id</span>: currentUser.id,
+  <span class="token-key">name</span>: currentUser.name,
+  <span class="token-key">email</span>: currentUser.email,
+  <span class="token-key">avatarUrl</span>: currentUser.avatarUrl,
+});
+
+NoxSpot.init({
   <span class="token-key">siteId</span>: <span class="token-string">"your-site-id"</span>,
-  <span class="token-key">getReporter</span>: () =&gt; ({
-    <span class="token-key">name</span>: currentUser.name,
-    <span class="token-key">email</span>: currentUser.email,
-    <span class="token-key">avatarUrl</span>: currentUser.avatarUrl,
-  }),
+  <span class="token-key">getUser</span>,
 });</code></pre>
         </div>
         <div class="callouts">
-          <article class="callout"><h3>Privacy boundary</h3><p>The reporter email and profile-picture URL are never copied into GitHub. NoxConnect encrypts and retains the email only when <code>notifyOnResolution</code> is true; the optional HTTPS avatar is visible only in authenticated NoxSpot views.</p></article>
+          <article class="callout"><h3>Privacy boundary</h3><p>NoxSpot discards the shared opaque <code>id</code>. The reporter email and profile-picture URL are never copied into GitHub. NoxConnect encrypts and retains the email only when <code>notifyOnResolution</code> is true; the optional HTTPS avatar is visible only in authenticated NoxSpot views. NoxCue receives only the opaque ID and stores a source-scoped hash.</p></article>
           <article class="callout"><h3>Consent boundary</h3><p>Omit <code>notifyOnResolution</code> to leave the widget checkbox under the reporter's control. A host may set it to true only when it has already obtained permission for that transactional update.</p></article>
         </div>
       </section>
@@ -308,6 +313,9 @@ const noxcue = createNoxCue({
   release: APP_VERSION,
 });
 
+<span class="token-comment">// Reuse this object with NoxSpot; NoxCue sends only the opaque id.</span>
+noxcue.identify({ id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl });
+
 await noxcue.auth.signup(() =&gt; auth.signUp(input));</code></pre>
             </div>
           </article>
@@ -324,7 +332,8 @@ const noxcue = createNoxCue({
   release: process.env.APP_RELEASE,
 });
 
-await noxcue.user.registered(user.id);</code></pre>
+const userCue = noxcue.forUser(user.id);
+await userCue.user.registered(user.id);</code></pre>
             </div>
           </article>
         </div>
@@ -347,7 +356,7 @@ await noxcue.flush();</code></pre>
           <div class="principle-mark" aria-hidden="true">✓</div>
           <div>
             <h3>The SDK adds the evidence</h3>
-            <p>Every report includes occurrence time, source, environment, release, runtime, SDK version, duration, a safe URL, classification, and redacted error details. Delivery uses short timeouts, retries one transient failure with the same event ID, and never makes NoxCue availability part of the app's success path.</p>
+            <p>Every report includes occurrence time, source, environment, release, runtime, SDK version, duration, a safe URL, classification, and redacted error details. When identity is set, NoxCue adds only its opaque ID and replaces it with a source-scoped hash before storage. Secret-key actions mark that user active once per local day. Delivery uses short timeouts, bounded retries with the same event ID, and never makes NoxCue availability part of the app's success path.</p>
           </div>
         </div>
 

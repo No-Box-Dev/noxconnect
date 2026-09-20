@@ -38,7 +38,9 @@ describe("developer documentation", () => {
     expect(html).toContain('from <span class="token-string">"@noxcue/sdk/browser"</span>');
     expect(html).toContain('from <span class="token-string">"@noxcue/sdk/server"</span>');
     expect(html).toContain("await noxcue.auth.signup");
-    expect(html).toContain("await noxcue.user.registered");
+    expect(html).toContain("await userCue.user.registered");
+    expect(html).toContain("noxcue.identify({ id: user.id");
+    expect(html).toContain("noxcue.forUser(user.id)");
     expect(html).toContain("Never ship a <code>nox_secret_…</code> key to a browser");
   });
 
@@ -47,7 +49,7 @@ describe("developer documentation", () => {
     expect(html).toContain("cannot read a host website's login session");
     expect(html).toContain("NoxSpot.identify({");
     expect(html).toContain("NoxSpot.identify(null)");
-    expect(html).toContain("getReporter");
+    expect(html).toContain("getUser");
     expect(html).toContain("avatarUrl");
     expect(html).toContain("profile-picture URL");
     expect(guide).toContain("anonymous-by-default install snippet");
