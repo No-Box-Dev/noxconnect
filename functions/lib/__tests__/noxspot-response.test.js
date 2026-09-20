@@ -47,6 +47,7 @@ describe("NoxSpot response service adapter", () => {
     expect(service.buildIssueResponse.mock.calls[0][0]).not.toHaveProperty("orgId");
     expect(service.buildIssueResponse.mock.calls[0][0]).not.toHaveProperty("ownerId");
     expect(service.buildIssueResponse.mock.calls[0][0]).not.toHaveProperty("repo");
+    expect(service.buildIssueResponse.mock.calls[0][0]).not.toHaveProperty("reporterAvatarUrl");
   });
 
   it("passes only the GitHub result needed to construct Slack content", async () => {
