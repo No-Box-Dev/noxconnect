@@ -76,6 +76,10 @@ describe("NoxConnect transactional email", () => {
       Tag: "noxspot-resolution",
     });
     expect(body.HtmlBody).toContain("Reopen the ticket");
+    expect(body.HtmlBody).toContain("NoxSpot <span");
+    expect(body.HtmlBody).toContain("for Storefront");
+    expect(body.HtmlBody).toContain("You received this transactional email because you asked to be notified");
+    expect(body.HtmlBody).toContain("background:#f5f3ff");
     expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
     expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
     expect(body.TextBody).toContain("Reopen the ticket");
@@ -105,6 +109,7 @@ describe("NoxConnect transactional email", () => {
     const body = JSON.parse(String(request.mock.calls[0][1]?.body));
     expect(body.Subject).toBe("Update from Storefront: Checkout failed");
     expect(body.HtmlBody).toContain("Open this ticket again");
+    expect(body.HtmlBody).toContain("mailto:support@example.com");
     expect(body.ReplyTo).toBe("support@example.com");
   });
 

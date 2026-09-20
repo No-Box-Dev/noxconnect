@@ -309,6 +309,7 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
   const report = await env.DB.prepare(
     `SELECT report.id, report.title, report.issue_url, report.resolution_summary,
             report.resolved_at, report.reporter_email_encrypted,
+            report.reporter_email_hash,
             report.notification_consent, report.notification_status,
             report.updated_at, report.reporter_name, report.org_id, report.project_id,
             report.site_id, report.repo, report.issue_number,
@@ -324,6 +325,19 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
   if (["accepted", "delivered"].includes(String(report.notification_status))) {
     return { skipped: "already_sent" };
   }
+  if (report.reporter_email_hash) {
+    const suppression = await env.DB.prepare(
+      "SELECT reason FROM transactional_email_suppressions WHERE recipient_hash = ? LIMIT 1",
+    ).bind(report.reporter_email_hash).first();
+    if (suppression) {
+      const status = suppression.reason === "spam_complaint" ? "complained" : "bounced";
+      await env.DB.prepare(
+        `UPDATE spot_reports SET notification_status = ?, notification_last_error = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+      ).bind(status, `Recipient suppressed after ${String(suppression.reason).replace(/_/g, " ")}.`, report.id).run();
+      return { skipped: "recipient_suppressed" };
+    }
+  }
 
   const staleSendingBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const claim = await env.DB.prepare(
@@ -332,7 +346,7 @@ export async function deliverNoxSpotResolutionEmail(env, reportId) {
             notification_attempts = notification_attempts + 1,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?
-        AND (notification_status IN ('pending', 'failed', 'bounced')
+        AND (notification_status IN ('pending', 'failed')
              OR (notification_status = 'sending' AND updated_at < ?))`,
   ).bind(report.id, staleSendingBefore).run();
   if ((claim.meta?.changes ?? 0) === 0) return { skipped: "already_claimed" };

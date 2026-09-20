@@ -61,6 +61,46 @@ describe("Postmark webhook", () => {
     expect(input.batch).toHaveBeenCalledOnce();
   });
 
+  it("suppresses future mail after a hard bounce", async () => {
+    const input = context({ body: {
+      RecordType: "Bounce",
+      MessageID: "message-hard-bounce",
+      MessageStream: "noxspot-resolutions",
+      Recipient: "gone@example.com",
+      BouncedAt: "2026-09-20T03:00:00Z",
+      Type: "HardBounce",
+      TypeCode: 1,
+    } });
+
+    const response = await onRequestPost(input.context);
+
+    expect(response.status).toBe(200);
+    expect(input.prepare).toHaveBeenCalledWith(expect.stringContaining("transactional_email_suppressions"));
+    expect(input.bind).toHaveBeenCalledWith(
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      "hard_bounce",
+      "noxspot-resolutions",
+      "2026-09-20T03:00:00Z",
+    );
+  });
+
+  it("does not permanently suppress a temporary bounce", async () => {
+    const input = context({ body: {
+      RecordType: "Bounce",
+      MessageID: "message-soft-bounce",
+      MessageStream: "noxspot-resolutions",
+      Recipient: "busy@example.com",
+      BouncedAt: "2026-09-20T03:00:00Z",
+      Type: "Transient",
+      TypeCode: 2,
+    } });
+
+    const response = await onRequestPost(input.context);
+
+    expect(response.status).toBe(200);
+    expect(input.prepare).not.toHaveBeenCalledWith(expect.stringContaining("transactional_email_suppressions"));
+  });
+
   it("rejects requests outside Postmark's webhook network", async () => {
     const input = context({ ip: "203.0.113.10" });
     const response = await onRequestPost(input.context);

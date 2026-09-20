@@ -96,6 +96,35 @@ describe("NoxSpot report resolution", () => {
     }));
   });
 
+  it("does not send to a recipient suppressed after a complaint", async () => {
+    const report = {
+      id: "capture-suppressed", reporter_email_encrypted: "ciphertext", reporter_email_hash: "hash-1",
+      notification_consent: 1, notification_status: "pending",
+    };
+    const updates = [];
+    const env = {
+      DB: {
+        prepare(sql) {
+          if (sql.includes("SELECT report.id")) return statement(sql, report);
+          if (sql.includes("SELECT reason FROM transactional_email_suppressions")) {
+            return statement(sql, { reason: "spam_complaint" });
+          }
+          const value = statement(sql, null); updates.push(value); return value;
+        },
+      },
+      NOXCONNECT_EMAIL: { sendEmail: vi.fn() },
+    };
+
+    const result = await deliverNoxSpotResolutionEmail(env, report.id);
+
+    expect(result).toEqual({ skipped: "recipient_suppressed" });
+    expect(env.NOXCONNECT_EMAIL.sendEmail).not.toHaveBeenCalled();
+    expect(updates[0].binds.slice(0, 2)).toEqual([
+      "complained",
+      "Recipient suppressed after spam complaint.",
+    ]);
+  });
+
   it("stores the generated summary before durably queueing the email", async () => {
     generateNoxSpotResolutionSummary.mockResolvedValueOnce({
       status: "ready",
