@@ -76,10 +76,10 @@ describe("NoxConnect transactional email", () => {
       Tag: "noxspot-resolution",
     });
     expect(body.HtmlBody).toContain("Reopen the ticket");
-    expect(body.HtmlBody).toContain("NoxSpot <span");
-    expect(body.HtmlBody).toContain("for Storefront");
+    expect(body.HtmlBody).toContain("Storefront <span");
+    expect(body.HtmlBody).toContain("via NoxSpot");
     expect(body.HtmlBody).toContain("You received this transactional email because you asked to be notified");
-    expect(body.HtmlBody).toContain("background:#f5f3ff");
+    expect(body.HtmlBody).toContain("background:#F5F3FF");
     expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
     expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
     expect(body.TextBody).toContain("Reopen the ticket");
@@ -135,6 +135,33 @@ describe("NoxConnect transactional email", () => {
     expect(body.HtmlBody).toContain("Open this ticket again");
     expect(body.HtmlBody).toContain("mailto:support@example.com");
     expect(body.ReplyTo).toBe("support@example.com");
+  });
+
+  it("renders site branding with email-safe Playnist font fallbacks", async () => {
+    const request = vi.fn<typeof fetch>(async () => Response.json({ ErrorCode: 0, MessageID: "playnist-id" }));
+    vi.stubGlobal("fetch", request);
+    await sendTransactionalEmail(env, {
+      contract: "noxconnect.transactional-email", version: 1, requestId: "playnist:one",
+      recipient: "reporter@example.com", template: "noxspot.resolution",
+      model: {
+        siteName: "Playnist", reportTitle: "Collections on mobile", summary: "The controls now work.",
+        responseUrl: "https://api.noxspot.dev/resolution/token-one",
+        presentation: {
+          ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+          senderName: "Playnist",
+          appearance: {
+            accentColor: "#C62E07", backgroundColor: "#FFFDEB", surfaceColor: "#FFFFFF",
+            textColor: "#1A1A1A", mutedColor: "#525252", fontPreset: "playnist",
+          },
+        },
+      },
+    });
+    const body = JSON.parse(String(request.mock.calls[0][1]?.body));
+    expect(body.From).toBe("Playnist <updates@noxhere.com>");
+    expect(body.HtmlBody).toContain("background:#FFFDEB");
+    expect(body.HtmlBody).toContain("color:#C62E07");
+    expect(body.HtmlBody).toContain('font-family:"HF Gesco Bold"');
+    expect(body.HtmlBody).toContain('font-family:"IBM Plex Sans"');
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {

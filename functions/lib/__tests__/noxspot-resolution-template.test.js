@@ -16,6 +16,16 @@ describe("NoxSpot resolution templates", () => {
     expect(resolutionTemplateFromWidgetConfig('{"resolutionEmail":{"subject":"broken"}}').usingDefault).toBe(true);
   });
 
+  it("upgrades older saved templates with safe branding defaults", () => {
+    const { senderName: _senderName, appearance: _appearance, ...legacy } = DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE;
+    const resolved = resolutionTemplateFromWidgetConfig(JSON.stringify({ resolutionEmail: legacy }));
+    expect(resolved.usingDefault).toBe(false);
+    expect(resolved.template).toMatchObject({
+      senderName: "NoxSpot",
+      appearance: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE.appearance,
+    });
+  });
+
   it("renders only the supported variables", () => {
     const rendered = renderResolutionTemplate(DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE, {
       report_title: "Checkout failed",
@@ -33,6 +43,14 @@ describe("NoxSpot resolution templates", () => {
     expect(NoxSpotResolutionTemplateSchema.safeParse({
       ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
       subject: "Resolved: {{report_title}",
+    }).success).toBe(false);
+    expect(NoxSpotResolutionTemplateSchema.safeParse({
+      ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+      appearance: { ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE.appearance, accentColor: "red" },
+    }).success).toBe(false);
+    expect(NoxSpotResolutionTemplateSchema.safeParse({
+      ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
+      senderName: "Playnist\nBcc: victim@example.com",
     }).success).toBe(false);
   });
 
