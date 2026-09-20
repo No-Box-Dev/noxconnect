@@ -31,6 +31,8 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   });
   return jsonResponse({
     preview: {
+      siteName: site.name,
+      senderName: rendered.senderName,
       subject: rendered.subject,
       greeting: "Hi Alex,",
       acknowledgement: rendered.acknowledgement,
@@ -39,6 +41,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       buttonLabel: rendered.buttonLabel,
       closing: rendered.closing,
       replyTo: rendered.replyTo,
+      appearance: rendered.appearance,
     },
   });
 }

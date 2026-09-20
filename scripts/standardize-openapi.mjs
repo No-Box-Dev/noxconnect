@@ -206,17 +206,31 @@ document.components.schemas.ApiTokenCreate = {
 document.components.schemas.NoxSpotResolutionTemplate = {
   type: "object",
   additionalProperties: false,
-  required: ["tone", "subject", "acknowledgement", "reopenText", "buttonLabel", "closing", "replyTo"],
+  required: ["tone", "senderName", "subject", "acknowledgement", "reopenText", "buttonLabel", "closing", "replyTo", "appearance"],
   properties: {
     tone: { type: "string", enum: ["default", "warm", "formal", "concise"] },
+    senderName: { type: "string", minLength: 1, maxLength: 80, description: "Display name shown next to the platform's verified sending address." },
     subject: { type: "string", minLength: 1, maxLength: 200 },
     acknowledgement: { type: "string", minLength: 1, maxLength: 500 },
     reopenText: { type: "string", minLength: 1, maxLength: 500 },
     buttonLabel: { type: "string", minLength: 1, maxLength: 60 },
     closing: { type: "string", minLength: 1, maxLength: 500 },
     replyTo: { type: ["string", "null"], format: "email", maxLength: 254 },
+    appearance: {
+      type: "object",
+      additionalProperties: false,
+      required: ["accentColor", "backgroundColor", "surfaceColor", "textColor", "mutedColor", "fontPreset"],
+      properties: {
+        accentColor: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+        backgroundColor: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+        surfaceColor: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+        textColor: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+        mutedColor: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
+        fontPreset: { type: "string", enum: ["system", "playnist", "humanist", "editorial", "mono"], description: "Email-safe font stack. Custom fonts fall back safely when the recipient's client does not support them." },
+      },
+    },
   },
-  description: "Site-level presentation for NoxSpot resolution emails. Only {{report_title}} and {{site_name}} placeholders are accepted. NoxConnect owns the evidence rules, AI safety prompt, HTML rendering, verified sender, and reopen behavior.",
+  description: "Site-level content and brand presentation for NoxSpot resolution emails. Every site can configure this in NoxConnect or with a project-scoped API token. Only {{report_title}} and {{site_name}} placeholders are accepted. NoxConnect owns the evidence rules, AI safety prompt, safe HTML rendering, verified sender address, and reopen behavior.",
 };
 document.components.schemas.NoxSpotResolutionTemplateDocument = {
   type: "object",
@@ -236,7 +250,7 @@ document.paths[resolutionTemplatePath] = {
   get: {
     operationId: "getNoxSpotResolutionTemplate",
     summary: "Read the effective NoxSpot resolution email template",
-    description: "Returns the site's custom template or the NoxConnect default plus a revision for conditional updates.",
+    description: "Returns the site's custom content and appearance or the NoxConnect default plus a revision for conditional updates. Organization admins and project-scoped API tokens can use the same endpoint.",
     parameters: resolutionTemplateParameters,
     responses: { "200": { description: "Effective template", content: { "application/json": { schema: { "$ref": "#/components/schemas/NoxSpotResolutionTemplateDocument" } } } } },
     "x-required-role": "admin",
@@ -244,7 +258,7 @@ document.paths[resolutionTemplatePath] = {
   patch: {
     operationId: "updateNoxSpotResolutionTemplate",
     summary: "Update or reset a NoxSpot resolution email template",
-    description: "Send the revision returned by GET as If-Match. Set template to null to restore the default. Postmark is transport-only; NoxConnect validates, renders, and snapshots the template used for each resolution.",
+    description: "Send the revision returned by GET as If-Match. Set template to null to restore the default. This is the self-service configuration used by the NoxConnect UI and is also available to project-scoped API tokens. Postmark is transport-only; NoxConnect validates, renders, and snapshots the template used for each resolution.",
     parameters: [...resolutionTemplateParameters, { name: "If-Match", in: "header", required: true, schema: { type: "string" } }],
     requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["template"], properties: { template: { oneOf: [{ "$ref": "#/components/schemas/NoxSpotResolutionTemplate" }, { type: "null" }] } } } } } },
     responses: {

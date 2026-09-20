@@ -98,7 +98,13 @@ describe("NoxSpot resolution template API", () => {
 
   it("previews substitutions and sends a test through the private email capability", async () => {
     const preview = await previewTemplate(context({ method: "POST", body: { template: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE } }).ctx as never);
-    expect(await preview.json()).toMatchObject({ preview: { subject: "Resolved: Could not update a collection on mobile", closing: expect.stringContaining("Playnist") } });
+    expect(await preview.json()).toMatchObject({ preview: {
+      siteName: "Playnist",
+      senderName: "NoxSpot",
+      subject: "Resolved: Could not update a collection on mobile",
+      closing: expect.stringContaining("Playnist"),
+      appearance: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE.appearance,
+    } });
 
     const sendEmail = vi.fn(async () => ({ messageId: "postmark-test-1" }));
     const test = context({ method: "POST", body: { recipient: "jasper@noboxdev.com", template: DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE }, email: { sendEmail } });

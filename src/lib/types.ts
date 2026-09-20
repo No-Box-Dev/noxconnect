@@ -115,15 +115,27 @@ export interface NoxSpotBlock {
 }
 
 export type NoxSpotResolutionEmailTone = "default" | "warm" | "formal" | "concise";
+export type NoxSpotResolutionEmailFont = "system" | "playnist" | "humanist" | "editorial" | "mono";
+
+export interface NoxSpotResolutionAppearance {
+  accentColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  mutedColor: string;
+  fontPreset: NoxSpotResolutionEmailFont;
+}
 
 export interface NoxSpotResolutionTemplate {
   tone: NoxSpotResolutionEmailTone;
+  senderName: string;
   subject: string;
   acknowledgement: string;
   reopenText: string;
   buttonLabel: string;
   closing: string;
   replyTo: string | null;
+  appearance: NoxSpotResolutionAppearance;
 }
 
 export interface NoxSpotResolutionTemplateDocument {
@@ -134,6 +146,8 @@ export interface NoxSpotResolutionTemplateDocument {
 }
 
 export interface NoxSpotResolutionPreview {
+  siteName: string;
+  senderName: string;
   subject: string;
   greeting: string;
   acknowledgement: string;
@@ -142,6 +156,7 @@ export interface NoxSpotResolutionPreview {
   buttonLabel: string;
   closing: string;
   replyTo: string | null;
+  appearance: NoxSpotResolutionAppearance;
 }
 
 export interface NavFilter {

@@ -4,6 +4,7 @@ import { noxSpotAuditStatement } from "../../../../lib/noxspot-audit";
 import {
   DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
   NoxSpotResolutionTemplateSchema,
+  normalizeResolutionTemplate,
   resolutionTemplateFromWidgetConfig,
   resolutionTemplateRevision,
 } from "../../../../lib/noxspot-resolution-template.js";
@@ -77,9 +78,10 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   }
 
   const nextConfig = { ...current.widgetConfig } as Record<string, unknown>;
-  if (parsed === null) delete nextConfig.resolutionEmail;
-  else nextConfig.resolutionEmail = parsed.data;
-  const nextTemplate = parsed === null ? { ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE } : parsed.data;
+  const normalizedTemplate = parsed === null ? null : normalizeResolutionTemplate(parsed.data);
+  if (normalizedTemplate === null) delete nextConfig.resolutionEmail;
+  else nextConfig.resolutionEmail = normalizedTemplate;
+  const nextTemplate = normalizedTemplate ?? normalizeResolutionTemplate(DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE);
   const nextRevision = await resolutionTemplateRevision(nextTemplate);
   const db = getNoxDb(context.env);
   const serializedNextConfig = JSON.stringify(nextConfig);
@@ -102,7 +104,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     siteId: site.id,
     actorLogin: userLogin,
     action: parsed === null ? "resolution_template.reset" : "resolution_template.updated",
-    changes: parsed === null ? { usingDefault: true } : { template: parsed.data },
+    changes: normalizedTemplate === null ? { usingDefault: true } : { template: normalizedTemplate },
   }).run();
   return jsonWithRevision({ template: nextTemplate, usingDefault: parsed === null, revision: nextRevision }, nextRevision);
 }

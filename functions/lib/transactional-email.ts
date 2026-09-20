@@ -3,6 +3,7 @@ import {
   DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
   NoxSpotResolutionTemplateSchema,
   renderResolutionTemplate,
+  resolutionEmailFontStacks,
 } from "./noxspot-resolution-template.js";
 
 const Email = z.string().trim().email().max(254);
@@ -143,16 +144,19 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
       site_name: command.model.siteName,
       },
     );
+    const appearance = presentation.appearance;
+    const fonts = resolutionEmailFontStacks(appearance.fontPreset);
+    const buttonTextColor = contrastingTextColor(appearance.accentColor);
     const action = command.model.responseUrl
       ? `\n\n${presentation.reopenText}\n${command.model.responseUrl}`
       : "";
     const actionHtml = command.model.responseUrl
-      ? `<p style="margin:0 0 22px;color:#44403c;font-size:16px;line-height:1.6">${escapeHtml(presentation.reopenText)}</p><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td bgcolor="#6d28d9" style="border-radius:10px"><a href="${escapeHtml(command.model.responseUrl)}" style="display:inline-block;background:#6d28d9;border:1px solid #6d28d9;border-radius:10px;color:#ffffff;font-size:15px;font-weight:700;line-height:20px;padding:13px 20px;text-decoration:none">${escapeHtml(presentation.buttonLabel)}</a></td></tr></table>`
+      ? `<p style="margin:0 0 22px;color:${appearance.textColor};font-size:16px;line-height:1.6">${escapeHtml(presentation.reopenText)}</p><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td bgcolor="${appearance.accentColor}" style="border-radius:10px"><a href="${escapeHtml(command.model.responseUrl)}" style="display:inline-block;background:${appearance.accentColor};border:1px solid ${appearance.accentColor};border-radius:10px;color:${buttonTextColor};font-family:${fonts.body};font-size:15px;font-weight:700;line-height:20px;padding:13px 20px;text-decoration:none">${escapeHtml(presentation.buttonLabel)}</a></td></tr></table>`
       : "";
     const greeting = command.model.reporterName ? `Hi ${command.model.reporterName},\n\n` : "";
     const greetingHtml = command.model.reporterName ? `<p>Hi ${escapeHtml(command.model.reporterName)},</p>` : "";
     return {
-      from: `NoxSpot <${from}>`,
+      from: `${presentation.senderName} <${from}>`,
       replyTo: presentation.replyTo,
       subject: presentation.subject,
       text: `${greeting}${presentation.acknowledgement}\n\n${summary}${action}\n\n${presentation.closing}`,
@@ -161,6 +165,8 @@ function render(command: TransactionalEmailCommand, env: EmailEnvironment) {
         command.model.siteName,
         `${greetingHtml}<p>${escapeHtml(presentation.acknowledgement)}</p>${paragraphs(summary)}${actionHtml}<p style="margin:28px 0 0">${escapeHtml(presentation.closing)}</p>`,
         presentation.replyTo,
+        appearance,
+        fonts,
       ),
       stream: "noxspot-resolutions",
       tag: "noxspot-resolution",
@@ -198,12 +204,31 @@ function layout(heading: string, body: string): string {
   return `<main style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#292524"><h1 style="font-size:24px">${escapeHtml(heading)}</h1>${body}</main>`;
 }
 
-function resolutionLayout(heading: string, siteName: string, body: string, replyTo: string | null): string {
+function resolutionLayout(
+  heading: string,
+  siteName: string,
+  body: string,
+  replyTo: string | null,
+  appearance: {
+    accentColor: string;
+    backgroundColor: string;
+    surfaceColor: string;
+    textColor: string;
+    mutedColor: string;
+  },
+  fonts: { heading: string; body: string },
+): string {
   const escapedSiteName = escapeHtml(siteName);
   const support = replyTo
-    ? ` Reply to this email at <a href="mailto:${escapeHtml(replyTo)}" style="color:#57534e;text-decoration:underline">${escapeHtml(replyTo)}</a> if you need help.`
+    ? ` Reply to this email at <a href="mailto:${escapeHtml(replyTo)}" style="color:${appearance.mutedColor};text-decoration:underline">${escapeHtml(replyTo)}</a> if you need help.`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(heading)}</title></head><body style="margin:0;background:#f5f3ff;color:#292524"><div style="display:none;max-height:0;overflow:hidden;opacity:0">An update about the issue you reported to ${escapedSiteName}.</div><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;background:#f5f3ff"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td style="padding:0 6px 18px;color:#5b21b6;font-family:Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.3px">NoxSpot <span style="color:#78716c;font-size:13px;font-weight:500;letter-spacing:0">for ${escapedSiteName}</span></td></tr><tr><td style="background:#ffffff;border:1px solid #e7e5e4;border-radius:16px;padding:36px 38px;box-shadow:0 8px 28px rgba(41,37,36,.06);font-family:Arial,sans-serif"><div style="color:#7c3aed;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Issue update</div><h1 style="margin:10px 0 24px;color:#1c1917;font-size:27px;line-height:1.25;letter-spacing:-.5px">${escapeHtml(heading)}</h1><div style="color:#44403c;font-size:16px;line-height:1.65">${body}</div></td></tr><tr><td style="padding:20px 8px 0;color:#78716c;font-family:Arial,sans-serif;font-size:12px;line-height:1.55">You received this transactional email because you asked to be notified when your ${escapedSiteName} report was resolved.${support}<br>Sent by NoxSpot for ${escapedSiteName}.</td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(heading)}</title></head><body style="margin:0;background:${appearance.backgroundColor};color:${appearance.textColor};font-family:${fonts.body}"><div style="display:none;max-height:0;overflow:hidden;opacity:0">An update about the issue you reported to ${escapedSiteName}.</div><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;background:${appearance.backgroundColor}"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td style="padding:0 6px 18px;color:${appearance.accentColor};font-family:${fonts.heading};font-size:20px;font-weight:800;letter-spacing:-.3px">${escapedSiteName} <span style="color:${appearance.mutedColor};font-family:${fonts.body};font-size:13px;font-weight:500;letter-spacing:0">via NoxSpot</span></td></tr><tr><td style="background:${appearance.surfaceColor};border:2px solid ${appearance.textColor};border-radius:12px;padding:36px 38px;box-shadow:4px 4px 0 ${appearance.accentColor};font-family:${fonts.body}"><div style="color:${appearance.accentColor};font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Issue update</div><h1 style="margin:10px 0 24px;color:${appearance.textColor};font-family:${fonts.heading};font-size:27px;line-height:1.25;letter-spacing:-.5px">${escapeHtml(heading)}</h1><div style="color:${appearance.textColor};font-size:16px;line-height:1.65">${body}</div></td></tr><tr><td style="padding:20px 8px 0;color:${appearance.mutedColor};font-family:${fonts.body};font-size:12px;line-height:1.55">You received this transactional email because you asked to be notified when your ${escapedSiteName} report was resolved.${support}<br>Sent by NoxSpot for ${escapedSiteName}.</td></tr></table></td></tr></table></body></html>`;
+}
+
+function contrastingTextColor(hex: string): "#000000" | "#FFFFFF" {
+  const [red, green, blue] = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return luminance >= 150 ? "#000000" : "#FFFFFF";
 }
 
 function paragraphs(value: string): string {
