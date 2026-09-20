@@ -48,6 +48,8 @@ describe("developer documentation", () => {
     expect(html).toContain("NoxSpot.identify({");
     expect(html).toContain("NoxSpot.identify(null)");
     expect(html).toContain("getReporter");
+    expect(html).toContain("avatarUrl");
+    expect(html).toContain("profile-picture URL");
     expect(guide).toContain("anonymous-by-default install snippet");
     expect(guide).toContain("Set `notifyOnResolution: true` only when the host has already obtained consent");
   });

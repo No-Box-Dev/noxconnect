@@ -53,7 +53,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         ORDER BY created_at DESC LIMIT 1000`,
     ).bind(...projectBinds),
     db.prepare(
-      `SELECT id, repo, issue_number, status, resolution_summary, resolved_at, resolved_by,
+      `SELECT id, repo, issue_number, reporter_name, reporter_avatar_url, status, resolution_summary, resolved_at, resolved_by,
               notification_consent, notification_status, notification_last_error,
               notification_attempts, last_notified_at
          FROM spot_reports
@@ -115,7 +115,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       closedAt: issue.closed_at,
       url: issue.html_url,
       description: detail?.description ?? null,
-      submittedBy: detail?.submittedBy ?? null,
+      submittedBy: report?.reporter_name ?? detail?.submittedBy ?? null,
+      reporterAvatarUrl: report?.reporter_avatar_url ?? null,
       reportStatus: String(report?.status ?? (issue.state === "closed" ? "resolved" : "open")),
       resolutionSummary: report?.resolution_summary ?? null,
       resolvedAt: report?.resolved_at ?? issue.closed_at ?? null,

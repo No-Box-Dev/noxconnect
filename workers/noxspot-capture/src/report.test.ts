@@ -21,12 +21,14 @@ describe("capture validation", () => {
       title: "Broken button",
       reporter: " Ada ",
       reporterEmail: "ada@example.com",
+      reporterAvatarUrl: "https://images.example/ada.png#profile",
       notifyOnResolution: true,
       blockValues: { impact: "Checkout blocked" },
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.params.reporter).toBe("Ada");
+    expect(result.params.reporterAvatarUrl).toBe("https://images.example/ada.png");
     expect(result.params.notifyOnResolution).toBe(true);
     expect(result.params.blockValues).toEqual({ impact: "Checkout blocked" });
   });
@@ -39,6 +41,12 @@ describe("capture validation", () => {
   it("requires an email when resolution notifications are requested", () => {
     expect(validateReportInput({ siteId: "site-1", title: "Broken", notifyOnResolution: true }))
       .toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("accepts only bounded HTTPS reporter avatars without embedded credentials", () => {
+    expect(validateReportInput({ siteId: "site-1", title: "Bug", reporterAvatarUrl: "http://images.example/ada.png" }).ok).toBe(false);
+    expect(validateReportInput({ siteId: "site-1", title: "Bug", reporterAvatarUrl: "https://user:secret@images.example/ada.png" }).ok).toBe(false);
+    expect(validateReportInput({ siteId: "site-1", title: "Bug", reporterAvatarUrl: `https://images.example/${"x".repeat(2048)}` }).ok).toBe(false);
   });
 
   it("rejects unsafe or oversized attempt IDs", () => {
@@ -54,6 +62,7 @@ describe("capture validation", () => {
       description: null,
       reporter: null,
       reporterEmail: null,
+      reporterAvatarUrl: null,
       notifyOnResolution: false,
       environment: "Production",
       screenshot: null,

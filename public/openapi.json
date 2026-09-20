@@ -84,7 +84,7 @@
       "post": {
         "operationId": "submitPublicNoxSpotReport",
         "summary": "Submit a public NoxSpot capture",
-        "description": "Submit feedback from an origin-bound widget. NoxSpot cannot inspect a host website's login session: the host must explicitly pass its signed-in user through NoxSpot.identify(...) or NoxSpot.init({ getReporter }). reporterEmail is retained for resolution mail only when notifyOnResolution is true.",
+        "description": "Submit feedback from an origin-bound widget. NoxSpot cannot inspect a host website's login session: the host must explicitly pass its signed-in user through NoxSpot.identify(...) or NoxSpot.init({ getReporter }). reporterEmail is retained for resolution mail only when notifyOnResolution is true. An optional HTTPS reporterAvatarUrl is retained as private report metadata and is never copied into GitHub.",
         "security": [],
         "servers": [
           {
@@ -9200,6 +9200,16 @@
             "format": "email",
             "maxLength": 254,
             "description": "Reporter email supplied explicitly by the host or reporter. It is never inferred from the website session and is not copied into GitHub."
+          },
+          "reporterAvatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://",
+            "description": "Optional signed-in reporter profile picture supplied explicitly by the host. It is private report metadata and is never copied into GitHub."
           },
           "notifyOnResolution": {
             "type": "boolean",

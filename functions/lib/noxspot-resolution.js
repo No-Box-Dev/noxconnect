@@ -16,14 +16,15 @@ export async function storeNoxSpotReport(env, capture, issue) {
     env.DB.prepare(
       `INSERT INTO spot_reports
          (id, org_id, project_id, site_id, repo, issue_number, issue_url, title,
-          reporter_name, reporter_email_encrypted, reporter_email_hash,
+          reporter_name, reporter_avatar_url, reporter_email_encrypted, reporter_email_hash,
           notification_consent, notification_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          issue_number = excluded.issue_number,
          issue_url = excluded.issue_url,
          title = excluded.title,
          reporter_name = COALESCE(spot_reports.reporter_name, excluded.reporter_name),
+         reporter_avatar_url = COALESCE(excluded.reporter_avatar_url, spot_reports.reporter_avatar_url),
          reporter_email_encrypted = COALESCE(spot_reports.reporter_email_encrypted, excluded.reporter_email_encrypted),
          reporter_email_hash = COALESCE(spot_reports.reporter_email_hash, excluded.reporter_email_hash),
          notification_consent = MAX(spot_reports.notification_consent, excluded.notification_consent),
@@ -38,6 +39,7 @@ export async function storeNoxSpotReport(env, capture, issue) {
       issue.html_url ?? null,
       capture.title,
       capture.reporterGithubLogin || capture.reporter || null,
+      capture.reporterAvatarUrl || null,
       encryptedEmail,
       emailHash,
       consent ? 1 : 0,

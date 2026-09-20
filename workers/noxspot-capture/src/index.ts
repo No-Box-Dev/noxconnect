@@ -222,6 +222,7 @@ async function submitErrors(context: AppContext) {
       description: errorMessage,
       reporter: null,
       reporterEmail: null,
+      reporterAvatarUrl: null,
       notifyOnResolution: false,
       environment,
       screenshot: null,

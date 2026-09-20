@@ -30,14 +30,16 @@ describe("NoxSpot report resolution", () => {
     await storeNoxSpotReport(env, {
       captureId: "capture-private", orgId: 7, projectId: "project-1", siteId: "site-1",
       repo: "web", title: "Private contact", reporter: "Ada",
+      reporterAvatarUrl: "https://images.example/ada.png",
       reporterEmail: "Ada@Example.com", notifyOnResolution: true,
     }, { number: 42, html_url: "https://github.com/acme/web/issues/42" });
 
     const values = statements[0].binds;
-    expect(values[9]).toMatch(/^[a-f0-9]+:[a-f0-9]+$/);
-    expect(values[9]).not.toContain("example.com");
-    expect(values[10]).toMatch(/^[a-f0-9]{64}$/);
-    expect(values[11]).toBe(1);
+    expect(values[9]).toBe("https://images.example/ada.png");
+    expect(values[10]).toMatch(/^[a-f0-9]+:[a-f0-9]+$/);
+    expect(values[10]).not.toContain("example.com");
+    expect(values[11]).toMatch(/^[a-f0-9]{64}$/);
+    expect(values[12]).toBe(1);
   });
 
   it("records a manual resolution and durably queues the opted-in email", async () => {
