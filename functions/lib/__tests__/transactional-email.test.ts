@@ -79,7 +79,7 @@ describe("NoxConnect transactional email", () => {
     expect(body.HtmlBody).toContain("Storefront <span");
     expect(body.HtmlBody).toContain("via NoxSpot");
     expect(body.HtmlBody).toContain("You received this transactional email because you asked to be notified");
-    expect(body.HtmlBody).toContain("background:#F5F3FF");
+    expect(body.HtmlBody).toContain("background-color:#F5F3FF");
     expect(body.HtmlBody).toContain("add more details or a screenshot if helpful");
     expect(body.HtmlBody).not.toContain("Thank you for reporting this issue");
     expect(body.TextBody).toContain("Reopen the ticket");
@@ -158,10 +158,14 @@ describe("NoxConnect transactional email", () => {
     });
     const body = JSON.parse(String(request.mock.calls[0][1]?.body));
     expect(body.From).toBe("Playnist <updates@noxhere.com>");
-    expect(body.HtmlBody).toContain("background:#FFFDEB");
+    expect(body.HtmlBody).toContain("background-color:#FFFDEB");
     expect(body.HtmlBody).toContain("color:#C62E07");
-    expect(body.HtmlBody).toContain('font-family:"HF Gesco Bold"');
-    expect(body.HtmlBody).toContain('font-family:"IBM Plex Sans"');
+    expect(body.HtmlBody).toContain("font-family:'HF Gesco Bold'");
+    expect(body.HtmlBody).toContain("font-family:'IBM Plex Sans'");
+    expect(body.HtmlBody).not.toContain('font-family:"');
+    expect(body.HtmlBody).toContain('width="600"');
+    expect(body.HtmlBody).toContain("color:#FFFFFF !important");
+    expect(body.HtmlBody).toContain("text-decoration:none !important");
   });
 
   it("rejects unbounded or unknown commands before contacting Postmark", async () => {
