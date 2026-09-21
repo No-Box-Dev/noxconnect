@@ -3,6 +3,7 @@ import {
   DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE,
   NoxSpotResolutionTemplateSchema,
   renderResolutionTemplate,
+  resolutionEmailFontStacks,
   resolutionTemplateFromWidgetConfig,
   resolutionTemplateRevision,
 } from "../noxspot-resolution-template.js";
@@ -60,5 +61,13 @@ describe("NoxSpot resolution templates", () => {
     const changed = await resolutionTemplateRevision({ ...DEFAULT_NOXSPOT_RESOLUTION_TEMPLATE, tone: "formal" });
     expect(first).toBe(same);
     expect(changed).not.toBe(first);
+  });
+
+  it("keeps every font preset safe for double-quoted inline styles", () => {
+    for (const preset of ["system", "playnist", "humanist", "editorial", "mono"]) {
+      const fonts = resolutionEmailFontStacks(preset);
+      expect(fonts.heading).not.toContain('"');
+      expect(fonts.body).not.toContain('"');
+    }
   });
 });

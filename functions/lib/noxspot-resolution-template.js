@@ -92,20 +92,22 @@ export function normalizeResolutionTemplate(template) {
 export function resolutionEmailFontStacks(preset) {
   return {
     playnist: {
-      heading: '"HF Gesco Bold", Georgia, "Times New Roman", serif',
-      body: '"IBM Plex Sans", Arial, Helvetica, sans-serif',
+      // Single quotes keep these stacks valid when they are interpolated into
+      // double-quoted HTML style attributes.
+      heading: "'HF Gesco Bold', Georgia, 'Times New Roman', serif",
+      body: "'IBM Plex Sans', Arial, Helvetica, sans-serif",
     },
     humanist: {
-      heading: '"Trebuchet MS", Arial, sans-serif',
-      body: '"Trebuchet MS", Arial, sans-serif',
+      heading: "'Trebuchet MS', Arial, sans-serif",
+      body: "'Trebuchet MS', Arial, sans-serif",
     },
     editorial: {
-      heading: 'Georgia, "Times New Roman", serif',
-      body: 'Georgia, "Times New Roman", serif',
+      heading: "Georgia, 'Times New Roman', serif",
+      body: "Georgia, 'Times New Roman', serif",
     },
     mono: {
-      heading: '"Courier New", Courier, monospace',
-      body: '"Courier New", Courier, monospace',
+      heading: "'Courier New', Courier, monospace",
+      body: "'Courier New', Courier, monospace",
     },
     system: {
       heading: 'Arial, Helvetica, sans-serif',
