@@ -203,5 +203,8 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
   await env.DB.prepare(
     "DELETE FROM cue_user_active_days WHERE period < date('now', '-62 days')",
   ).run();
+  await env.DB.prepare(
+    "DELETE FROM cue_error_receipts WHERE expires_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now')",
+  ).run();
   return { created, skipped, failed };
 }
