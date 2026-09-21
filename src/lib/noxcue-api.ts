@@ -42,7 +42,17 @@ export interface NoxCueMetricsResponse {
     firstSeenAt: string;
     lastSeenAt: string;
     occurrenceCount: number;
+    affectedUserCount: number;
     lastNotifiedAt: string | null;
+    groupingKind: "explicit" | "inferred";
+    sample: {
+      message?: string;
+      error?: { name?: string; message?: string; code?: string; status?: number; stack?: string };
+      context?: { release?: string; runtime?: string; url?: string };
+      url?: string;
+    } | null;
+    firstRelease: string | null;
+    lastRelease: string | null;
     status: "open" | "acknowledged" | "resolved";
     acknowledgedAt: string | null;
     acknowledgedBy: string | null;

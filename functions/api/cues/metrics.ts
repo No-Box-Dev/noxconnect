@@ -31,6 +31,18 @@ interface ActivityMetricRow {
   updated_at: string;
 }
 
+function parseErrorSample(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function onRequestGet(context: Ctx): Promise<Response> {
   const { orgId, projectId } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
@@ -89,7 +101,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     context.env.DB.prepare(
       `SELECT fingerprint, title, error_code, component, environment,
               first_seen_at, last_seen_at, occurrence_count, last_notified_at,
-              status, acknowledged_at, acknowledged_by, resolved_at, resolved_by
+              grouping_kind, sample_json, first_release, last_release,
+              status, acknowledged_at, acknowledged_by, resolved_at, resolved_by,
+              (SELECT COUNT(*) FROM cue_error_group_users affected
+                WHERE affected.source_id = cue_error_groups.source_id
+                  AND affected.fingerprint = cue_error_groups.fingerprint) AS affected_user_count
          FROM cue_error_groups
         WHERE source_id = ?
         ORDER BY last_seen_at DESC LIMIT 20`,
@@ -143,7 +159,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       firstSeenAt: row.first_seen_at,
       lastSeenAt: row.last_seen_at,
       occurrenceCount: row.occurrence_count,
+      affectedUserCount: Number(row.affected_user_count ?? 0),
       lastNotifiedAt: row.last_notified_at,
+      groupingKind: row.grouping_kind ?? "inferred",
+      sample: parseErrorSample(row.sample_json),
+      firstRelease: row.first_release ?? null,
+      lastRelease: row.last_release ?? null,
       status: row.status ?? "open",
       acknowledgedAt: row.acknowledged_at ?? null,
       acknowledgedBy: row.acknowledged_by ?? null,
