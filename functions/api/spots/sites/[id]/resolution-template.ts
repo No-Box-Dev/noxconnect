@@ -1,4 +1,5 @@
 import { getCtx, errorResponse } from "../../../../lib/db.js";
+import { ifMatchRevision, quotedEtag } from "../../../../lib/etag";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../../lib/nox-db";
 import { noxSpotAuditStatement } from "../../../../lib/noxspot-audit";
 import {
@@ -29,13 +30,8 @@ async function loadSite(context: Ctx) {
 function jsonWithRevision(body: unknown, revision: string, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ETag: `"${revision}"` },
+    headers: { "Content-Type": "application/json", ETag: quotedEtag(revision) },
   });
-}
-
-function ifMatch(request: Request) {
-  const value = request.headers.get("If-Match")?.trim();
-  return value?.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value || null;
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
@@ -58,7 +54,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   const { orgId, userLogin, isAdmin, auth } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin && auth?.type !== "api_token") return errorResponse("Admin or project API token required", 403);
-  const requestedRevision = ifMatch(context.request);
+  const requestedRevision = ifMatchRevision(context.request);
   if (!requestedRevision) return errorResponse("If-Match is required; fetch the template first", 428);
   let raw: unknown;
   try { raw = await context.request.json(); } catch { return errorResponse("Invalid JSON body", 400); }
