@@ -3732,7 +3732,7 @@
       },
       "post": {
         "operationId": "createFeature",
-        "summary": "Create a GitHub-backed feature",
+        "summary": "Create a feature",
         "requestBody": {
           "required": true,
           "content": {
@@ -3824,7 +3824,7 @@
         },
         "responses": {
           "200": {
-            "description": "Feature updated optimistically",
+            "description": "Feature updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -3886,7 +3886,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Feature closed optimistically",
+            "description": "Feature closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -9620,57 +9620,68 @@
       },
       "FeatureCreate": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "title"
         ],
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 200
           },
           "status": {
             "type": "string"
           },
+          "backlog": {
+            "type": "boolean"
+          },
           "owners": {
             "type": "array",
+            "maxItems": 20,
             "items": {
               "type": "string"
             }
           },
-          "specLinks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "backlog": {
-            "type": "boolean"
+          "plan": {
+            "type": "string",
+            "maxLength": 20000
           }
         }
       },
       "FeaturePatch": {
         "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "status": {
             "type": "string"
           },
+          "backlog": {
+            "type": "boolean"
+          },
           "owners": {
             "type": "array",
+            "maxItems": 20,
             "items": {
               "type": "string"
             }
           },
-          "specLinks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
+          "plan": {
+            "type": "string",
+            "maxLength": 20000
           },
-          "backlog": {
-            "type": "boolean"
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
           }
         }
       },

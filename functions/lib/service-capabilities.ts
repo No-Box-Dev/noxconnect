@@ -112,23 +112,21 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     name: "NoxTicket",
     kind: "product",
     focus: "Plan and organize delivery work",
-    description: "Turns GitHub issues into a feature backlog, workflow board, and connected specification system.",
-    requiredConnections: ["github"],
+    description: "Keeps a feature backlog, workflow board, and connected specification system.",
+    requiredConnections: [],
     optionalConnections: ["slack"],
     capabilities: [
-      { id: "features", name: "Features", description: "Create, prioritize, assign, move, and close product features backed by GitHub issues.", access: "member", requires: ["github"], operations: [
+      { id: "features", name: "Features", description: "Create, prioritize, assign, move, and close product features.", access: "member", operations: [
         { id: "list_features", method: "GET", path: "/api/v1/features", authentication: "member", description: "List the organization's feature backlog." },
-        { id: "create_feature", method: "POST", path: "/api/v1/features", authentication: "member", description: "Create a GitHub-backed feature." },
-        { id: "update_feature", method: "PATCH", path: "/api/v1/features/{number}", authentication: "member", description: "Update feature state, ownership, or metadata." },
-        { id: "assign_feature", method: "POST", path: "/api/v1/assign", authentication: "member", description: "Assign a feature's backing GitHub issue." },
-        { id: "set_feature_state", method: "POST", path: "/api/v1/issue-state", authentication: "member", description: "Open or close a feature's backing GitHub issue." },
+        { id: "create_feature", method: "POST", path: "/api/v1/features", authentication: "member", description: "Create a feature." },
+        { id: "update_feature", method: "PATCH", path: "/api/v1/features/{number}", authentication: "member", description: "Update, move, close, or reopen a feature." },
         { id: "close_feature", method: "DELETE", path: "/api/v1/features/{number}", authentication: "member", description: "Close a feature." },
       ] },
-      { id: "workflow", name: "Workflow", description: "Configure the stages used by the feature board.", access: "admin", requires: ["github"], operations: [
+      { id: "workflow", name: "Workflow", description: "Configure the stages used by the feature board.", access: "admin", operations: [
         { id: "get_ticket_config", method: "GET", path: "/api/v1/services/noxticket/config", authentication: "member", description: "Read the feature repository and workflow stages." },
         { id: "patch_ticket_config", method: "PATCH", path: "/api/v1/services/noxticket/config", authentication: "admin", description: "Update the feature repository or workflow stages with If-Match." },
       ] },
-      { id: "specs", name: "Specifications", description: "Create specifications, link them to features, and attach supporting files.", access: "member", requires: ["github"], operations: [
+      { id: "specs", name: "Specifications", description: "Create specifications, link them to features, and attach supporting files.", access: "member", operations: [
         { id: "list_specs", method: "GET", path: "/api/v1/specs", authentication: "member", description: "List specifications." },
         { id: "create_spec", method: "POST", path: "/api/v1/specs", authentication: "member", description: "Create a specification." },
         { id: "get_spec", method: "GET", path: "/api/v1/specs/{specId}", authentication: "member", description: "Read one specification." },
@@ -140,7 +138,7 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
         { id: "download_spec_attachment", method: "GET", path: "/api/v1/specs/{specId}/attachments/{attachmentId}", authentication: "member", description: "Download a specification attachment." },
         { id: "delete_spec_attachment", method: "DELETE", path: "/api/v1/specs/{specId}/attachments/{attachmentId}", authentication: "member", description: "Delete a specification attachment." },
       ] },
-      { id: "ticket_delivery", name: "Slack delivery", description: "Send feature and backlog activity to a chosen Slack destination.", access: "admin", requires: ["github", "slack"], operations: [
+      { id: "ticket_delivery", name: "Slack delivery", description: "Send feature and backlog activity to a chosen Slack destination.", access: "admin", requires: ["slack"], operations: [
         { id: "patch_ticket_route", method: "PATCH", path: "/api/v1/integrations/slack/routing", authentication: "admin", description: "Set the noxticket Slack route." },
         { id: "test_ticket_route", method: "POST", path: "/api/v1/integrations/slack/test", authentication: "admin", description: "Test the noxticket Slack route." },
       ] },
