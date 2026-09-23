@@ -137,13 +137,3 @@ export async function settingsRevision(raw: string | null): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
-
-export function quotedEtag(revision: string) {
-  return `"${revision}"`;
-}
-
-export function ifMatchRevision(request: Request) {
-  const value = request.headers.get("If-Match")?.trim();
-  if (!value) return null;
-  return value.startsWith("\"") && value.endsWith("\"") ? value.slice(1, -1) : value;
-}

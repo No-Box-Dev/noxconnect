@@ -1,7 +1,8 @@
 import { getCtx } from "../../../../lib/db.js";
 import { API_VERSION, requireV1Admin, requireV1Member, v1Error, v1Response } from "../../../../lib/api-v1";
 import { parseServiceId } from "../../../../lib/service-capabilities";
-import { applyServiceConfigPatch, ifMatchRevision, parseServiceConfigPatch, parseSettings, quotedEtag, serviceConfig, serviceConfigLinks, serviceConfigMetadata, settingsRevision } from "../../../../lib/service-config";
+import { ifMatchRevision, quotedEtag } from "../../../../lib/etag";
+import { applyServiceConfigPatch, parseServiceConfigPatch, parseSettings, serviceConfig, serviceConfigLinks, serviceConfigMetadata, settingsRevision } from "../../../../lib/service-config";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../../lib/nox-db";
 import { validateConfigPatchWithService, type ProductServiceEnvironment } from "../../../../lib/service-manifests";
 
@@ -14,14 +15,23 @@ interface Ctx {
 
 async function readSettings(context: Ctx) {
   const { orgId, projectId } = getCtx(context) as Ctx["data"];
-  const row = await getNoxDb(context.env).prepare(
-    projectId
-      ? "SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'"
-      : "SELECT data FROM config WHERE org_id = ? AND key = 'settings'",
-  ).bind(...(projectId ? [orgId, projectId] : [orgId])).first<{ data: string }>();
-  const raw = row?.data ?? null;
+  const db = getNoxDb(context.env);
+  const projectRow = projectId
+    ? await db.prepare("SELECT data FROM project_config WHERE org_id = ? AND project_id = ? AND key = 'settings'").bind(orgId, projectId).first<{ data: string }>()
+    : null;
+  // A project with no settings row of its own inherits the organization's, which
+  // is the same precedence getEnabledApps() applies. Reading it as empty instead
+  // would report every service as enabled and let the first project-level write
+  // silently re-enable services the organization had turned off.
+  const orgRow = projectId && projectRow
+    ? null
+    : await db.prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'").bind(orgId).first<{ data: string }>();
+  // `stored` is the row this scope actually owns; it drives the compare-and-swap.
+  // `raw` is what the scope resolves to once inheritance is applied.
+  const stored = (projectId ? projectRow?.data : orgRow?.data) ?? null;
+  const raw = projectRow?.data ?? orgRow?.data ?? null;
   try {
-    return { raw, settings: parseSettings(raw), revision: await settingsRevision(raw) };
+    return { stored, raw, settings: parseSettings(raw), revision: await settingsRevision(raw) };
   } catch (error) {
     console.error(JSON.stringify({ message: "Corrupt service settings", orgId, error: error instanceof Error ? error.message : String(error) }));
     return { response: v1Error("corrupt_settings", "Corrupt settings row — repair before continuing", 500) };
@@ -114,7 +124,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
   const raw = JSON.stringify(next);
   const db = getNoxDb(context.env);
   const result = context.data.projectId
-    ? current.raw === null
+    ? current.stored === null
       ? await db.prepare(
         `INSERT OR IGNORE INTO project_config (org_id, project_id, key, data, updated_at)
          VALUES (?, ?, 'settings', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
@@ -122,8 +132,8 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       : await db.prepare(
         `UPDATE project_config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
           WHERE org_id = ? AND project_id = ? AND key = 'settings' AND data = ?`,
-      ).bind(raw, context.data.orgId, context.data.projectId, current.raw).run()
-    : current.raw === null
+      ).bind(raw, context.data.orgId, context.data.projectId, current.stored).run()
+    : current.stored === null
       ? await db.prepare(
         `INSERT OR IGNORE INTO config (org_id, key, data, updated_at)
          VALUES (?, 'settings', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
@@ -131,7 +141,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       : await db.prepare(
         `UPDATE config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
           WHERE org_id = ? AND key = 'settings' AND data = ?`,
-      ).bind(raw, context.data.orgId, current.raw).run();
+      ).bind(raw, context.data.orgId, current.stored).run();
   if ((result.meta?.changes ?? 0) !== 1) {
     return v1Error("revision_conflict", "Settings changed concurrently; fetch config and retry", 412);
   }
