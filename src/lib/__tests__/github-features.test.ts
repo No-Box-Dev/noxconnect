@@ -48,89 +48,41 @@ describe("withStatusTransition", () => {
   });
 });
 
+const row = (overrides: Record<string, unknown> = {}) => ({
+  number: 5, title: "X", status: "todo", backlog: false, state: "open", plan: "", owners: [],
+  statusHistory: [{ status: "todo", at: "2026-01-01T00:00:00Z" }],
+  createdBy: "alice", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z", closedAt: null,
+  ...overrides,
+});
+
 describe("fetchFeaturesFromD1", () => {
-  it("filters out rows missing 'noxticket' OR 'feature' labels", async () => {
-    mockGet.mockResolvedValue([
-      { number: 1, title: "ok", body: "", assignees: [], labels: [{ name: "noxticket" }, { name: "feature" }], html_url: "u" },
-      { number: 2, title: "no-noxticket", body: "", assignees: [], labels: [{ name: "feature" }], html_url: "u" },
-      { number: 3, title: "no-feature", body: "", assignees: [], labels: [{ name: "noxticket" }], html_url: "u" },
-    ]);
-    const result = await fetchFeaturesFromD1();
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(1);
-  });
-
-  it("derives status='todo' from labels with no status: prefix", async () => {
-    mockGet.mockResolvedValue([
-      { number: 1, title: "x", body: "", assignees: [], labels: [{ name: "noxticket" }, { name: "feature" }], html_url: "u" },
-    ]);
-    const result = await fetchFeaturesFromD1();
-    expect(result[0].status).toBe("todo");
-  });
-
-  it("derives status from 'status:staging' label", async () => {
-    mockGet.mockResolvedValue([
-      {
-        number: 1, title: "x", body: "", assignees: [], html_url: "u",
-        labels: [{ name: "noxticket" }, { name: "feature" }, { name: "status:staging" }],
-      },
-    ]);
-    const result = await fetchFeaturesFromD1();
-    expect(result[0].status).toBe("staging");
-  });
-
-  it("parses metadata block in body for statusHistory", async () => {
-    // Feature bodies used to prefix a plan-text section before the metadata
-    // block; that concept is retired — issueToFeature no longer surfaces
-    // the body content on the wire. Metadata still comes through.
-    const body = `Plan content here\n\n<!-- noxticket:metadata\n${JSON.stringify({
+  it("maps NoxTicket features to the board shape", async () => {
+    mockGet.mockResolvedValue([row({ status: "staging", backlog: true, owners: ["alice"] })]);
+    const result = await fetchFeaturesFromD1("closed");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/features?state=closed");
+    expect(result).toEqual([{
+      id: 5, title: "X", status: "staging", backlog: true, owners: ["alice"], updatedAt: "2026-01-02T00:00:00Z",
       statusHistory: [{ status: "todo", timestamp: "2026-01-01T00:00:00Z" }],
-    })}\n-->`;
-    mockGet.mockResolvedValue([
-      {
-        number: 1, title: "x", body, assignees: [], html_url: "u",
-        labels: [{ name: "noxticket" }, { name: "feature" }],
-      },
-    ]);
-    const result = await fetchFeaturesFromD1();
-    expect(result[0].statusHistory).toEqual([{ status: "todo", timestamp: "2026-01-01T00:00:00Z" }]);
-  });
-
-  it("tolerates corrupt metadata block (treats as plain body)", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const body = `Body\n\n<!-- noxticket:metadata\nnot json\n-->`;
-    mockGet.mockResolvedValue([
-      {
-        number: 1, title: "x", body, assignees: [], html_url: "u",
-        labels: [{ name: "noxticket" }, { name: "feature" }],
-      },
-    ]);
-    await fetchFeaturesFromD1();
-    // Corrupt metadata falls through as plain body — but Feature.plan no
-    // longer exists on the wire, so just assert the warn fired.
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    }]);
   });
 });
 
 describe("createFeature", () => {
   it("POSTs to /api/v1/features with the requested fields", async () => {
-    mockPost.mockResolvedValue({
-      id: 5, title: "Add login", status: "todo", owners: [],
-    });
+    mockPost.mockResolvedValue(row({ title: "Add login" }));
     const result = await createFeature("org", "Add login", { status: "todo" });
     expect(mockPost).toHaveBeenCalledWith("/api/v1/features", {
-      title: "Add login", status: "todo", owners: [],
+      title: "Add login", status: "todo", owners: [], backlog: false,
     });
     expect(result.id).toBe(5);
     expect(result.title).toBe("Add login");
   });
 
-  it("forwards owners when provided (no plan field — retired)", async () => {
-    mockPost.mockResolvedValue({ id: 5, title: "X", status: "staging", owners: ["alice"] });
-    await createFeature("org", "X", { status: "staging", owners: ["alice"] });
+  it("forwards owners and backlog when provided", async () => {
+    mockPost.mockResolvedValue(row({ status: "staging", owners: ["alice"], backlog: true }));
+    await createFeature("org", "X", { status: "staging", owners: ["alice"], backlog: true });
     expect(mockPost).toHaveBeenCalledWith("/api/v1/features", {
-      title: "X", status: "staging", owners: ["alice"],
+      title: "X", status: "staging", owners: ["alice"], backlog: true,
     });
   });
 
@@ -141,27 +93,15 @@ describe("createFeature", () => {
 });
 
 describe("updateFeature", () => {
-  it("PATCHes /api/v1/features/:id with title, status, owners (no plan)", async () => {
-    mockPatch.mockResolvedValue({
-      id: 5, title: "X", status: "ready", owners: ["alice"],
-    });
+  it("PATCHes /api/v1/features/:id with only fields NoxTicket accepts", async () => {
+    mockPatch.mockResolvedValue(row({ status: "ready", owners: ["alice"] }));
     const result = await updateFeature("org", {
-      id: 5, title: "X", status: "ready", owners: ["alice"],
+      id: 5, title: "X", status: "ready", owners: ["alice"], specLinks: [],
     });
     expect(mockPatch).toHaveBeenCalledWith("/api/v1/features/5", {
       title: "X", status: "ready", owners: ["alice"], backlog: false,
-      specLinks: [],
     });
-    expect(result.id).toBe(5);
-  });
-
-  it("always sends specLinks so a cleared list patches through", async () => {
-    mockPatch.mockResolvedValue({ id: 5, title: "X", status: "todo", owners: [] });
-    await updateFeature("org", { id: 5, title: "X", status: "todo", owners: [] });
-    expect(mockPatch).toHaveBeenCalledWith("/api/v1/features/5", {
-      title: "X", status: "todo", owners: [], backlog: false,
-      specLinks: [],
-    });
+    expect(result.status).toBe("ready");
   });
 
   it("propagates the error when the API helper rejects", async () => {

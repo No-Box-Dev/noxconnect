@@ -161,9 +161,9 @@ describe("Nox service capabilities API", () => {
     expect(body.state).toBe("blocked");
     expect(body.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "service_runtime", state: "fail", required: true, detail: "snapshot" }),
-      expect.objectContaining({ id: "github_connection", state: "pass", required: true }),
       expect.objectContaining({ id: "slack_connection", state: "fail", required: false }),
     ]));
+    expect(body.checks.map((check: { id: string }) => check.id)).not.toContain("github_connection");
   });
 
   it("uses a valid service-owned manifest and exposes binding health", async () => {

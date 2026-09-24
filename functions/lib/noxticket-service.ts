@@ -23,10 +23,8 @@ export interface NoxTicketServiceBinding {
   getAttachment(scope: NoxTicketScope, specId: number, attachmentId: number): Promise<Response>;
   deleteAttachment(scope: NoxTicketScope, specId: number, attachmentId: number): Promise<NoxTicketServiceResult>;
   listFeatures(scope: NoxTicketScope, state?: string): Promise<NoxTicketServiceResult>;
-  prepareFeatureCreate(scope: NoxTicketScope, input: unknown): Promise<NoxTicketServiceResult>;
-  prepareFeatureUpdate(scope: NoxTicketScope, number: number, input: unknown): Promise<NoxTicketServiceResult>;
-  prepareFeatureClose(scope: NoxTicketScope, number: number): Promise<NoxTicketServiceResult>;
-  commitFeatureReceipt(scope: NoxTicketScope, projection: Record<string, unknown>, receipt: unknown): Promise<NoxTicketServiceResult>;
+  createFeature(scope: NoxTicketScope, input: unknown): Promise<NoxTicketServiceResult>;
+  updateFeature(scope: NoxTicketScope, number: number, input: unknown): Promise<NoxTicketServiceResult>;
   buildActivityMessage(input: unknown): Promise<{ text: string; blocks: unknown[]; client_msg_id?: string }>;
   buildTestMessage(orgLogin: string): Promise<{ text: string; blocks: unknown[] }>;
 }

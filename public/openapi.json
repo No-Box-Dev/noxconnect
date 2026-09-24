@@ -3711,6 +3711,9 @@
           },
           "429": {
             "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/V1Error"
           }
         },
         "tags": [
@@ -3732,7 +3735,7 @@
       },
       "post": {
         "operationId": "createFeature",
-        "summary": "Create a GitHub-backed feature",
+        "summary": "Create a feature",
         "requestBody": {
           "required": true,
           "content": {
@@ -3773,6 +3776,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
@@ -3824,7 +3830,7 @@
         },
         "responses": {
           "200": {
-            "description": "Feature updated optimistically",
+            "description": "Feature updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -3852,6 +3858,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
@@ -3886,7 +3895,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Feature closed optimistically",
+            "description": "Feature closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -3911,6 +3920,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
@@ -9620,57 +9632,68 @@
       },
       "FeatureCreate": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "title"
         ],
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 200
           },
           "status": {
             "type": "string"
           },
+          "backlog": {
+            "type": "boolean"
+          },
           "owners": {
             "type": "array",
+            "maxItems": 20,
             "items": {
               "type": "string"
             }
           },
-          "specLinks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "backlog": {
-            "type": "boolean"
+          "plan": {
+            "type": "string",
+            "maxLength": 20000
           }
         }
       },
       "FeaturePatch": {
         "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "status": {
             "type": "string"
           },
+          "backlog": {
+            "type": "boolean"
+          },
           "owners": {
             "type": "array",
+            "maxItems": 20,
             "items": {
               "type": "string"
             }
           },
-          "specLinks": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
+          "plan": {
+            "type": "string",
+            "maxLength": 20000
           },
-          "backlog": {
-            "type": "boolean"
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
           }
         }
       },
