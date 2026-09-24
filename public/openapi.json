@@ -3711,6 +3711,9 @@
           },
           "429": {
             "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/V1Error"
           }
         },
         "tags": [
@@ -3773,6 +3776,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
@@ -3853,6 +3859,9 @@
           },
           "429": {
             "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/V1Error"
           }
         },
         "tags": [
@@ -3911,6 +3920,9 @@
             "$ref": "#/components/responses/V1Error"
           },
           "429": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "503": {
             "$ref": "#/components/responses/V1Error"
           }
         },
