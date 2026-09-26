@@ -42,6 +42,29 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.129.0"
           command: d1 migrations apply noxconnect --remote
+
+      # NoxHere and external API clients call these Workers through service
+      # bindings. Deploy them from the same verified commit as Pages so the
+      # RPC interface cannot drift from the frontend and route handlers.
+      - name: Build private API gateway
+        run: npm run build:api-gateway
+
+      - name: Deploy connection capabilities Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.129.0"
+          command: deploy --config workers/connection-capabilities/wrangler.jsonc --env=""
+
+      - name: Deploy private API gateway
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.129.0"
+          command: deploy --config workers/api-gateway/wrangler.jsonc --env=""
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
