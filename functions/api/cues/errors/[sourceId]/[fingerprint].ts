@@ -18,6 +18,10 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
+  let fingerprint: string;
+  try { fingerprint = decodeURIComponent(context.params.fingerprint); }
+  catch { return errorResponse("Invalid error fingerprint", 400); }
+
   let raw: unknown;
   try { raw = await context.request.json(); }
   catch { return errorResponse("Invalid JSON body", 400); }
@@ -41,7 +45,7 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     parsed.data.status, userLogin,
     parsed.data.status, now,
     parsed.data.status, userLogin,
-    context.params.sourceId, context.params.fingerprint, orgId, orgId,
+    context.params.sourceId, fingerprint, orgId, orgId,
     ...(projectId ? [projectId] : []),
   ).run();
   if (!result.meta.changes) return errorResponse("NoxCue error incident not found", 404);
