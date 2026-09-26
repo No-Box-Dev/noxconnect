@@ -89,6 +89,8 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
       { id: "repositories", name: "Repositories", description: "Discover repositories and choose which projects Nox tracks.", access: "admin", requires: ["github"], operations: [
         { id: "list_repositories", method: "GET", path: "/api/v1/repos", authentication: "member", description: "List tracked or discovered repositories." },
         { id: "list_projects", method: "GET", path: "/api/v1/projects", authentication: "member", description: "List project scopes backed by GitHub repositories." },
+        { id: "create_project", method: "POST", path: "/api/v1/projects", authentication: "admin", description: "Create an empty project scope before attaching repositories and delivery connections." },
+        { id: "retrieve_project", method: "GET", path: "/api/v1/projects/{projectId}/retrieval", authentication: "member", description: "Search the selected project across first-party Nox services." },
         { id: "acknowledge_repositories", method: "POST", path: "/api/v1/repos/acknowledge", authentication: "admin", description: "Acknowledge newly discovered repositories." },
         { id: "set_project_archived", method: "POST", path: "/api/v1/projects/{projectId}/archive", authentication: "admin", description: "Stop tracking a project without deleting it." },
         { id: "restore_project", method: "DELETE", path: "/api/v1/projects/{projectId}/archive", authentication: "admin", description: "Resume tracking an eligible project." },
@@ -160,6 +162,7 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     capabilities: [
       { id: "current_work", name: "Current work", description: "See active pull requests, reviews, and issues across tracked repositories.", access: "member", requires: ["github"], operations: [
         { id: "get_feed", method: "GET", path: "/api/v1/feed", authentication: "member", description: "Read the normalized current-work feed." },
+        { id: "get_current_work_summary", method: "GET", path: "/api/v1/feed/current-summary", authentication: "member", description: "Read per-person pull-request and issue counts for the selected project." },
         { id: "list_issues", method: "GET", path: "/api/v1/issues", authentication: "member", description: "List tracked GitHub issues." },
         { id: "get_issue", method: "GET", path: "/api/v1/issues/{repo}/{number}", authentication: "member", description: "Read one tracked issue." },
         { id: "list_pull_requests", method: "GET", path: "/api/v1/prs", authentication: "member", description: "List tracked pull requests." },
@@ -260,6 +263,11 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
         { id: "list_cue_events", method: "GET", path: "/api/v1/cues/events", authentication: "admin", description: "List recent normalized events and delivery state." },
         { id: "get_cue_metrics", method: "GET", path: "/api/v1/cues/metrics", authentication: "admin", description: "Read daily customer-health metrics." },
         { id: "get_cue_project_overview", method: "GET", path: "/api/v1/cues/project-overview", authentication: "member", description: "Read the selected project's guest-safe customer-health overview." },
+        { id: "get_cue_project_dashboard", method: "GET", path: "/api/v1/projects/{projectId}/cue/dashboard", authentication: "member", description: "Read the selected project's customer-health dashboard." },
+        { id: "list_cue_project_stat_events", method: "GET", path: "/api/v1/projects/{projectId}/cue/stat-events", authentication: "member", description: "List recent accepted customer-health events for the selected project." },
+        { id: "list_cue_project_alerts", method: "GET", path: "/api/v1/projects/{projectId}/cue/alerts", authentication: "member", description: "List error incidents for the selected project." },
+        { id: "list_cue_project_alert_rules", method: "GET", path: "/api/v1/projects/{projectId}/cue/alert-rules", authentication: "member", description: "List effective alert rules for the selected project." },
+        { id: "update_cue_error_status", method: "PUT", path: "/api/v1/cues/errors/{sourceId}/{fingerprint}", authentication: "admin", description: "Acknowledge, resolve, or reopen an error incident." },
       ] },
       { id: "github_incidents", name: "GitHub incidents", description: "Route qualifying NoxCue incidents into the GitHub repository linked to each project.", access: "admin", requires: ["github"], operations: [
         { id: "get_cue_github_incident_settings", method: "GET", path: "/api/v1/cues/github-issues", authentication: "admin", description: "List project repository mappings, incident policy, and open incident counts." },

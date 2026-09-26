@@ -379,6 +379,7 @@ document.paths["/api/v1/auth/native/revoke"] = {
 // v1 error, cache, discovery, authentication, and service-gating contract.
 const clientRouteContracts = [
   ["/api/v1/auth/profile", [["get", "getIdentityProfile", "Read the signed-in GitHub identity and organizations", "member", false]]],
+  ["/api/v1/auth/logout", [["post", "revokeBrowserSession", "Revoke the current browser session", "member", false]]],
   ["/api/v1/app-activity", [["post", "recordAppActivity", "Record bounded first-party app activity", "member"]]],
   ["/api/v1/assign", [["post", "assignIssue", "Assign a tracked GitHub issue", "member"]]],
   ["/api/v1/bootstrap-status", [["get", "getBootstrapStatus", "Read initial GitHub synchronization status", "member"]]],
@@ -401,6 +402,12 @@ const clientRouteContracts = [
   ["/api/v1/noxfeed/release-notes-prompt", [["get", "getNoxFeedDefaultPrompt", "Read the server-owned NoxFeed release-notes prompt", "admin"]]],
   ["/api/v1/op-failures", [["get", "listOperationFailures", "List recent background-operation failures", "admin"]]],
   ["/api/v1/operator/usage", [["get", "getOperatorUsage", "Read platform-wide operator usage", "platform_operator", false]]],
+  ["/api/v1/projects", [["post", "createProject", "Create an empty project scope", "admin"]]],
+  ["/api/v1/projects/{projectId}/retrieval", [["get", "retrieveProject", "Search the selected project across Nox services", "member"]]],
+  ["/api/v1/projects/{projectId}/cue/dashboard", [["get", "getProjectCueDashboard", "Read the selected project's NoxCue dashboard", "member"]]],
+  ["/api/v1/projects/{projectId}/cue/stat-events", [["get", "listProjectCueStatEvents", "List accepted NoxCue events for the selected project", "member"]]],
+  ["/api/v1/projects/{projectId}/cue/alerts", [["get", "listProjectCueAlerts", "List NoxCue alerts for the selected project", "member"]]],
+  ["/api/v1/projects/{projectId}/cue/alert-rules", [["get", "listProjectCueAlertRules", "List effective NoxCue alert rules for the selected project", "member"]]],
   ["/api/v1/projects/{projectId}/backfill-prs", [["post", "backfillProjectPullRequests", "Queue bounded NoxFeed pull-request history", "admin"]]],
   ["/api/v1/recover-repo-history", [["post", "recoverRepositoryHistory", "Recover bounded repository history", "admin"]]],
   ["/api/v1/search", [["get", "searchWorkspace", "Search tracked work and people", "member"]]],
@@ -408,6 +415,7 @@ const clientRouteContracts = [
   ["/api/v1/slack/status", [["get", "getSlackStatus", "Read Slack connections and delivery health", "member"]]],
   ["/api/v1/slack/test", [["post", "testSlackDestination", "Send a test message to a Slack destination", "admin"]]],
   ["/api/v1/spots/project-overview", [["get", "getNoxSpotProjectOverview", "Read a guest-safe NoxSpot project overview", "member"]]],
+  ["/api/v1/feed/current-summary", [["get", "getCurrentWorkSummary", "Read per-person current-work counts for the selected project", "member"]]],
   ["/api/v1/sync", [
     ["get", "getSyncStatus", "Read GitHub synchronization freshness", "member"],
     ["post", "syncGitHubData", "Synchronize bounded GitHub data", "admin"],
@@ -427,6 +435,14 @@ for (const [path, methods] of clientRouteContracts) {
 }
 document.paths["/api/v1/cues/project-overview"].get["x-guest-access"] = "read";
 document.paths["/api/v1/spots/project-overview"].get["x-guest-access"] = "read";
+document.paths["/api/v1/auth/logout"].post["x-browser-session-only"] = true;
+document.paths["/api/v1/projects"].post.requestBody.required = true;
+document.paths["/api/v1/projects"].post.responses["201"] ??= document.paths["/api/v1/projects"].post.responses["200"];
+delete document.paths["/api/v1/projects"].post.responses["200"];
+document.paths["/api/v1/feed/current-summary"].get.tags = ["NoxFeed"];
+for (const path of ["dashboard", "stat-events", "alerts", "alert-rules"]) {
+  document.paths[`/api/v1/projects/{projectId}/cue/${path}`].get.tags = ["NoxCue"];
+}
 
 document.paths["/api/v1/cues/github-issues"] = {
   get: {
@@ -720,11 +736,11 @@ function firstPartyClientOperation(operationId, summary, role, organization, met
 function serviceTag(path) {
   const compatibilityPath = compatibilityApiPath(path);
   if (/^\/api\/(?:features|specs|assign|issue-state)(?:\/|$)/.test(compatibilityPath)) return "NoxTicket";
-  if (path === "/api/v1/feed"
+  if (/^\/api\/v1\/feed(?:\/|$)/.test(path)
       || /^\/api\/(?:issues|prs|events|engineer-activity|engineer-stats|search|llm-settings|noxfeed)(?:\/|$)/.test(compatibilityPath)
       || /^\/api\/github\/(?:comments|details)$/.test(compatibilityPath)) return "NoxFeed";
   if (compatibilityPath.startsWith("/api/spots")) return "NoxSpot";
-  if (compatibilityPath.startsWith("/api/cues")) return "NoxCue";
+  if (compatibilityPath.startsWith("/api/cues") || /^\/api\/v1\/projects\/[^/]+\/cue(?:\/|$)/.test(path)) return "NoxCue";
   return "NoxConnect";
 }
 

@@ -176,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     const csrf = document.cookie.split(";").map((value) => value.trim()).find((value) => value.startsWith("nox_csrf="))?.slice(9);
-    void fetch("/api/auth/logout", {
+    void fetch("/api/v1/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: csrf ? { "X-CSRF-Token": decodeURIComponent(csrf) } : {},

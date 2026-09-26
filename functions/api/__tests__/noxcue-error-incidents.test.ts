@@ -19,6 +19,12 @@ function context(status: string, isAdmin = true) {
   };
 }
 
+function contextWithFingerprint(status: string, fingerprint: string) {
+  const fixture = context(status);
+  fixture.context.params.fingerprint = fingerprint;
+  return fixture;
+}
+
 describe("NoxCue explicit error incident state", () => {
   it("records a human acknowledgement without changing the detection", async () => {
     const fixture = context("acknowledged");
@@ -32,5 +38,21 @@ describe("NoxCue explicit error incident state", () => {
   it("rejects invalid state and non-admin mutation", async () => {
     expect((await onRequestPut(context("fixed").context as never)).status).toBe(400);
     expect((await onRequestPut(context("resolved", false).context as never)).status).toBe(403);
+  });
+
+  it("decodes slash-delimited fingerprints passed through a path segment", async () => {
+    const fixture = contextWithFingerprint("resolved", "error.occurred%2Fbrowser.fetch%2Fhttp_500");
+
+    const response = await onRequestPut(fixture.context as never);
+
+    expect(response.status).toBe(200);
+    expect(fixture.writes[0]?.binds).toContain("error.occurred/browser.fetch/http_500");
+  });
+
+  it("rejects malformed encoded fingerprints", async () => {
+    const fixture = contextWithFingerprint("resolved", "error%2");
+
+    expect((await onRequestPut(fixture.context as never)).status).toBe(400);
+    expect(fixture.writes).toHaveLength(0);
   });
 });

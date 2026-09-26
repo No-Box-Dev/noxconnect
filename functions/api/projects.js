@@ -1,6 +1,9 @@
 import { getCtx, jsonResponse, errorResponse } from "../lib/db";
 import { getInstallationToken, signAppJwt } from "../lib/github-app";
 import { setInstallationRepos, upsertInstallation } from "../lib/gh-mirror";
+import { parseAppSettings } from "../lib/apps.js";
+
+const MAX_PROJECT_NAME_LENGTH = 100;
 
 // GET /api/projects — list projects (narrator scope) for this org.
 //
@@ -47,6 +50,53 @@ export async function onRequestGet(context) {
   }
   const allowed = new Set(Object.keys(auth?.guestAccess?.projects ?? {}));
   return jsonResponse({ projects: projects.filter((project) => allowed.has(project.id)) });
+}
+
+// POST /api/projects — create an empty project. Repository and delivery
+// connections can be attached later through the normal NoxConnect APIs.
+export async function onRequestPost(context) {
+  const { orgLogin, orgId, isAdmin } = getCtx(context);
+  if (!orgLogin || !orgId) return errorResponse("Missing organization context", 400);
+  if (!isAdmin) return errorResponse("Admin access required", 403);
+
+  let body;
+  try { body = await context.request.json(); }
+  catch { return errorResponse("Request body must be valid JSON", 400); }
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+  if (!name || name.length > MAX_PROJECT_NAME_LENGTH) {
+    return errorResponse(`Project name must be between 1 and ${MAX_PROJECT_NAME_LENGTH} characters`, 422);
+  }
+
+  const duplicate = await context.env.DB.prepare(
+    "SELECT id FROM projects WHERE org_id = ? AND name = ? COLLATE NOCASE AND archived = 0 LIMIT 1",
+  ).bind(orgId, name).first();
+  if (duplicate) return errorResponse("A project with this name already exists", 409);
+
+  const slug = name.toLowerCase().normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "project";
+  const id = `proj_${orgLogin.toLowerCase()}_${slug}_${crypto.randomUUID().slice(0, 8)}`;
+  await context.env.DB.batch([
+    context.env.DB.prepare(
+      `INSERT INTO projects (id, name, slug, org, repo, owner_id, org_id, narrator_enabled, archived, updated_at)
+       VALUES (?, ?, ?, ?, NULL, ?, ?, 1, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
+    ).bind(id, name, slug, orgLogin, orgLogin, orgId),
+    context.env.DB.prepare(
+      `INSERT INTO project_routing_settings (org_id, project_id, enabled, updated_at)
+       VALUES (?, ?, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
+    ).bind(orgId, id),
+  ]);
+  const settings = await context.env.DB.prepare(
+    "SELECT data FROM config WHERE org_id = ? AND key = 'settings'",
+  ).bind(orgId).first();
+  const enabledApps = parseAppSettings(settings?.data);
+  return jsonResponse({ project: {
+    id, name, slug, org: orgLogin, repo: null, description: null,
+    narrator_enabled: 1, routing_enabled: 1, archived: 0,
+    enabled_services: Object.entries(enabledApps).flatMap(([service, enabled]) => enabled ? [service] : []),
+  } }, 201);
 }
 
 // If `orgs.installation_id` is set but no installations row exists yet
