@@ -12,7 +12,7 @@ export async function fetchRateLimit(): Promise<RateLimitInfo> {
 }
 
 export async function fetchUser() {
-  const profile = await apiGet<{ user: { login: string; avatar_url: string; name: string | null } }>("/api/auth/profile?scope=user");
+  const profile = await apiGet<{ user: { login: string; avatar_url: string; name: string | null } }>("/api/v1/auth/profile?scope=user");
   return profile.user;
 }
 
@@ -24,7 +24,7 @@ export interface GitHubOrganization {
 }
 
 export async function fetchOrgs(): Promise<GitHubOrganization[]> {
-  const profile = await apiGet<{ orgs: GitHubOrganization[] }>("/api/auth/profile?scope=orgs");
+  const profile = await apiGet<{ orgs: GitHubOrganization[] }>("/api/v1/auth/profile?scope=orgs");
   return profile.orgs;
 }
 

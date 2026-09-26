@@ -59,8 +59,8 @@ describe("NoxConnect GitHub facade", () => {
     mockApiGet.mockResolvedValue({ user: { login: "ada" }, orgs: [{ login: "acme" }] });
     await expect(fetchUser()).resolves.toEqual({ login: "ada" });
     await expect(fetchOrgs()).resolves.toEqual([{ login: "acme" }]);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/auth/profile?scope=user");
-    expect(mockApiGet).toHaveBeenCalledWith("/api/auth/profile?scope=orgs");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/auth/profile?scope=user");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/auth/profile?scope=orgs");
   });
 
   it("loads rate limits and live issue/PR details through core APIs", async () => {

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import openapi from "../../../public/openapi.json";
@@ -56,6 +56,35 @@ describe("canonical OpenAPI routes", () => {
       }
     }
   });
+
+  it("does not add state-changing product routes outside the canonical v1 tree", () => {
+    const allowedIngress = new Set([
+      "postmark/webhook",
+      "review/claim",
+      "review/complete",
+      "review/token",
+      "slack/events",
+      "slack/interactions",
+      "slack/oauth/start",
+      "webhook",
+    ]);
+    const compatibilityMappings = new Set(["projects/routing/[id]"]);
+    const unversionedMutations = walkRouteFiles(join(functionsRoot, "api"))
+      .filter((file) => !file.startsWith(routeRoot) && !file.includes(`${join("api", "__tests__")}`))
+      .flatMap((file) => {
+        const source = readFileSync(file, "utf8");
+        if (!/\bonRequest(?:Post|Put|Patch|Delete)\b/.test(source)) return [];
+        return [relative(join(functionsRoot, "api"), file).replace(/\.(?:js|ts)$/, "").replace(/\/index$/, "")];
+      })
+      .filter((route) => !route.includes("/v1/") && !allowedIngress.has(route) && !compatibilityMappings.has(route))
+      .filter((route) => ![
+        join(routeRoot, `${route}.js`),
+        join(routeRoot, `${route}.ts`),
+        join(routeRoot, route, "index.js"),
+        join(routeRoot, route, "index.ts"),
+      ].some(existsSync));
+    expect(unversionedMutations).toEqual([]);
+  });
 });
 
 function walkRouteFiles(directory) {
@@ -67,6 +96,7 @@ function walkRouteFiles(directory) {
 
 function isNoxHereControlPath(path) {
   return path === "/api/v1/auth/profile"
+    || path === "/api/v1/auth/logout"
     || path.startsWith("/api/v1/auth/native/")
     || path === "/api/v1/api-tokens"
     || path.startsWith("/api/v1/api-tokens/");

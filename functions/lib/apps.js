@@ -50,12 +50,13 @@ export async function isAppEnabledForOwner(db, ownerId, appId, projectId = null)
 }
 
 export function appForApiPath(pathname) {
+  if (/^\/api\/v1\/projects\/[^/]+\/cue(?:\/|$)/.test(pathname)) return "noxcue";
   pathname = compatibilityApiPath(pathname);
   if (/^\/api\/config(?:\/|$)/.test(pathname)) return "noxconnect";
   if (/^\/api\/(?:features|specs|assign|issue-state)(?:\/|$)/.test(pathname)) {
     return "noxticket";
   }
-  if (pathname === "/api/v1/feed"
+  if (/^\/api\/v1\/feed(?:\/|$)/.test(pathname)
       || /^\/api\/(?:issues|prs|events|engineer-activity|engineer-stats|search|llm-settings|noxfeed)(?:\/|$)/.test(pathname)
       || /^\/api\/github\/(?:comments|details)$/.test(pathname)
       || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) {
