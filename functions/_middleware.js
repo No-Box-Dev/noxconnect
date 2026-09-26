@@ -155,7 +155,11 @@ export async function onRequest(context) {
     if (serviceProject && project.enabled !== 1) {
       return apiError(url, "project_not_enabled", "The project is not enabled for service operations", 409);
     }
-    const resource = await apiTokenProjectResource(
+    const requestApp = serviceForProjectRequest(url.pathname) || appForApiPath(url.pathname);
+    // NoxTicket owns its feature/spec rows in a separate D1 database. Looking
+    // those resource numbers up in NoxConnect's retired mirror produces false
+    // 404s before the service can enforce its own project scope.
+    const resource = requestApp === "noxticket" ? null : await apiTokenProjectResource(
       context.env.DB,
       url.pathname,
       auth.orgId,
