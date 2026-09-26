@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy NoxConnect
 
 on:
   workflow_run:
@@ -8,109 +8,72 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy
-  cancel-in-progress: true
+  group: deploy-noxconnect
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    # On workflow_run, only deploy if CI succeeded. workflow_dispatch has no
-    # parent run, so the conclusion check is skipped for manual triggers.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
     permissions:
       contents: read
       deployments: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
-        env:
-          # Public client ID for the NoxConnect GitHub App. Required at build
-          # time for the OAuth sign-in flow — without it, getOAuthLoginUrl()
-          # throws and the login button stays unusable. Stored as a repo
-          # variable (public, not a secret); the name mismatch with the Vite
-          # var is historical, so we map it here rather than rename in two
-          # places.
-          VITE_GITHUB_APP_CLIENT_ID: ${{ vars.VITE_GITHUB_CLIENT_ID }}
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.129.0"
-          command: d1 migrations apply noxconnect --remote
-
-      # NoxHere and external API clients call these Workers through service
-      # bindings. Deploy them from the same verified commit as Pages so the
-      # RPC interface cannot drift from the frontend and route handlers.
-      - name: Build private API gateway
-        run: npm run build:api-gateway
-
-      - name: Deploy connection capabilities Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.129.0"
-          command: deploy --config workers/connection-capabilities/wrangler.jsonc --env=""
-
-      - name: Deploy private API gateway
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.129.0"
-          command: deploy --config workers/api-gateway/wrangler.jsonc --env=""
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.129.0"
-          # app.noxhere.com is attached to the canonical NoxConnect project.
-          command: pages deploy dist --project-name=noxconnect --branch=main
-
-      # Deploy the sibling cron Worker. It imports from functions/lib/, so
-      # without this step Pages and cron drift out of sync — every change
-      # to shared code (sync logic, GitHub App helpers) has to land on both.
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: cron
-          wranglerVersion: "4.129.0"
-          command: deploy
-
-      # The anonymous capture plane is isolated from authenticated Pages
-      # Functions, but this repository owns and deploys it with the same CI gate.
-      - name: Install NoxSpot capture Worker dependencies
+      - name: Install NoxSpot dependencies
         working-directory: workers/noxspot-capture
         run: npm ci
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/noxspot-capture
-          wranglerVersion: "4.129.0"
-          command: deploy
-
-      - name: Verify public NoxSpot Worker ownership
-        shell: bash
+      - name: Build frontend and private gateway
         run: |
-          for attempt in {1..12}; do
-            health="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' https://api.noxspot.dev/health || true)"
-            if HEALTH_JSON="$health" node --input-type=module -e '
-              const health = JSON.parse(process.env.HEALTH_JSON || "{}");
-              if (health.service !== "noxspot-api" || health.owner !== "noxconnect" || health.plane !== "public-capture") process.exit(1);
-            '; then
-              echo "Verified api.noxspot.dev is owned by NoxConnect"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::api.noxspot.dev is not serving the NoxConnect capture Worker"
-          exit 1
+          npm run build
+          npm run build:api-gateway
+        env:
+          VITE_GITHUB_APP_CLIENT_ID: ${{ vars.VITE_GITHUB_CLIENT_ID }}
+
+      - name: Migrate staging
+        run: npx wrangler d1 migrations apply DB --config workers/api-gateway/wrangler.jsonc --env staging --remote
+      - name: Deploy staging capabilities
+        run: npx wrangler deploy --config workers/connection-capabilities/wrangler.jsonc --env staging --message "$DEPLOY_SHA"
+      - name: Deploy staging API gateway
+        run: npx wrangler deploy --config workers/api-gateway/wrangler.jsonc --env staging --var "BUILD_SHA:$DEPLOY_SHA" --message "$DEPLOY_SHA"
+      - name: Deploy staging orchestrator
+        run: npx wrangler deploy --config cron/wrangler.toml --env staging --message "$DEPLOY_SHA"
+      - name: Deploy staging NoxSpot
+        run: npx wrangler deploy --config workers/noxspot-capture/wrangler.jsonc --env staging --var "BUILD_SHA:$DEPLOY_SHA" --message "$DEPLOY_SHA"
+      - name: Smoke staging release
+        run: node scripts/smoke-deployment.mjs https://noxhere-staging.jasper-414.workers.dev https://noxspot-api-staging.jasper-414.workers.dev "$DEPLOY_SHA"
+
+      - name: Migrate production
+        run: npx wrangler d1 migrations apply DB --config workers/api-gateway/wrangler.jsonc --env="" --remote
+      - name: Deploy production capabilities
+        run: npx wrangler deploy --config workers/connection-capabilities/wrangler.jsonc --env="" --message "$DEPLOY_SHA"
+      - name: Deploy production API gateway
+        run: npx wrangler deploy --config workers/api-gateway/wrangler.jsonc --env="" --var "BUILD_SHA:$DEPLOY_SHA" --message "$DEPLOY_SHA"
+      - name: Deploy legacy Pages surface
+        run: npx wrangler pages deploy dist --project-name=noxconnect --branch=main
+      - name: Deploy production orchestrator
+        run: npx wrangler deploy --config cron/wrangler.toml --env="" --message "$DEPLOY_SHA"
+      - name: Deploy production NoxSpot
+        run: npx wrangler deploy --config workers/noxspot-capture/wrangler.jsonc --env="" --var "BUILD_SHA:$DEPLOY_SHA" --message "$DEPLOY_SHA"
+      - name: Smoke production release
+        run: node scripts/smoke-deployment.mjs https://app.noxhere.com https://api.noxspot.dev "$DEPLOY_SHA"
+      - name: Notify ecosystem verification
+        env:
+          GH_TOKEN: ${{ secrets.NOXHERE_DISPATCH_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            gh api repos/No-Box-Dev/NoxHere/dispatches --method POST -f event_type=nox-service-deployed -f 'client_payload[service]=noxconnect' -f "client_payload[sha]=$DEPLOY_SHA"
+          fi

@@ -48,6 +48,7 @@ describe("public capture Worker", () => {
       owner: "noxconnect",
       plane: "public-capture",
       contractVersion: 1,
+      buildSha: "development",
     });
   });
 

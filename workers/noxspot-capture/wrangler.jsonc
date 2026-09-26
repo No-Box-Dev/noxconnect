@@ -7,7 +7,8 @@
   "vars": {
     "ENVIRONMENT": "production",
     "PUBLIC_API_BASE_URL": "https://api.noxspot.dev",
-    "PUBLIC_ASSET_BASE_URL": "https://cdn.noxspot.dev"
+    "PUBLIC_ASSET_BASE_URL": "https://cdn.noxspot.dev",
+    "BUILD_SHA": "development"
   },
   "observability": {
     "enabled": true,
@@ -75,7 +76,8 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "PUBLIC_API_BASE_URL": "https://noxspot-api-staging.jasper-414.workers.dev",
-        "PUBLIC_ASSET_BASE_URL": "https://noxspot-api-staging.jasper-414.workers.dev"
+        "PUBLIC_ASSET_BASE_URL": "https://noxspot-api-staging.jasper-414.workers.dev",
+        "BUILD_SHA": "development"
       },
       "triggers": { "crons": [] },
       "d1_databases": [

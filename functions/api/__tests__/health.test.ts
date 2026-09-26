@@ -3,7 +3,7 @@ import { onRequestGet as live } from "../health/live";
 import { onRequestGet as ready } from "../health/ready";
 
 function service(ok = true): Fetcher {
-  return { fetch: vi.fn(async () => new Response(null, { status: ok ? 200 : 503 })) } as unknown as Fetcher;
+  return { fetch: vi.fn(async () => Response.json({ buildSha: "service-sha" }, { status: ok ? 200 : 503 })) } as unknown as Fetcher;
 }
 
 function context(options: { heartbeat?: { status: string; last_succeeded_at: string } | null; stale?: number; dbError?: boolean; serviceOk?: boolean } = {}) {
@@ -19,6 +19,7 @@ function context(options: { heartbeat?: { status: string; last_succeeded_at: str
   return {
     env: {
       DB: { prepare },
+      BUILD_SHA: "connect-sha",
       NOXTICKET_SERVICE: service(options.serviceOk ?? true),
       NOXSPOT_RESPONSE: service(options.serviceOk ?? true),
       NOXCUE_RESPONSE: service(options.serviceOk ?? true),
@@ -37,7 +38,11 @@ describe("NoxConnect health", () => {
   it("is ready when storage, cron, queue and product services are healthy", async () => {
     const response = await ready(context());
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: "ok", checks: { database: true, scheduledWorker: true, deliveryQueue: true, noxticket: true, noxspot: true, noxcue: true, noxfeed: true } });
+    expect(await response.json()).toMatchObject({
+      status: "ok",
+      checks: { database: true, scheduledWorker: true, deliveryQueue: true, noxticket: true, noxspot: true, noxcue: true, noxfeed: true },
+      versions: { noxconnect: "connect-sha", noxticket: "service-sha", noxspot: "service-sha", noxcue: "service-sha", noxfeed: "service-sha" },
+    });
   });
 
   it("is not ready before a real scheduled heartbeat exists", async () => {

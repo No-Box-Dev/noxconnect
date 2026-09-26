@@ -1,0 +1,67 @@
+name: Staging ecosystem acceptance
+
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run provider-writing acceptance tests
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: staging-ecosystem-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging-acceptance
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run read-only preflight
+        if: ${{ github.event_name == 'schedule' || inputs.full != true }}
+        run: npm run e2e:staging:preflight
+        env:
+          NOX_ACCEPTANCE_BASE_URL: ${{ secrets.NOX_ACCEPTANCE_BASE_URL }}
+          NOX_ACCEPTANCE_ORG: ${{ secrets.NOX_ACCEPTANCE_ORG }}
+          NOX_ACCEPTANCE_PROJECT_ID: ${{ secrets.NOX_ACCEPTANCE_PROJECT_ID }}
+          NOX_ACCEPTANCE_REPO: ${{ secrets.NOX_ACCEPTANCE_REPO }}
+          NOX_ACCEPTANCE_SLACK_CONNECTION_ID: ${{ secrets.NOX_ACCEPTANCE_SLACK_CONNECTION_ID }}
+          NOX_ACCEPTANCE_SLACK_CHANNEL_ID: ${{ secrets.NOX_ACCEPTANCE_SLACK_CHANNEL_ID }}
+          NOX_ACCEPTANCE_ACCESS_TOKEN: ${{ secrets.NOX_ACCEPTANCE_ACCESS_TOKEN }}
+          NOX_ACCEPTANCE_NOXSPOT_URL: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_URL }}
+          NOX_ACCEPTANCE_NOXSPOT_ORIGIN: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_ORIGIN }}
+          NOX_ACCEPTANCE_NOXSPOT_SITE_ID: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_SITE_ID }}
+          NOX_ACCEPTANCE_NOXCUE_SOURCE_ID: ${{ secrets.NOX_ACCEPTANCE_NOXCUE_SOURCE_ID }}
+          NOX_ACCEPTANCE_NOXCUE_INGEST_KEY: ${{ secrets.NOX_ACCEPTANCE_NOXCUE_INGEST_KEY }}
+          NOX_ACCEPTANCE_CONFIRM: ${{ secrets.NOX_ACCEPTANCE_CONFIRM }}
+          GH_TOKEN: ${{ secrets.NOX_ACCEPTANCE_GITHUB_TOKEN }}
+      - name: Run full isolated acceptance
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full == true }}
+        run: npm run e2e:staging
+        env:
+          NOX_ACCEPTANCE_BASE_URL: ${{ secrets.NOX_ACCEPTANCE_BASE_URL }}
+          NOX_ACCEPTANCE_ORG: ${{ secrets.NOX_ACCEPTANCE_ORG }}
+          NOX_ACCEPTANCE_PROJECT_ID: ${{ secrets.NOX_ACCEPTANCE_PROJECT_ID }}
+          NOX_ACCEPTANCE_REPO: ${{ secrets.NOX_ACCEPTANCE_REPO }}
+          NOX_ACCEPTANCE_SLACK_CONNECTION_ID: ${{ secrets.NOX_ACCEPTANCE_SLACK_CONNECTION_ID }}
+          NOX_ACCEPTANCE_SLACK_CHANNEL_ID: ${{ secrets.NOX_ACCEPTANCE_SLACK_CHANNEL_ID }}
+          NOX_ACCEPTANCE_ACCESS_TOKEN: ${{ secrets.NOX_ACCEPTANCE_ACCESS_TOKEN }}
+          NOX_ACCEPTANCE_NOXSPOT_URL: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_URL }}
+          NOX_ACCEPTANCE_NOXSPOT_ORIGIN: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_ORIGIN }}
+          NOX_ACCEPTANCE_NOXSPOT_SITE_ID: ${{ secrets.NOX_ACCEPTANCE_NOXSPOT_SITE_ID }}
+          NOX_ACCEPTANCE_NOXCUE_SOURCE_ID: ${{ secrets.NOX_ACCEPTANCE_NOXCUE_SOURCE_ID }}
+          NOX_ACCEPTANCE_NOXCUE_INGEST_KEY: ${{ secrets.NOX_ACCEPTANCE_NOXCUE_INGEST_KEY }}
+          NOX_ACCEPTANCE_CONFIRM: ${{ secrets.NOX_ACCEPTANCE_CONFIRM }}
+          GH_TOKEN: ${{ secrets.NOX_ACCEPTANCE_GITHUB_TOKEN }}

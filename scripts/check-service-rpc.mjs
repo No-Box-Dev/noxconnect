@@ -13,7 +13,15 @@ if (!configPath || !expectedService) {
         configPath: "scripts/service-rpc-health/wrangler.jsonc",
         bindingOverrides: { PRODUCT_SERVICE: workerName },
       },
-      { configPath },
+      {
+        configPath,
+        bindingOverrides: {
+          NOXCONNECT_CAPABILITIES: "fake-connection-capability",
+          NOXCONNECT: "fake-connection-capability",
+          NOXCUE_INGEST: "fake-connection-capability",
+        },
+      },
+      { configPath: "scripts/fake-connection-capability/wrangler.jsonc" },
     ],
   });
 
