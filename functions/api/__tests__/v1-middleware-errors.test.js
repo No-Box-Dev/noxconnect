@@ -165,6 +165,44 @@ describe("v1 middleware errors", () => {
     expect(handlerProjectId).toBe("project-1");
   });
 
+  it("lets NoxTicket resolve project-owned feature numbers in its own database", async () => {
+    const signed = await signedRequest(
+      "/api/v1/features/3",
+      {},
+      { "X-Project-ID": "project-1" },
+      "PATCH",
+    );
+    const statements = [];
+    let handlerProjectId = "not-called";
+    const middlewareContext = {
+      request: signed.request,
+      env: {
+        NOXHERE_INTERNAL_SECRET: signed.secret,
+        DB: {
+          prepare(sql) {
+            statements.push(sql);
+            return { bind: () => ({ first: async () => {
+              if (sql.includes("FROM orgs")) return { id: 7, github_login: "acme", suspended_at: null };
+              if (sql.includes("FROM projects project")) return { id: "project-1", archived: 0, enabled: 1 };
+              return null;
+            } }) };
+          },
+        },
+      },
+      data: {},
+      next() {
+        handlerProjectId = middlewareContext.data.projectId;
+        return new Response(null, { status: 204 });
+      },
+    };
+
+    const response = await onRequest(middlewareContext);
+
+    expect(response.status).toBe(204);
+    expect(handlerProjectId).toBe("project-1");
+    expect(statements.some((sql) => sql.includes("FROM features"))).toBe(false);
+  });
+
   for (const pathname of [
     "/api/v1/events",
     "/api/v1/features",
