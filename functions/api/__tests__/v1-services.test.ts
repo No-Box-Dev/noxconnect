@@ -4,6 +4,8 @@ import { onRequestGet as getService } from "../v1/services/[service]";
 import { onRequestGet as getSetup } from "../v1/services/[service]/setup";
 import { onRequestGet as getHealth } from "../v1/services/[service]/health";
 import { SERVICE_DEFINITIONS } from "../../lib/service-capabilities";
+import { parseServiceManifest } from "../../lib/service-manifests";
+import { NOXSPOT_SERVICE_MANIFEST } from "../../../workers/noxspot-capture/src/service-manifest";
 
 interface CapabilityBody {
   apiVersion: number;
@@ -64,6 +66,10 @@ function context(service = "noxconnect") {
 }
 
 describe("Nox service capabilities API", () => {
+  it("accepts the service-owned NoxSpot manifest", () => {
+    expect(parseServiceManifest(NOXSPOT_SERVICE_MANIFEST, "noxspot")).toEqual(NOXSPOT_SERVICE_MANIFEST);
+  });
+
   it("describes the foundation and every product service without credentials", async () => {
     const response = await listServices(context() as never);
     expect(response.status).toBe(200);
