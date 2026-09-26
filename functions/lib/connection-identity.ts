@@ -87,6 +87,29 @@ export async function exchangeGitHubOAuthIdentity(
   return persistGitHubIdentity(env, token);
 }
 
+export async function exchangeLegacyGitHubCredential(
+  env: IdentityEnvironment,
+  input: unknown,
+): Promise<IdentityExchangeResult> {
+  if (!env.ENCRYPTION_KEY) throw new Error("identity_provider_not_configured");
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("invalid_legacy_identity_exchange");
+  }
+  const value = input as Record<string, unknown>;
+  if (value.client !== "noxfeed-mac"
+      || typeof value.accessToken !== "string"
+      || !value.accessToken
+      || value.accessToken.length > 2048
+      || (value.refreshToken !== undefined
+        && (typeof value.refreshToken !== "string" || value.refreshToken.length > 2048))) {
+    throw new Error("invalid_legacy_identity_exchange");
+  }
+  return persistGitHubIdentity(env, {
+    access_token: value.accessToken,
+    ...(value.refreshToken ? { refresh_token: value.refreshToken as string } : {}),
+  });
+}
+
 export async function refreshGitHubIdentity(
   env: IdentityEnvironment,
   input: unknown,
