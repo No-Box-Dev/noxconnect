@@ -1,0 +1,58 @@
+name: Ecosystem contracts
+
+on:
+  pull_request:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ecosystem-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    # Enable after adding the read-only NOX_ECOSYSTEM_CI_TOKEN repository secret.
+    if: ${{ vars.NOX_ECOSYSTEM_CI_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: No-Box-Dev/NoxTicket
+          path: services/NoxTicket
+          token: ${{ secrets.NOX_ECOSYSTEM_CI_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          repository: No-Box-Dev/NoxCue
+          path: services/NoxCue
+          token: ${{ secrets.NOX_ECOSYSTEM_CI_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          repository: No-Box-Dev/noxfeed
+          ref: initial
+          path: services/noxfeed
+          token: ${{ secrets.NOX_ECOSYSTEM_CI_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix services/NoxTicket
+      - run: npm ci --prefix services/NoxCue
+      - run: npm ci --prefix services/noxfeed/service
+      - run: npm ci --prefix workers/noxspot-capture
+      - name: Verify service manifests and RPC lifecycles
+        run: |
+          npm run health:service-rpc -- "$GITHUB_WORKSPACE/services/NoxTicket/wrangler.jsonc" noxticket
+          npm run health:service-rpc -- "$GITHUB_WORKSPACE/services/NoxCue/wrangler.jsonc" noxcue
+          npm run health:service-rpc -- "$GITHUB_WORKSPACE/services/noxfeed/service/wrangler.toml" noxfeed noxfeed-response
+          npm run health:noxticket-data -- "$GITHUB_WORKSPACE/services/NoxTicket/wrangler.jsonc"
+          npm run health:noxcue-capability -- "$GITHUB_WORKSPACE/services/NoxCue/wrangler.jsonc"
+          npm run health:noxfeed-policy -- "$GITHUB_WORKSPACE/services/noxfeed/service/wrangler.toml"
+          npm run health:noxspot-runtime -- "$GITHUB_WORKSPACE/workers/noxspot-capture/wrangler.jsonc"
+          npm run health:boundaries

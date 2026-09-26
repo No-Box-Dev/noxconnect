@@ -21,7 +21,8 @@
     "GITHUB_APP_ID": "3652510",
     "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
     "SLACK_APP_ID": "A0BQAKAPG2Y",
-    "SLACK_ACCEPT_LEGACY_INSTALLS": "true"
+    "SLACK_ACCEPT_LEGACY_INSTALLS": "true",
+    "BUILD_SHA": "development"
   },
   "d1_databases": [
     {
@@ -57,7 +58,8 @@
         "GITHUB_APP_CLIENT_ID": "Iv23liSD7Nx3fmV1OQfr",
         "SLACK_APP_ID": "A0BQAKAPG2Y",
         "SLACK_OAUTH_REDIRECT_URI": "https://noxhere-staging.jasper-414.workers.dev/api/slack/oauth/callback",
-        "SLACK_ACCEPT_LEGACY_INSTALLS": "false"
+        "SLACK_ACCEPT_LEGACY_INSTALLS": "false",
+        "BUILD_SHA": "development"
       },
       "services": [
         { "binding": "NOXSPOT_RESPONSE", "service": "noxspot-api-staging" },

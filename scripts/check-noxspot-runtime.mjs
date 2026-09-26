@@ -5,7 +5,10 @@ const [configPath] = process.argv.slice(2);
 if (!configPath) process.exitCode = 2;
 else {
   const server = createTestHarness({ workers: [
-    { configPath, bindingOverrides: { NOXCUE_INGEST: "fake-connection-capability" } },
+    { configPath, bindingOverrides: {
+      NOXCONNECT: "fake-connection-capability",
+      NOXCUE_INGEST: "fake-connection-capability",
+    } },
     { configPath: "scripts/fake-connection-capability/wrangler.jsonc" },
   ] });
   try {
@@ -15,7 +18,7 @@ else {
     const manifest = await api.describe();
     const health = await worker.fetch("/health");
     const body = await health.json();
-    if (manifest?.service?.id !== "noxspot" || body?.owner !== "noxspot") throw new Error("NoxSpot relocated runtime health failed");
+    if (manifest?.service?.id !== "noxspot" || body?.owner !== "noxconnect") throw new Error("NoxSpot runtime health failed");
     console.log(JSON.stringify({ service: "noxspot", rpc: "pass", runtimeOwner: body.owner, providerCredentials: false }));
   } finally { await server.close(); }
 }

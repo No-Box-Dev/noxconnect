@@ -13,31 +13,43 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Reject changes to released migrations
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-migration-immutability.mjs "$BASE_REF"
+      - name: Apply migrations to a fresh database
+        run: npx wrangler d1 migrations apply DB --local --persist-to "$RUNNER_TEMP/noxconnect-d1" --config workers/api-gateway/wrangler.jsonc --env=""
       - run: npm run lint
 
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npx tsc -b
       - run: npm run typecheck:functions
+      - run: npm run build:api-gateway
+      - name: Dry-run private Workers
+        run: |
+          npx wrangler deploy --dry-run --config workers/connection-capabilities/wrangler.jsonc --env="" --outdir "$RUNNER_TEMP/capabilities"
+          npx wrangler deploy --dry-run --config cron/wrangler.toml --env="" --outdir "$RUNNER_TEMP/orchestrator"
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -52,8 +64,8 @@ jobs:
       run:
         working-directory: workers/noxspot-capture
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

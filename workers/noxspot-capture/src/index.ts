@@ -345,15 +345,21 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   });
 });
 
-app.get("/health", (context) => {
+app.get("/health", async (context) => {
   context.header("Cache-Control", "no-store");
-  return context.json({
-    status: "ok",
-    service: "noxspot-api",
-    owner: "noxconnect",
-    plane: "public-capture",
-    contractVersion: 1,
-  });
+  try {
+    await context.env.DB.prepare("SELECT id, org_id, project_id, repo, name, widget_config FROM spot_sites LIMIT 1").first();
+    return context.json({
+      status: "ok", service: "noxspot-api", owner: "noxconnect", plane: "public-capture",
+      contractVersion: 1, buildSha: context.env.BUILD_SHA ?? "development",
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: "noxspot_readiness_failed", error: message(error) }));
+    return context.json({
+      status: "unavailable", service: "noxspot-api", owner: "noxconnect", plane: "public-capture",
+      contractVersion: 1, buildSha: context.env.BUILD_SHA ?? "development",
+    }, 503);
+  }
 });
 
 // Compatibility only: Slack may still have the historical api.noxspot.dev

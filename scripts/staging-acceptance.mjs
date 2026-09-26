@@ -34,7 +34,6 @@ if (safetyErrors.length) fail(`Safety check failed:\n- ${safetyErrors.join("\n- 
 const baseUrl = new URL(config.baseUrl);
 const noxspotUrl = new URL(config.noxspotUrl);
 const checks = [];
-let ticketIssue = null;
 let cueIssue = null;
 let spotIssue = null;
 
@@ -184,17 +183,20 @@ async function slackAcceptance() {
 }
 
 async function noxTicketAcceptance() {
-  const created = (await request("NoxTicket creates a GitHub-backed feature", "/api/v1/features", {
+  const created = (await request("NoxTicket creates an app-owned feature", "/api/v1/features", {
     method: "POST",
     headers: { "Idempotency-Key": `acceptance-ticket-${runId}` },
     body: JSON.stringify({ title: `Acceptance feature ${markers.ticket}`, status: "todo", backlog: true }),
   }, [201])).body;
   const number = Number(created?.number);
   if (!number || !String(created?.title ?? "").includes(markers.ticket)) fail("NoxTicket returned an invalid feature receipt");
-  const issue = gh("verify NoxTicket GitHub issue", "GET", `repos/${config.org}/${config.repo}/issues/${number}`);
-  if (!String(issue?.title ?? "").includes(markers.ticket)) fail("NoxTicket GitHub issue marker is missing");
-  ticketIssue = issue;
-  pass("NoxTicket GitHub provider receipt", `#${number}`);
+  const features = (await request("NoxTicket lists the created feature", "/api/v1/features?state=open")).body;
+  const items = Array.isArray(features) ? features : features?.features;
+  if (!items?.some((feature) => Number(feature.number) === number && String(feature.title).includes(markers.ticket))) {
+    fail("NoxTicket did not persist the created feature");
+  }
+  pass("NoxTicket app-owned feature persisted", `#${number}`);
+  await request("NoxTicket closes the acceptance feature", `/api/v1/features/${number}`, { method: "DELETE" }, [200, 204]);
 }
 
 async function noxFeedAcceptance() {
@@ -289,10 +291,6 @@ async function noxSpotAcceptance() {
 }
 
 async function cleanup() {
-  if (ticketIssue?.number) {
-    await request("close NoxTicket acceptance feature", `/api/v1/features/${ticketIssue.number}`, { method: "DELETE" });
-    ticketIssue = null;
-  }
   closeGithubIssue(cueIssue);
   closeGithubIssue(spotIssue);
 }

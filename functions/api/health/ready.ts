@@ -1,5 +1,6 @@
 interface Env {
   DB: D1Database;
+  BUILD_SHA?: string;
   NOXTICKET_SERVICE?: Fetcher;
   NOXSPOT_RESPONSE?: Fetcher;
   NOXCUE_RESPONSE?: Fetcher;
@@ -12,16 +13,18 @@ interface CountRow { count: number }
 
 const HEARTBEAT_MAX_AGE_MS = 75 * 60 * 1000;
 const SERVICE_TIMEOUT_MS = 2_000;
+interface ServiceProbe { ok: boolean; buildSha?: string }
 
-async function probeService(service: Fetcher | undefined, url: string): Promise<boolean> {
-  if (!service) return false;
+async function probeService(service: Fetcher | undefined, url: string): Promise<ServiceProbe> {
+  if (!service) return { ok: false };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SERVICE_TIMEOUT_MS);
   try {
     const response = await service.fetch(new Request(url, { signal: controller.signal }));
-    return response.ok;
+    const body: { buildSha?: unknown } = await response.json<{ buildSha?: unknown }>().catch(() => ({}));
+    return { ok: response.ok, ...(typeof body.buildSha === "string" ? { buildSha: body.buildSha } : {}) };
   } catch {
-    return false;
+    return { ok: false };
   } finally {
     clearTimeout(timeout);
   }
@@ -58,16 +61,27 @@ export async function onRequestGet(context: Context): Promise<Response> {
     // Public health responses expose component state, never internal errors.
   }
 
-  [checks.noxticket, checks.noxspot, checks.noxcue, checks.noxfeed] = await Promise.all([
+  const [ticket, spot, cue, feed] = await Promise.all([
     probeService(context.env.NOXTICKET_SERVICE, "https://noxticket.internal/health"),
     probeService(context.env.NOXSPOT_RESPONSE, "https://noxspot.internal/health"),
     probeService(context.env.NOXCUE_RESPONSE, "https://noxcue.internal/health"),
     probeService(context.env.NOXFEED_RESPONSE, "https://noxfeed.internal/health"),
   ]);
+  checks.noxticket = ticket.ok;
+  checks.noxspot = spot.ok;
+  checks.noxcue = cue.ok;
+  checks.noxfeed = feed.ok;
+  const versions = {
+    noxconnect: context.env.BUILD_SHA ?? "development",
+    ...(ticket.buildSha ? { noxticket: ticket.buildSha } : {}),
+    ...(spot.buildSha ? { noxspot: spot.buildSha } : {}),
+    ...(cue.buildSha ? { noxcue: cue.buildSha } : {}),
+    ...(feed.buildSha ? { noxfeed: feed.buildSha } : {}),
+  };
 
   const ready = Object.values(checks).every(Boolean);
   return Response.json(
-    { service: "noxconnect", status: ready ? "ok" : "not_ready", checks },
+    { service: "noxconnect", status: ready ? "ok" : "not_ready", checks, versions },
     { status: ready ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -91,6 +91,21 @@ during cleanup; the merged fixture PR and release-note record remain as the
 audit trail. If any step fails, the runner attempts cleanup and prints the
 missing receipt without printing credentials.
 
+## Enable the GitHub gates
+
+Cross-repository contract CI is disabled until the `NOX_ECOSYSTEM_CI_TOKEN`
+repository secret contains a read-only token that can clone NoxTicket, NoxCue,
+and NoxFeed. Set the `NOX_ECOSYSTEM_CI_ENABLED` repository variable to `true`
+after adding that secret.
+
+The scheduled acceptance workflow uses the `staging-acceptance` GitHub
+environment. Add the variables from `.env.staging-acceptance.example` as
+environment secrets using the same uppercase names, add
+`NOX_ACCEPTANCE_GITHUB_TOKEN`, and then set the
+`NOX_STAGING_ACCEPTANCE_ENABLED` repository variable to `true`. Scheduled runs
+perform only the read-only preflight. Provider-writing acceptance remains an
+explicit manual workflow input.
+
 ## Optional Cloudflare staging smoke
 
 The isolated staging topology can still be checked independently:
