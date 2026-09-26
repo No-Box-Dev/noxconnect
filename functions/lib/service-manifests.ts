@@ -9,7 +9,7 @@ const OperationSchema = z.object({
   id: z.string().min(1).max(100),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
   path: z.string().min(1).max(500),
-  authentication: z.enum(["member", "admin", "public", "ingest_key"]),
+  authentication: z.enum(["member", "admin", "public", "ingest_key", "reporter_token"]),
   description: z.string().min(1).max(500),
 }).strict();
 
