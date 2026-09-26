@@ -17,6 +17,8 @@ concurrency:
 
 jobs:
   acceptance:
+    # Enable only after the staging-acceptance environment secrets are complete.
+    if: ${{ vars.NOX_STAGING_ACCEPTANCE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: staging-acceptance
