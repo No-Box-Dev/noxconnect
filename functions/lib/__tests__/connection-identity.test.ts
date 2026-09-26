@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { exchangeGitHubOAuthIdentity, startGitHubDeviceIdentity } from "../connection-identity";
+import { exchangeGitHubOAuthIdentity, exchangeLegacyGitHubCredential, startGitHubDeviceIdentity } from "../connection-identity";
 
 function database() {
   const calls: Array<{ sql: string; binds: unknown[] }> = [];
@@ -103,6 +103,48 @@ describe("GitHub OAuth identity connection", () => {
       code: "one-time-code",
       redirectUri: "https://attacker.example/callback",
     })).rejects.toThrow("invalid_identity_redirect_uri");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("upgrades a legacy native credential without returning or storing it in plaintext", async () => {
+    const { db, calls } = database();
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/user")) return Response.json({ id: 42, login: "octocat" });
+      return Response.json([]);
+    }));
+
+    const result = await exchangeLegacyGitHubCredential({
+      DB: db,
+      ENCRYPTION_KEY: "11".repeat(32),
+    }, {
+      client: "noxfeed-mac",
+      accessToken: "github-access-secret",
+      refreshToken: "github-refresh-secret",
+    });
+
+    expect(result).toMatchObject({
+      version: 1,
+      user: { id: 42, login: "octocat" },
+      organizations: [{ id: 8, login: "octocat", role: "admin" }],
+    });
+    expect(JSON.stringify(result)).not.toContain("github-access-secret");
+    expect(JSON.stringify(result)).not.toContain("github-refresh-secret");
+    const insert = calls.find((call) => call.sql.includes("INSERT INTO identity_connections"));
+    expect(insert?.binds).not.toContain("github-access-secret");
+    expect(insert?.binds).not.toContain("github-refresh-secret");
+  });
+
+  it("rejects an unsupported legacy native client before contacting GitHub", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(exchangeLegacyGitHubCredential({
+      DB: database().db,
+      ENCRYPTION_KEY: "11".repeat(32),
+    }, {
+      client: "unknown-client",
+      accessToken: "github-access-secret",
+    })).rejects.toThrow("invalid_legacy_identity_exchange");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { executeConnectionCapability } from "../../../functions/lib/connection-capability-executor";
 import {
+  exchangeLegacyGitHubCredential,
   exchangeGitHubOAuthIdentity,
   pollGitHubDeviceIdentity,
   refreshGitHubIdentity,
@@ -30,6 +31,10 @@ export default class NoxConnectCapabilities extends WorkerEntrypoint<Env> {
 
   exchangeGitHubOAuth(input: unknown) {
     return exchangeGitHubOAuthIdentity(this.env, input);
+  }
+
+  exchangeLegacyGitHubCredential(input: unknown) {
+    return exchangeLegacyGitHubCredential(this.env, input);
   }
 
   refreshGitHubIdentity(input: unknown) {
